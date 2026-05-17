@@ -36,6 +36,9 @@ jobs:
       - name: Install backend deps
         run: cd backend && npm ci --legacy-peer-deps
 
+      - name: Generate Prisma client
+        run: cd backend && npx prisma generate
+
       - name: Wait for Postgres
         run: |
           echo "Waiting for Postgres..."
@@ -47,10 +50,7 @@ jobs:
         run: |
           cd backend
           npx prisma migrate deploy
-          npx prisma db seed || true
-
-      - name: Generate Prisma client
-        run: cd backend && npx prisma generate
+          npm run db:seed || true
 
       - name: Build backend
         run: cd backend && npm run build
