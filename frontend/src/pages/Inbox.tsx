@@ -1065,13 +1065,27 @@ const Inbox: React.FC = () => {
       return 0;
     }
 
-    const total = Number(syncStatus.totalMessages || 0);
-    const processed = Number(syncStatus.processedMessages || 0);
-    if (total <= 0) {
-      return 1;
+    // If status is completed, show 100%
+    if (syncStatus.status === 'completed') {
+      return 100;
     }
 
-    return Math.max(1, Math.min(100, Math.round((processed / total) * 100)));
+    // If status is not running, show 0%
+    if (syncStatus.status !== 'running') {
+      return 0;
+    }
+
+    const total = Number(syncStatus.totalMessages || 0);
+    const processed = Number(syncStatus.processedMessages || 0);
+    
+    // If total is 0 or not set, show indeterminate progress (10%)
+    if (total <= 0) {
+      return 10;
+    }
+
+    // Calculate percentage, ensuring it doesn't exceed 99% while running
+    const percent = Math.round((processed / total) * 100);
+    return Math.max(1, Math.min(99, percent));
   }, [syncStatus]);
   const shouldShowSyncBanner =
     manualSyncRequested &&
@@ -1556,6 +1570,31 @@ const Inbox: React.FC = () => {
                     <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest mb-2">Subject</h3>
                     <p className="text-sm font-medium text-[var(--erp-text)]">{selectedMessage.subject}</p>
                   </div>
+                  {(selectedMessage.rfqId || selectedMessage.quotationId) && (
+                    <div>
+                      <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest mb-2">Related Documents</h3>
+                      <div className="flex gap-2 flex-wrap">
+                        {selectedMessage.rfqId && (
+                          <button
+                            onClick={() => navigate(`/rfqs/${selectedMessage.rfqId}`)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-md border border-blue-200 transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">request_quote</span>
+                            View RFQ
+                          </button>
+                        )}
+                        {selectedMessage.quotationId && (
+                          <button
+                            onClick={() => navigate(`/quotations/${selectedMessage.quotationId}`)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-medium rounded-md border border-emerald-200 transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">description</span>
+                            View Quotation
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest mb-2">Message Body</h3>
                     {sanitizedHtml ? (

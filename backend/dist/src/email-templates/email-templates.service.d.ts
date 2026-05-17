@@ -7,25 +7,25 @@ export declare class EmailTemplatesService {
     constructor(prisma: PrismaService);
     findAll(tenantId: string): Promise<{
         id: string;
+        created_at: Date;
+        updated_at: Date;
         tenant_id: string;
+        is_active: boolean;
         template_type: import("@prisma/client").$Enums.EmailTemplateType;
         subject_template: string;
         body_template: string;
         variables_help: import("@prisma/client/runtime/client").JsonValue | null;
-        is_active: boolean;
-        created_at: Date;
-        updated_at: Date;
     }[]>;
     findByType(tenantId: string, templateType: EmailTemplateType): Promise<{
         id: string;
+        created_at: Date;
+        updated_at: Date;
         tenant_id: string;
+        is_active: boolean;
         template_type: import("@prisma/client").$Enums.EmailTemplateType;
         subject_template: string;
         body_template: string;
         variables_help: import("@prisma/client/runtime/client").JsonValue | null;
-        is_active: boolean;
-        created_at: Date;
-        updated_at: Date;
     } | {
         template_type: "QUOTATION_EMAIL";
         subject_template: string;
@@ -37,6 +37,8 @@ export declare class EmailTemplatesService {
             quotation_date: string;
             valid_until: string;
             currency: string;
+            subtotal_amount: string;
+            tax_amount: string;
             total_amount: string;
             item_details: string;
             stock_warnings: string;
@@ -91,36 +93,36 @@ export declare class EmailTemplatesService {
     }>;
     upsert(tenantId: string, dto: CreateEmailTemplateDto): Promise<{
         id: string;
+        created_at: Date;
+        updated_at: Date;
         tenant_id: string;
+        is_active: boolean;
         template_type: import("@prisma/client").$Enums.EmailTemplateType;
         subject_template: string;
         body_template: string;
         variables_help: import("@prisma/client/runtime/client").JsonValue | null;
-        is_active: boolean;
-        created_at: Date;
-        updated_at: Date;
     }>;
     update(id: string, tenantId: string, dto: UpdateEmailTemplateDto): Promise<{
         id: string;
+        created_at: Date;
+        updated_at: Date;
         tenant_id: string;
+        is_active: boolean;
         template_type: import("@prisma/client").$Enums.EmailTemplateType;
         subject_template: string;
         body_template: string;
         variables_help: import("@prisma/client/runtime/client").JsonValue | null;
-        is_active: boolean;
-        created_at: Date;
-        updated_at: Date;
     }>;
     delete(id: string, tenantId: string): Promise<{
         id: string;
+        created_at: Date;
+        updated_at: Date;
         tenant_id: string;
+        is_active: boolean;
         template_type: import("@prisma/client").$Enums.EmailTemplateType;
         subject_template: string;
         body_template: string;
         variables_help: import("@prisma/client/runtime/client").JsonValue | null;
-        is_active: boolean;
-        created_at: Date;
-        updated_at: Date;
     }>;
     substituteVariables(template: string, variables: Record<string, any>): string;
     private getDefaultTemplate;

@@ -103,9 +103,14 @@ Please find quotation {{quotation_number}} attached with the following details:
 Quotation Number: {{quotation_number}}
 Date: {{quotation_date}}
 Valid Until: {{valid_until}}
-Total: {{currency}} {{total_amount}}
 
+Items:
 {{item_details}}
+
+Summary:
+Subtotal: {{currency}} {{subtotal_amount}}
+Tax/GST: {{currency}} {{tax_amount}}
+Total: {{currency}} {{total_amount}}
 
 {{stock_warnings}}
 
@@ -118,7 +123,9 @@ Best regards,
                     quotation_date: 'Date of quotation',
                     valid_until: 'Validity date of quotation',
                     currency: 'Currency code (e.g., INR, USD)',
-                    total_amount: 'Total quotation amount',
+                    subtotal_amount: 'Subtotal before tax',
+                    tax_amount: 'Tax/GST amount',
+                    total_amount: 'Total quotation amount including tax',
                     item_details: 'List of all quoted items with availability',
                     stock_warnings: 'Stock/fulfillment warnings if any',
                     custom_message: 'Optional custom message',

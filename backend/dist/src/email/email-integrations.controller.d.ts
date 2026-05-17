@@ -8,10 +8,10 @@ export declare class EmailIntegrationsController {
         user: AuthenticatedUser;
     }): Promise<{
         id: string;
+        created_at: Date;
         provider: string;
         email_address: string;
         is_active: boolean;
-        created_at: Date;
     }[]>;
     getSyncStatus(req: Request & {
         user: AuthenticatedUser;

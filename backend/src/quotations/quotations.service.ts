@@ -483,6 +483,14 @@ export class QuotationsService {
       .map((warning) => `- ${warning}`)
       .join('\n');
 
+    // Format amounts
+    const quotedSubtotal = Number(quotation.subtotal || 0).toLocaleString('en-IN', {
+      maximumFractionDigits: 2,
+    });
+    const quotedTax = Number(quotation.tax || 0).toLocaleString('en-IN', {
+      maximumFractionDigits: 2,
+    });
+
     // Template variables
     const variables = {
       client_name: quotation.client.name,
@@ -491,6 +499,8 @@ export class QuotationsService {
       quotation_date: quotation.date,
       valid_until: quotation.valid_until,
       currency: 'INR',
+      subtotal_amount: quotedSubtotal,
+      tax_amount: quotedTax,
       total_amount: quotedTotal,
       item_details: itemDetails,
       stock_warnings: stockWarnings || '',

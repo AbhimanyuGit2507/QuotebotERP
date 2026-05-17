@@ -52,10 +52,10 @@ export declare class EmailService {
     }>;
     getUserEmailAccounts(tenantId: string, userId: string): Promise<{
         id: string;
+        created_at: Date;
         provider: string;
         email_address: string;
         is_active: boolean;
-        created_at: Date;
     }[]>;
     disconnectEmailAccount(accountId: string, tenantId: string, userId: string): Promise<{
         success: boolean;
@@ -84,20 +84,20 @@ export declare class EmailService {
         attempts: number;
     }[]>;
     updateOutboundEmailStatus(tenantId: string | undefined, emailId: string, update: OutboundEmailUpdateDto): Promise<{
-        status: string;
-        tenant_id: string;
         id: string;
-        provider: string | null;
         created_at: Date;
         updated_at: Date;
+        tenant_id: string;
+        status: string;
+        body: string;
+        sent_at: Date | null;
         email_account_id: string;
+        provider: string | null;
+        subject: string;
+        last_error: string | null;
+        attempts: number;
         to: Prisma.JsonValue;
         cc: Prisma.JsonValue | null;
-        subject: string;
-        body: string;
-        attempts: number;
-        last_error: string | null;
-        sent_at: Date | null;
     }>;
     createOutboundEmail(tenantId: string, data: {
         email_account_id: string;
@@ -106,20 +106,20 @@ export declare class EmailService {
         subject: string;
         body: string;
     }): Promise<{
-        status: string;
-        tenant_id: string;
         id: string;
-        provider: string | null;
         created_at: Date;
         updated_at: Date;
+        tenant_id: string;
+        status: string;
+        body: string;
+        sent_at: Date | null;
         email_account_id: string;
+        provider: string | null;
+        subject: string;
+        last_error: string | null;
+        attempts: number;
         to: Prisma.JsonValue;
         cc: Prisma.JsonValue | null;
-        subject: string;
-        body: string;
-        attempts: number;
-        last_error: string | null;
-        sent_at: Date | null;
     }>;
     sendNow(tenantId: string, data: {
         email_account_id: string;
