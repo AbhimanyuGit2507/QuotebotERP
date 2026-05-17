@@ -144,23 +144,42 @@ table, .font-inter-tabular {
 }
 
 .app-sidebar .app-sidebar-item {
-  color: inherit !important;
+  color: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.app-sidebar .app-sidebar-item:hover {
+  color: white !important;
+  background-color: rgba(255, 255, 255, 0.08);
+  z-index: 2;
 }
 
 .app-sidebar .app-sidebar-item-inactive {
-  color: var(--erp-sidebar-muted) !important;
+  color: var(--erp-sidebar-muted);
+}
+
+.app-sidebar .app-sidebar-item-inactive:hover {
+  color: white !important;
+  background-color: rgba(255, 255, 255, 0.08);
 }
 
 .app-sidebar .app-sidebar-item-inactive .material-symbols-outlined {
-  color: var(--erp-sidebar-muted) !important;
+  color: var(--erp-sidebar-muted);
+}
+
+.app-sidebar .app-sidebar-item-inactive:hover .material-symbols-outlined {
+  color: white !important;
 }
 
 .app-sidebar .app-sidebar-item-active {
-  color: #ffffff !important;
+  color: #ffffff;
 }
 
 .app-sidebar .app-sidebar-item-active .material-symbols-outlined {
-  color: #ffffff !important;
+  color: #ffffff;
 }
 
 .erp-table {
