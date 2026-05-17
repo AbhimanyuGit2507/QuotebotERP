@@ -18,26 +18,60 @@
 */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
 :root {
-  --primary-color: #2563eb;
-  --primary-hover: #1d4ed8;
-  --sidebar-bg: #1e293b;
-  --border-color: #e2e8f0;
-  --table-header: #f8fafc;
-  --erp-green: #16a34a;
-  --erp-gray: #64748b;
-  --erp-primary: #1e293b;
-  --erp-accent: #2563eb;
-  --erp-bg: #f8fafc;
-  --erp-border: #cbd5e1;
-  --erp-text: #334155;
-  --erp-text-muted: #64748b;
-  --primary: #1e3a8a;
-  --accent: #EF5362;
-  --bg-erp: #f3f4f6;
-  --border-erp: #d1d5db;
+  --palette-white: #ffffff;
+  --palette-fresh-sky: #00a7e1;
+  --palette-ink-black: #00171f;
+  --palette-deep-space: #003459;
+  --palette-cerulean: #007ea7;
+  --primary-color: var(--palette-cerulean);
+  --primary-hover: var(--palette-fresh-sky);
+  --border-color: rgba(0, 52, 89, 0.18);
+  --table-header: rgba(0, 52, 89, 0.06);
+  --erp-primary: var(--palette-deep-space);
+  --erp-accent: var(--palette-cerulean);
+  --erp-accent-strong: var(--palette-fresh-sky);
+  --erp-accent-soft: rgba(0, 126, 167, 0.14);
+  --erp-bg: var(--palette-white);
+  --erp-surface: rgba(0, 52, 89, 0.04);
+  --erp-surface-strong: rgba(0, 52, 89, 0.08);
+  --erp-border: rgba(0, 52, 89, 0.18);
+  --erp-border-strong: rgba(0, 52, 89, 0.3);
+  --erp-text: var(--palette-ink-black);
+  --erp-text-muted: rgba(0, 52, 89, 0.7);
+  --erp-sidebar-bg: var(--palette-deep-space);
+  --erp-sidebar-muted: rgba(255, 255, 255, 0.7);
+  --erp-sidebar-hover: rgba(255, 255, 255, 0.12);
+  --erp-sidebar-active: var(--palette-cerulean);
+  --bg-erp: var(--palette-white);
+  --border-erp: rgba(0, 52, 89, 0.2);
+}
+
+.landing-theme {
+  --landing-bg: var(--palette-white);
+  --landing-ink: var(--palette-ink-black);
+  --landing-deep: var(--palette-deep-space);
+  --landing-cerulean: var(--palette-cerulean);
+  --landing-sky: var(--palette-fresh-sky);
+  --landing-muted: rgba(0, 52, 89, 0.7);
+  --landing-soft: rgba(0, 126, 167, 0.12);
+  --landing-soft-strong: rgba(0, 167, 225, 0.16);
+  --landing-card: rgba(0, 52, 89, 0.05);
+  --landing-card-strong: rgba(0, 52, 89, 0.1);
+  --landing-border: rgba(0, 52, 89, 0.18);
+  font-family: 'Manrope', 'Inter', sans-serif;
+  color: var(--landing-ink);
+  background-color: var(--landing-bg);
+}
+
+.landing-theme h1,
+.landing-theme h2,
+.landing-theme h3,
+.landing-theme h4 {
+  font-family: 'Space Grotesk', 'Manrope', sans-serif;
 }
 
 body {
@@ -109,6 +143,26 @@ table, .font-inter-tabular {
   font-size: 20px;
 }
 
+.app-sidebar .app-sidebar-item {
+  color: inherit !important;
+}
+
+.app-sidebar .app-sidebar-item-inactive {
+  color: var(--erp-sidebar-muted) !important;
+}
+
+.app-sidebar .app-sidebar-item-inactive .material-symbols-outlined {
+  color: var(--erp-sidebar-muted) !important;
+}
+
+.app-sidebar .app-sidebar-item-active {
+  color: #ffffff !important;
+}
+
+.app-sidebar .app-sidebar-item-active .material-symbols-outlined {
+  color: #ffffff !important;
+}
+
 .erp-table {
   border-collapse: collapse;
   width: 100%;
@@ -124,14 +178,14 @@ table, .font-inter-tabular {
   background-color: var(--table-header);
   text-align: left;
   font-weight: 600;
-  color: #334155;
+  color: var(--erp-text);
   text-transform: uppercase;
   font-size: 11px;
   letter-spacing: 0.025em;
 }
 
 .active-row {
-  background-color: #eff6ff;
+  background-color: rgba(0, 126, 167, 0.1);
   border-left: 3px solid var(--primary-color);
 }
 
@@ -142,11 +196,11 @@ table, .font-inter-tabular {
 }
 
 .sku-list-item:hover {
-  background-color: #f1f5f9;
+  background-color: rgba(0, 52, 89, 0.06);
 }
 
 .sku-list-item.active {
-  background-color: #e2e8f0;
+  background-color: rgba(0, 52, 89, 0.12);
   border-left: 4px solid var(--erp-accent);
 }
 
@@ -156,13 +210,181 @@ table, .font-inter-tabular {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: rgba(0, 52, 89, 0.08);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: rgba(0, 52, 89, 0.35);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: rgba(0, 52, 89, 0.55);
+}
+/* Generic Button Styles */
+.btn {
+  @apply font-bold uppercase tracking-widest transition-all inline-flex items-center justify-center rounded disabled:opacity-50 disabled:cursor-not-allowed gap-2;
+}
+
+.btn-sm {
+  @apply text-[11px] px-3 py-1.5;
+}
+
+.btn-md {
+  @apply text-[13px] px-4 py-2;
+}
+
+.btn-lg {
+  @apply text-sm px-6 py-2.5;
+}
+
+/* Button Variants */
+.btn-primary {
+  @apply bg-[var(--erp-accent)] text-white hover:bg-opacity-90 shadow-sm;
+}
+
+/* ERP palette overrides for common utility classes */
+.erp-theme .text-slate-950,
+.erp-theme .text-slate-900,
+.erp-theme .text-gray-900 {
+  color: var(--erp-text) !important;
+}
+
+.erp-theme .text-slate-800,
+.erp-theme .text-slate-700,
+.erp-theme .text-slate-600,
+.erp-theme .text-gray-700,
+.erp-theme .text-gray-600 {
+  color: var(--erp-text) !important;
+}
+
+.erp-theme .text-slate-500,
+.erp-theme .text-slate-400,
+.erp-theme .text-gray-500,
+.erp-theme .text-gray-400 {
+  color: var(--erp-text-muted) !important;
+}
+
+.erp-theme .bg-slate-50,
+.erp-theme .bg-slate-100,
+.erp-theme .bg-gray-50,
+.erp-theme .bg-gray-100 {
+  background-color: var(--erp-bg) !important;
+}
+
+.erp-theme .bg-slate-200,
+.erp-theme .bg-gray-200 {
+  background-color: var(--erp-surface) !important;
+}
+
+.erp-theme .bg-slate-900,
+.erp-theme .bg-slate-800,
+.erp-theme .bg-gray-900 {
+  background-color: var(--erp-primary) !important;
+  color: var(--palette-white) !important;
+}
+
+.erp-theme .border-slate-200,
+.erp-theme .border-slate-300,
+.erp-theme .border-gray-200,
+.erp-theme .border-gray-300 {
+  border-color: var(--erp-border) !important;
+}
+
+.erp-theme .border-slate-600,
+.erp-theme .border-slate-700 {
+  border-color: var(--erp-border-strong) !important;
+}
+
+/* ERP status colors: keep a tight 5-color system */
+.erp-theme .text-blue-500,
+.erp-theme .text-blue-600,
+.erp-theme .text-blue-700,
+.erp-theme .text-cyan-500,
+.erp-theme .text-cyan-600,
+.erp-theme .text-indigo-500,
+.erp-theme .text-purple-500 {
+  color: #2563eb !important;
+}
+
+.erp-theme .text-emerald-500,
+.erp-theme .text-emerald-600,
+.erp-theme .text-green-500,
+.erp-theme .text-green-600 {
+  color: #16a34a !important;
+}
+
+.erp-theme .text-amber-500,
+.erp-theme .text-amber-600,
+.erp-theme .text-yellow-500,
+.erp-theme .text-yellow-600 {
+  color: #d97706 !important;
+}
+
+.erp-theme .text-red-500,
+.erp-theme .text-red-600,
+.erp-theme .text-rose-500,
+.erp-theme .text-rose-600 {
+  color: #dc2626 !important;
+}
+
+.erp-theme .bg-blue-50,
+.erp-theme .bg-blue-100,
+.erp-theme .bg-cyan-50,
+.erp-theme .bg-indigo-50,
+.erp-theme .bg-purple-50 {
+  background-color: rgba(37, 99, 235, 0.12) !important;
+}
+
+.erp-theme .bg-emerald-50,
+.erp-theme .bg-green-50 {
+  background-color: rgba(22, 163, 74, 0.12) !important;
+}
+
+.erp-theme .bg-amber-50,
+.erp-theme .bg-yellow-50 {
+  background-color: rgba(217, 119, 6, 0.12) !important;
+}
+
+.erp-theme .bg-red-50,
+.erp-theme .bg-rose-50 {
+  background-color: rgba(220, 38, 38, 0.12) !important;
+}
+
+.erp-theme .border-blue-200,
+.erp-theme .border-cyan-200,
+.erp-theme .border-indigo-200,
+.erp-theme .border-purple-200 {
+  border-color: rgba(37, 99, 235, 0.35) !important;
+}
+
+.erp-theme .border-emerald-200,
+.erp-theme .border-green-200 {
+  border-color: rgba(22, 163, 74, 0.35) !important;
+}
+
+.erp-theme .border-amber-200,
+.erp-theme .border-yellow-200 {
+  border-color: rgba(217, 119, 6, 0.35) !important;
+}
+
+.erp-theme .border-red-200,
+.erp-theme .border-rose-200 {
+  border-color: rgba(220, 38, 38, 0.35) !important;
+}
+
+
+.btn-secondary {
+  @apply bg-white border border-[var(--erp-border)] text-[var(--erp-text)] hover:bg-slate-50;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 shadow-sm;
+}
+
+.btn-ghost {
+  @apply text-[var(--erp-text-muted)] hover:text-[var(--erp-text)] hover:bg-slate-100;
+}
+
+.btn-block {
+  @apply w-full;
 }

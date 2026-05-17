@@ -1,3 +1,4 @@
+import { Strategy } from 'passport-jwt';
 import { AuthService } from './auth.service';
 interface JwtPayload {
     sub: string;
@@ -7,7 +8,9 @@ interface JwtPayload {
     iat?: number;
     exp?: number;
 }
-declare const JwtStrategy_base: new (...args: any) => any;
+declare const JwtStrategy_base: new (...args: [opt: import("passport-jwt").StrategyOptionsWithRequest] | [opt: import("passport-jwt").StrategyOptionsWithoutRequest]) => Strategy & {
+    validate(...args: any[]): unknown;
+};
 export declare class JwtStrategy extends JwtStrategy_base {
     private authService;
     constructor(authService: AuthService);
@@ -17,7 +20,7 @@ export declare class JwtStrategy extends JwtStrategy_base {
         name: string;
         tenant_id: string;
         role: string;
-        permissions: any;
+        permissions: string[];
     }>;
 }
 export {};

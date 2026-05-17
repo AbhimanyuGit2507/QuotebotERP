@@ -1,17 +1,16 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import PageLayout from '../components/common/PageLayout';
-import { useApp, User } from '../context/AppContext';
+import { useApp, User, PermissionEntry } from '../context/AppContext';
 
-interface Permission {
-  module: string;
-  fullAccess: boolean;
-  view: boolean;
-  create: boolean;
-  alter: boolean;
-  delete: boolean;
-  print: boolean;
-  special: string;
-}
+const DEFAULT_PERMISSIONS: PermissionEntry[] = [
+  { module: 'Dashboard', fullAccess: true, view: true, create: false, alter: false, delete: false, print: true, special: 'Analytics' },
+  { module: 'RFQ Inbox', fullAccess: true, view: true, create: true, alter: true, delete: true, print: true, special: 'Convert to Quote' },
+  { module: 'Quotations', fullAccess: true, view: true, create: true, alter: true, delete: true, print: true, special: 'Send/Approve' },
+  { module: 'Products', fullAccess: true, view: true, create: true, alter: true, delete: false, print: true, special: 'Price Edit' },
+  { module: 'Client Ledger', fullAccess: true, view: true, create: true, alter: true, delete: false, print: true, special: 'Credit Limit' },
+  { module: 'Analytics', fullAccess: false, view: true, create: false, alter: false, delete: false, print: true, special: 'Export' },
+  { module: 'System Config', fullAccess: false, view: false, create: false, alter: false, delete: false, print: false, special: 'Admin Only' },
+];
 
 const UserPermissions: React.FC = () => {
   const { users, addUser, updateUser, deleteUser, showConfirmModal, showToast } = useApp();
@@ -21,17 +20,21 @@ const UserPermissions: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Permission state for selected user
-  const [permissions, setPermissions] = useState<Permission[]>([
-    { module: 'Dashboard', fullAccess: true, view: true, create: false, alter: false, delete: false, print: true, special: 'Analytics' },
-    { module: 'RFQ Inbox', fullAccess: true, view: true, create: true, alter: true, delete: true, print: true, special: 'Convert to Quote' },
-    { module: 'Quotations', fullAccess: true, view: true, create: true, alter: true, delete: true, print: true, special: 'Send/Approve' },
-    { module: 'Products', fullAccess: true, view: true, create: true, alter: true, delete: false, print: true, special: 'Price Edit' },
-    { module: 'Client Ledger', fullAccess: true, view: true, create: true, alter: true, delete: false, print: true, special: 'Credit Limit' },
-    { module: 'Analytics', fullAccess: false, view: true, create: false, alter: false, delete: false, print: true, special: 'Export' },
-    { module: 'System Config', fullAccess: false, view: false, create: false, alter: false, delete: false, print: false, special: 'Admin Only' },
-  ]);
+  useEffect(() => {
+    if (!users.length) {
+      setSelectedId(null);
+      return;
+    }
+
+    setSelectedId((current) =>
+      current && users.some((user) => user.id === current) ? current : users[0].id,
+    );
+  }, [users]);
+
+  // Permission state for selected user — loaded from backend or defaults
+  const [permissions, setPermissions] = useState<PermissionEntry[]>(DEFAULT_PERMISSIONS);
 
   // Filter users
   const filteredUsers = useMemo(() => {
@@ -44,6 +47,19 @@ const UserPermissions: React.FC = () => {
   }, [users, searchQuery, roleFilter]);
 
   const selectedUser = users.find(u => u.id === selectedId);
+
+  // Reload permissions matrix whenever selected user changes
+  useEffect(() => {
+    if (!selectedUser) {
+      setPermissions(DEFAULT_PERMISSIONS);
+      return;
+    }
+    setPermissions(
+      selectedUser.permissions?.modules && selectedUser.permissions.modules.length > 0
+        ? selectedUser.permissions.modules
+        : DEFAULT_PERMISSIONS,
+    );
+  }, [selectedUser]);
 
   const handleDelete = (user: User) => {
     showConfirmModal(
@@ -58,11 +74,27 @@ const UserPermissions: React.FC = () => {
     );
   };
 
-  const handleSavePermissions = () => {
-    showToast('Permissions saved successfully', 'success');
+  const handleSavePermissions = async () => {
+    if (!selectedId) return;
+    setIsSaving(true);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        try {
+          updateUser(selectedId, { permissions: { modules: permissions } });
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+      showToast('Permissions saved successfully', 'success');
+    } catch {
+      showToast('Failed to save permissions', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const togglePermission = (moduleIndex: number, permType: keyof Permission) => {
+  const togglePermission = (moduleIndex: number, permType: keyof PermissionEntry) => {
     const updated = [...permissions];
     if (permType === 'fullAccess') {
       const newValue = !updated[moduleIndex].fullAccess;
@@ -100,7 +132,7 @@ const UserPermissions: React.FC = () => {
           <h2 className="text-sm font-bold text-[var(--erp-text)] uppercase tracking-wider">Users</h2>
           <button 
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1 px-2 py-1 bg-[var(--erp-accent)] text-white text-[10px] font-bold rounded hover:bg-opacity-90"
+            className="btn btn-primary btn-sm"
           >
             <span className="material-symbols-outlined !text-[14px]">add</span>
             ADD USER
@@ -190,9 +222,10 @@ const UserPermissions: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button 
                   onClick={handleSavePermissions}
-                  className="px-4 py-1.5 bg-[var(--erp-accent)] text-white text-[12px] font-bold rounded hover:bg-opacity-90"
+                  disabled={isSaving}
+                  className="btn btn-primary btn-md"
                 >
-                  Save Changes
+                  {isSaving ? 'Saving...' : 'Save Changes'}
                 </button>
                 <button 
                   onClick={() => setEditingUser(selectedUser)}
@@ -244,7 +277,7 @@ const UserPermissions: React.FC = () => {
                       setPermissions(permissions.map(p => ({
                         ...p,
                         fullAccess: val, view: val, create: val, alter: val, delete: val, print: val
-                      })));
+                      } as PermissionEntry)));
                     }}
                   />
                   <span>Grant All Access</span>
@@ -434,10 +467,10 @@ const UserModal: React.FC<UserModalProps> = ({ user, onClose, onSave }) => {
           </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--erp-border)] bg-slate-50">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-[var(--erp-text-muted)] hover:text-[var(--erp-text)]">
+          <button onClick={onClose} className="btn btn-ghost btn-md">
             Cancel
           </button>
-          <button onClick={handleSubmit} className="px-5 py-2 text-sm font-bold text-white bg-[var(--erp-accent)] rounded hover:bg-opacity-90">
+          <button onClick={handleSubmit} className="btn btn-primary btn-md">
             {user ? 'Update User' : 'Add User'}
           </button>
         </div>

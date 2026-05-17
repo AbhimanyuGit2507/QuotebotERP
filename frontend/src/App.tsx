@@ -1,6 +1,7 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import Dashboard from './pages/Dashboard';
 import UserPermissions from './pages/UserPermissions';
@@ -11,33 +12,98 @@ import RFQInbox from './pages/RFQInbox';
 import ClientLedger from './pages/ClientLedger';
 import SystemConfig from './pages/SystemConfig';
 import Inbox from './pages/Inbox';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import AuthCallback from './pages/AuthCallback';
+import Landing from './pages/Landing';
+import AdminConsole from './pages/AdminConsole';
+import Invoices from './pages/Invoices';
+
+const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const { isAuthenticated, isInitializing } = useAuth();
+  const location = useLocation();
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-500">
+        Connecting to Quotebot backend...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: `${location.pathname}${location.search}${location.hash}` }}
+      />
+    );
+  }
+
+  return children;
+};
+
+const LAST_ROUTE_KEY = 'lastRoute';
 
 const AppRoutes = () => {
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
+
+  React.useEffect(() => {
+    if (location.pathname === '/' || location.pathname === '/login') {
+      return;
+    }
+
+    localStorage.setItem(
+      LAST_ROUTE_KEY,
+      `${location.pathname}${location.search}${location.hash}`,
+    );
+  }, [location.hash, location.pathname, location.search]);
+
+  const lastRoute = localStorage.getItem(LAST_ROUTE_KEY);
+  const initialRoute =
+    lastRoute && lastRoute.startsWith('/') && lastRoute !== '/login'
+      ? lastRoute
+      : '/dashboard';
+
   useKeyboardShortcuts();
   
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/inbox" element={<Inbox />} />
-      <Route path="/user-permissions" element={<UserPermissions />} />
-      <Route path="/quotations" element={<Quotations />} />
-      <Route path="/products" element={<Products />} />
-      <Route path="/analytics" element={<Analytics />} />
-      <Route path="/rfq-inbox" element={<RFQInbox />} />
-      <Route path="/client-ledger" element={<ClientLedger />} />
-      <Route path="/system-config" element={<SystemConfig />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/home" element={<Landing />} />
+      <Route path="/landing" element={<Landing />} />
+      <Route
+        path="/"
+        element={isAuthenticated ? <Navigate to={initialRoute} replace /> : <Landing />}
+      />
+      <Route path="/admin" element={<ProtectedRoute><AdminConsole /></ProtectedRoute>} />
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/inbox/:id?" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
+      <Route path="/user-permissions" element={<ProtectedRoute><UserPermissions /></ProtectedRoute>} />
+      <Route path="/quotations/:id?" element={<ProtectedRoute><Quotations /></ProtectedRoute>} />
+      <Route path="/invoices/:id?" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
+      <Route path="/products/:id?" element={<ProtectedRoute><Products /></ProtectedRoute>} />
+      <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+      <Route path="/rfq-inbox/:id?" element={<ProtectedRoute><RFQInbox /></ProtectedRoute>} />
+      <Route path="/client-ledger/:id?" element={<ProtectedRoute><ClientLedger /></ProtectedRoute>} />
+      <Route path="/system-config" element={<ProtectedRoute><SystemConfig /></ProtectedRoute>} />
     </Routes>
   );
 };
 
 function App() {
   return (
-    <AppProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </AppProvider>
+    </AuthProvider>
   );
 }
 

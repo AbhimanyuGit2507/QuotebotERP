@@ -15,8 +15,14 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('should return a healthy backend response', () => {
+      expect(appController.getHealth()).toEqual(
+        expect.objectContaining({
+          message: 'Quotebot Backend API is running',
+          status: 'healthy',
+          version: '1.0.0',
+        }),
+      );
     });
   });
 });

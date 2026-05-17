@@ -17,8 +17,19 @@ const auth_service_1 = require("./auth.service");
 let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(passport_jwt_1.Strategy) {
     authService;
     constructor(authService) {
+        const cookieExtractor = (req) => {
+            if (!req?.cookies) {
+                return null;
+            }
+            return typeof req.cookies.qb_access_token === 'string'
+                ? req.cookies.qb_access_token
+                : null;
+        };
         super({
-            jwtFromRequest: passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
+            jwtFromRequest: passport_jwt_1.ExtractJwt.fromExtractors([
+                cookieExtractor,
+                passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
+            ]),
             ignoreExpiration: false,
             secretOrKey: process.env.JWT_SECRET || 'your-secret-key',
         });
@@ -26,13 +37,22 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
     }
     async validate(payload) {
         const user = await this.authService.validateToken(payload);
+        let permissions = [];
+        try {
+            const parsed = JSON.parse(user.role.permissions_json);
+            if (Array.isArray(parsed))
+                permissions = parsed;
+        }
+        catch {
+            permissions = [];
+        }
         return {
             id: user.id,
             email: user.email,
             name: user.name,
             tenant_id: user.tenant_id,
             role: user.role.name,
-            permissions: JSON.parse(user.role.permissions_json),
+            permissions,
         };
     }
 };

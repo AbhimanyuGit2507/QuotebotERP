@@ -1,16 +1,34 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import PageLayout from '../components/common/PageLayout';
 import { useApp, Client } from '../context/AppContext';
-import { exportToCSV, prepareClientsForExport, getDateStamp } from '../utils/exportUtils';
 
 const ClientLedger: React.FC = () => {
-  const { clients, addClient, updateClient, deleteClient, showConfirmModal, quotes, rfqs } = useApp();
+  const { clients, addClient, updateClient, deleteClient, showConfirmModal, quotes, rfqs, downloadClientsCsv } = useApp();
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   
-  const [selectedId, setSelectedId] = useState<string | null>(clients[0]?.id || null);
+  const selectedId = useMemo(() => {
+    if (!id || !clients.some((c) => c.id === id)) {
+      return clients[0]?.id || null;
+    }
+    return id;
+  }, [id, clients]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [tierFilter, setTierFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [selectedClientIds, setSelectedClientIds] = useState<Set<string>>(new Set());
+  const lastSelectedIndexRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!selectedId && id) {
+      navigate('/client-ledger', { replace: true });
+    } else if (selectedId && id !== selectedId) {
+      navigate(`/client-ledger/${selectedId}`, { replace: true });
+    }
+  }, [id, selectedId, navigate]);
 
   // Filter clients
   const filteredClients = useMemo(() => {
@@ -23,6 +41,68 @@ const ClientLedger: React.FC = () => {
   }, [clients, searchQuery, tierFilter]);
 
   const selectedClient = clients.find(c => c.id === selectedId);
+  const selectedClientCount = selectedClientIds.size;
+
+  const handleToggleSelection = (
+    clientId: string,
+    index: number,
+    shiftKey: boolean,
+  ) => {
+    setSelectedClientIds((prev) => {
+      const next = new Set(prev);
+      if (shiftKey && lastSelectedIndexRef.current !== null) {
+        const start = Math.min(lastSelectedIndexRef.current, index);
+        const end = Math.max(lastSelectedIndexRef.current, index);
+        filteredClients.slice(start, end + 1).forEach((client) => {
+          next.add(client.id);
+        });
+      } else if (next.has(clientId)) {
+        next.delete(clientId);
+      } else {
+        next.add(clientId);
+      }
+      return next;
+    });
+    lastSelectedIndexRef.current = index;
+  };
+
+  const handleRowClick = (
+    event: React.MouseEvent,
+    clientId: string,
+    index: number,
+  ) => {
+    if (event.shiftKey) {
+      event.preventDefault();
+      handleToggleSelection(clientId, index, true);
+      return;
+    }
+    setSelectedClientIds(new Set());
+    lastSelectedIndexRef.current = index;
+    handleSelectClient(clientId);
+  };
+
+  const handleListContainerClick = (event: React.MouseEvent) => {
+    if (event.shiftKey) {
+      return;
+    }
+    if (event.target === event.currentTarget) {
+      setSelectedClientIds(new Set());
+      lastSelectedIndexRef.current = null;
+    }
+  };
+
+  const handleCheckboxClick = (
+    event: React.MouseEvent,
+    clientId: string,
+    index: number,
+  ) => {
+    event.stopPropagation();
+    handleToggleSelection(clientId, index, event.shiftKey);
+  };
+
+  const handleSelectClient = (clientId: string) => {
+    navigate(`/client-ledger/${clientId}`);
+  };
 
   // Get client's quotes and RFQs
   const clientQuotes = useMemo(() => {
@@ -43,9 +123,25 @@ const ClientLedger: React.FC = () => {
     );
   };
 
+  const handleBulkDelete = () => {
+    const ids = Array.from(selectedClientIds);
+    if (!ids.length) {
+      return;
+    }
+
+    showConfirmModal(
+      'Delete Clients',
+      `Delete ${ids.length} client(s)? All associated data will be preserved but unlinked.`,
+      () => {
+        ids.forEach((clientId) => deleteClient(clientId));
+        setSelectedClientIds(new Set());
+      },
+    );
+  };
+
   const getTierBadge = (tier: string) => {
     const styles = {
-      vip: 'bg-amber-100 text-amber-700 border-amber-200',
+      top: 'bg-amber-100 text-amber-700 border-amber-200',
       regular: 'bg-blue-100 text-blue-700 border-blue-200',
       new: 'bg-green-100 text-green-700 border-green-200',
     };
@@ -53,8 +149,10 @@ const ClientLedger: React.FC = () => {
   };
 
   const handleExportClients = () => {
-    const data = prepareClientsForExport(filteredClients);
-    exportToCSV(data, `clients_${getDateStamp()}.csv`);
+    downloadClientsCsv({
+      search: searchQuery || undefined,
+      tier: tierFilter === 'all' ? undefined : tierFilter,
+    });
   };
 
   return (
@@ -64,7 +162,7 @@ const ClientLedger: React.FC = () => {
         <div className="p-3 border-b border-[var(--erp-border)] space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-[var(--erp-text)] uppercase">Clients</h2>
-            <div className="flex gap-1">
+            <div className="flex items-center gap-2">
               <button 
                 onClick={handleExportClients}
                 className="px-2 py-1 border border-[var(--erp-border)] bg-white text-[11px] font-medium rounded hover:bg-slate-50"
@@ -73,14 +171,30 @@ const ClientLedger: React.FC = () => {
               >
                 <span className="material-symbols-outlined !text-[14px]">download</span>
               </button>
-              <button 
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1 px-2 py-1 bg-[var(--erp-accent)] text-white text-[11px] font-bold rounded hover:bg-opacity-90"
-                data-action="new-client"
-              >
-                <span className="material-symbols-outlined !text-[14px]">add</span>
-                ADD
-              </button>
+              {selectedClientCount === 0 && (
+                <button 
+                  onClick={() => setShowAddModal(true)}
+                  className="btn btn-primary btn-sm"
+                  data-action="new-client"
+                >
+                  <span className="material-symbols-outlined !text-[14px]">add</span>
+                  ADD
+                </button>
+              )}
+              {selectedClientCount > 0 && (
+                <>
+                  <span className="text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                    {selectedClientCount} selected
+                  </span>
+                  <button
+                    onClick={handleBulkDelete}
+                    className="p-1 hover:bg-slate-200 rounded"
+                    title="Delete selected"
+                  >
+                    <span className="material-symbols-outlined !text-[16px] text-[var(--erp-text-muted)]">delete</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
           <div className="relative">
@@ -100,23 +214,42 @@ const ClientLedger: React.FC = () => {
             className="w-full text-[11px] border border-[var(--erp-border)] rounded px-1.5 py-1"
           >
             <option value="all">All Tiers</option>
-            <option value="vip">VIP</option>
+            <option value="top">Top</option>
             <option value="regular">Regular</option>
             <option value="new">New</option>
           </select>
         </div>
-        <div className="flex-1 overflow-y-auto">
-          {filteredClients.map(client => (
+        <div
+          className="flex-1 overflow-y-auto select-none"
+          onClick={handleListContainerClick}
+        >
+          {filteredClients.map((client, index) => (
             <div 
               key={client.id}
-              onClick={() => setSelectedId(client.id)}
+              onClick={(event) => handleRowClick(event, client.id, index)}
               className={`px-3 py-2.5 border-b border-[var(--erp-border)] cursor-pointer transition-colors ${
-                selectedId === client.id ? 'bg-blue-50 border-l-2 border-l-[var(--erp-accent)]' : 'hover:bg-slate-50'
+                selectedId === client.id || selectedClientIds.has(client.id)
+                  ? 'bg-blue-50 border-l-2 border-l-[var(--erp-accent)]'
+                  : 'hover:bg-slate-50'
               }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-medium text-[var(--erp-text)] truncate">{client.name}</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(event) => handleCheckboxClick(event, client.id, index)}
+                      className={`material-symbols-outlined !text-[16px] transition-colors ${
+                        selectedClientIds.has(client.id)
+                          ? 'text-blue-600'
+                          : 'text-slate-400'
+                      }`}
+                      aria-pressed={selectedClientIds.has(client.id)}
+                    >
+                      {selectedClientIds.has(client.id) ? 'check_box' : 'check_box_outline_blank'}
+                    </button>
+                    <p className="text-[12px] font-medium text-[var(--erp-text)] truncate">{client.name}</p>
+                  </div>
                   <p className="text-[11px] text-[var(--erp-text-muted)]">{client.city}, {client.state}</p>
                 </div>
                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${getTierBadge(client.tier)}`}>
@@ -276,7 +409,7 @@ const ClientLedger: React.FC = () => {
               <div>
                 <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest border-b border-[var(--erp-border)] pb-1 mb-3">Quick Actions</h3>
                 <div className="flex gap-2">
-                  <button className="flex items-center gap-1.5 px-3 py-2 bg-[var(--erp-accent)] text-white text-[12px] font-medium rounded hover:bg-opacity-90">
+                  <button className="btn btn-primary btn-md">
                     <span className="material-symbols-outlined !text-[16px]">add</span>
                     New Quote
                   </button>
@@ -384,12 +517,12 @@ const ClientModal: React.FC<ClientModalProps> = ({ client, onClose, onSave }) =>
               <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">Tier</label>
               <select
                 value={formData.tier}
-                onChange={(e) => setFormData({ ...formData, tier: e.target.value as 'vip' | 'regular' | 'new' })}
+                onChange={(e) => setFormData({ ...formData, tier: e.target.value as 'top' | 'regular' | 'new' })}
                 className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2 bg-white"
               >
                 <option value="new">New</option>
                 <option value="regular">Regular</option>
-                <option value="vip">VIP</option>
+                <option value="top">Top</option>
               </select>
             </div>
           </div>
@@ -459,10 +592,10 @@ const ClientModal: React.FC<ClientModalProps> = ({ client, onClose, onSave }) =>
           </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--erp-border)] bg-slate-50">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-[var(--erp-text-muted)] hover:text-[var(--erp-text)]">
+          <button onClick={onClose} className="btn btn-ghost btn-md">
             Cancel
           </button>
-          <button onClick={handleSubmit} className="px-5 py-2 text-sm font-bold text-white bg-[var(--erp-accent)] rounded hover:bg-opacity-90">
+          <button onClick={handleSubmit} className="btn btn-primary btn-md">
             {client ? 'Update Client' : 'Add Client'}
           </button>
         </div>

@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import PageLayout from '../components/common/PageLayout';
 import { useApp } from '../context/AppContext';
-import { exportToCSV, prepareRFQsForExport, prepareQuotesForExport, prepareProductsForExport, prepareClientsForExport, getDateStamp } from '../utils/exportUtils';
 
 interface ReportItem {
   id: string;
@@ -12,7 +11,7 @@ interface ReportItem {
 }
 
 const Analytics: React.FC = () => {
-  const { rfqs, quotes, products, clients, showToast } = useApp();
+  const { rfqs, quotes, products, clients, showToast, downloadAnalyticsCsv } = useApp();
   
   const [selectedReportId, setSelectedReportId] = useState<string>('sales-trends');
   const [periodFilter, setPeriodFilter] = useState('quarter');
@@ -51,45 +50,21 @@ const Analytics: React.FC = () => {
     const manualRfqs = rfqs.filter(r => r.channel === 'manual').length;
 
     const activeProducts = products.filter(p => p.status === 'active').length;
-    const goldClients = clients.filter(c => c.tier === 'gold').length;
+    const topClients = clients.filter(c => c.tier === 'top').length;
 
     return {
       totalRfqs, pendingRfqs, quotedRfqs,
       totalQuotes, acceptedQuotes, declinedQuotes, conversionRate,
       totalRevenue, avgDealSize,
       emailRfqs, whatsappRfqs, manualRfqs,
-      activeProducts, goldClients,
+      activeProducts, topClients,
       totalClients: clients.length,
       totalProducts: products.length,
     };
   }, [rfqs, quotes, products, clients]);
 
   const handleExport = () => {
-    let data: any[] = [];
-    let filename = `analytics_${selectedReportId}_${getDateStamp()}.csv`;
-
-    switch (selectedReportId) {
-      case 'rfq-analysis':
-      case 'channel-breakdown':
-        data = prepareRFQsForExport(rfqs);
-        break;
-      case 'quote-performance':
-        data = prepareQuotesForExport(quotes);
-        break;
-      case 'product-performance':
-        data = prepareProductsForExport(products);
-        break;
-      case 'client-insights':
-        data = prepareClientsForExport(clients);
-        break;
-      case 'sales-trends':
-      default:
-        // For sales trends, export accepted quotes
-        data = prepareQuotesForExport(quotes.filter(q => q.status === 'accepted'));
-        break;
-    }
-
-    exportToCSV(data, filename);
+    downloadAnalyticsCsv(selectedReportId);
     showToast('Report exported successfully', 'success');
   };
 
@@ -170,7 +145,7 @@ const Analytics: React.FC = () => {
             </div>
             <button 
               onClick={() => showToast('Filters applied', 'success')}
-              className="bg-[var(--erp-accent)] text-white px-3 py-1 rounded text-[11px] font-medium hover:bg-opacity-90"
+              className="btn btn-primary btn-sm"
             >
               Apply
             </button>
@@ -242,7 +217,7 @@ const Analytics: React.FC = () => {
                 <span className="text-[11px] font-bold text-amber-600 uppercase">Clients</span>
               </div>
               <p className="text-2xl font-bold text-amber-700">{analytics.totalClients}</p>
-              <p className="text-[11px] text-amber-600 mt-1">{analytics.goldClients} gold tier</p>
+              <p className="text-[11px] text-amber-600 mt-1">{analytics.topClients} top tier</p>
             </div>
           </div>
 

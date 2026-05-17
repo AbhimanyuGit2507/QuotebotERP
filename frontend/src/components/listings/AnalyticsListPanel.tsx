@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useApp } from '../../context/AppContext';
 
 interface ReportItem {
   id: string;
@@ -45,6 +46,7 @@ interface AnalyticsListPanelProps {
 }
 
 const AnalyticsListPanel: React.FC<AnalyticsListPanelProps> = ({ onItemSelect, selectedId }) => {
+  const { showToast } = useApp();
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -162,7 +164,7 @@ const AnalyticsListPanel: React.FC<AnalyticsListPanelProps> = ({ onItemSelect, s
 
       {/* Footer */}
       <div className="p-3 bg-slate-50 border-t border-[var(--erp-border)]">
-        <button className="w-full bg-[var(--erp-accent)] text-white py-2 text-sm font-bold rounded shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-2">
+        <button className="btn btn-primary btn-block btn-lg" onClick={() => showToast('Analytics creation modal coming soon!', 'info')}>
           <span className="material-symbols-outlined !text-base">add_chart</span>
           CUSTOM REPORT
         </button>

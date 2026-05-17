@@ -1,34 +1,45 @@
+import 'dotenv/config';
 import { OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { Prisma, PrismaClient } from '@prisma/client';
+type InvoiceDelegate = PrismaClient['invoice'];
+type PaymentDelegate = PrismaClient['payment'];
+type AccountingIntegrationDelegate = PrismaClient['accountingIntegration'];
+type AccountingExportDelegate = PrismaClient['accountingExport'];
+type IntegrationMappingDelegate = PrismaClient['integrationMapping'];
 export declare class PrismaService implements OnModuleInit, OnModuleDestroy {
     private prismaClient;
-    get user(): import("@prisma/client").Prisma.UserDelegate<import("@prisma/client/runtime/client").DefaultArgs, {
-        adapter: PrismaPg;
-    }>;
-    get tenant(): import("@prisma/client").Prisma.TenantDelegate<import("@prisma/client/runtime/client").DefaultArgs, {
-        adapter: PrismaPg;
-    }>;
-    get role(): import("@prisma/client").Prisma.RoleDelegate<import("@prisma/client/runtime/client").DefaultArgs, {
-        adapter: PrismaPg;
-    }>;
-    get product(): import("@prisma/client").Prisma.ProductDelegate<import("@prisma/client/runtime/client").DefaultArgs, {
-        adapter: PrismaPg;
-    }>;
-    get productCategory(): import("@prisma/client").Prisma.ProductCategoryDelegate<import("@prisma/client/runtime/client").DefaultArgs, {
-        adapter: PrismaPg;
-    }>;
-    get client(): import("@prisma/client").Prisma.ClientDelegate<import("@prisma/client/runtime/client").DefaultArgs, {
-        adapter: PrismaPg;
-    }>;
-    get rFQ(): import("@prisma/client").Prisma.RFQDelegate<import("@prisma/client/runtime/client").DefaultArgs, {
-        adapter: PrismaPg;
-    }>;
-    get quotation(): import("@prisma/client").Prisma.QuotationDelegate<import("@prisma/client/runtime/client").DefaultArgs, {
-        adapter: PrismaPg;
-    }>;
-    get $connect(): any;
-    get $disconnect(): any;
-    get $transaction(): any;
+    get user(): Prisma.UserDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get tenant(): Prisma.TenantDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get role(): Prisma.RoleDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get product(): Prisma.ProductDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get productCategory(): Prisma.ProductCategoryDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get client(): Prisma.ClientDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get rFQ(): Prisma.RFQDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get rFQItem(): Prisma.RFQItemDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get quotation(): Prisma.QuotationDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get quotationItem(): Prisma.QuotationItemDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get quotationVersion(): Prisma.QuotationVersionDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get activity(): Prisma.ActivityDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get auditLog(): Prisma.AuditLogDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get parseRun(): Prisma.ParseRunDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get file(): Prisma.FileDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get conversation(): Prisma.ConversationDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get message(): Prisma.MessageDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get analyticsCache(): Prisma.AnalyticsCacheDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get settingsCompany(): Prisma.SettingsCompanyDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get settingsNotifications(): Prisma.SettingsNotificationsDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get settingsTemplate(): Prisma.SettingsTemplateDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get automationRule(): Prisma.AutomationRuleDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get emailAccount(): Prisma.EmailAccountDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get outboundEmail(): Prisma.OutboundEmailDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get invoice(): InvoiceDelegate;
+    get payment(): PaymentDelegate;
+    get accountingIntegration(): AccountingIntegrationDelegate;
+    get accountingExport(): AccountingExportDelegate;
+    get integrationMapping(): IntegrationMappingDelegate;
+    get db(): PrismaClient;
+    $transaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T>;
     onModuleInit(): Promise<void>;
     onModuleDestroy(): Promise<void>;
 }
+export {};

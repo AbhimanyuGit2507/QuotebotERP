@@ -1,0 +1,115 @@
+import { InboxService } from './inbox.service';
+import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
+import { UpdateMessageProcessingStatusDto } from './dtos/update-message-processing-status.dto';
+import { RetryMessageDto } from './dtos/retry-message.dto';
+export declare class InboxController {
+    private readonly inboxService;
+    constructor(inboxService: InboxService);
+    findMessages(user: AuthenticatedUser, processingStatus?: 'pending' | 'parsed' | 'failed'): Promise<{
+        id: string;
+        email_account_id: string | null;
+        external_id: string | null;
+        thread_id: string | null;
+        sender_email: string;
+        sender_name: string;
+        subject: string;
+        body: string;
+        raw_payload: import("@prisma/client/runtime/client").JsonValue;
+        created_at: Date;
+        processing_status: string;
+    }[]> | Promise<{
+        id: string;
+        channel: string;
+        sender: string;
+        from: string;
+        subject: string;
+        preview: string;
+        content: string;
+        contentHtml: string | undefined;
+        timestamp: string;
+        relativeTime: string;
+        status: "new" | "failed" | "parsed" | "needs_review";
+        isRead: boolean;
+        confidence: number;
+        extractedItems: number;
+        parsedItems: ({
+            status: "matched";
+            product_name: string;
+            quantity: number;
+            unit?: string;
+            notes?: string;
+        } | {
+            product_name: string;
+            quantity: number;
+            status: "rejected";
+            reason: string;
+        })[];
+        parsingSource: string;
+        parsingConfidence: string;
+        parsingError: string;
+        rfqId: string;
+        quotationId: string;
+        autoRfqCreated: boolean;
+        autoQuotationCreated: boolean;
+        retryCount: number;
+        lastRetryAt: string;
+        retryHistory: {
+            retried_at: string;
+            retried_by: string;
+            reason: string;
+            previous_processing_status: "pending" | "parsed" | "failed";
+            previous_parsing_source?: string;
+            previous_parsing_error?: string;
+            previous_item_count?: number;
+            forced: boolean;
+        }[];
+        attachments: string[];
+    }[]>;
+    updateMessageProcessingStatus(id: string, user: AuthenticatedUser, body: UpdateMessageProcessingStatusDto): Promise<{
+        id: string;
+        created_at: Date;
+        updated_at: Date;
+        tenant_id: string;
+        body: string;
+        email_account_id: string | null;
+        external_id: string | null;
+        thread_id: string | null;
+        provider: string | null;
+        sender_email: string;
+        sender_name: string;
+        raw_payload: import("@prisma/client/runtime/client").JsonValue | null;
+        conversation_id: string;
+        sender_id: string | null;
+        channel: string;
+        is_read: boolean;
+        is_processed: boolean;
+        processing_status: string;
+        direction: string;
+    }>;
+    retryMessageParsing(id: string, user: AuthenticatedUser, body: RetryMessageDto): Promise<{
+        id: string;
+        created_at: Date;
+        updated_at: Date;
+        tenant_id: string;
+        body: string;
+        email_account_id: string | null;
+        external_id: string | null;
+        thread_id: string | null;
+        provider: string | null;
+        sender_email: string;
+        sender_name: string;
+        raw_payload: import("@prisma/client/runtime/client").JsonValue | null;
+        conversation_id: string;
+        sender_id: string | null;
+        channel: string;
+        is_read: boolean;
+        is_processed: boolean;
+        processing_status: string;
+        direction: string;
+    }>;
+    retryRfqSourceMessage(rfqId: string, user: AuthenticatedUser, body: RetryMessageDto): Promise<{
+        rfq_id: string;
+        message_id: string;
+        status: string;
+    }>;
+}

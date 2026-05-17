@@ -1,17 +1,62 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import PageLayout from '../components/common/PageLayout';
 import { useApp, Quote, QuoteItem } from '../context/AppContext';
-import { generateQuotePDF } from '../utils/pdfUtils';
-import { exportToCSV, prepareQuotesForExport, getDateStamp } from '../utils/exportUtils';
+import { apiRequest } from '../services/api';
 
 const Quotations: React.FC = () => {
-  const { quotes, addQuote, updateQuote, deleteQuote, showConfirmModal, clients, products } = useApp();
+  const { quotes, addQuote, updateQuote, deleteQuote, showConfirmModal, showToast, refreshData, clients, products, rfqs, downloadQuotationPdf, downloadQuotationsCsv, addClient } = useApp();
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   
-  const [selectedId, setSelectedId] = useState<string | null>(quotes[0]?.id || null);
+  const selectedId = useMemo(() => {
+    if (!id || !quotes.some((q) => q.id === id)) {
+      return quotes[0]?.id || null;
+    }
+    return id;
+  }, [id, quotes]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
+  const [sendingQuoteId, setSendingQuoteId] = useState<string | null>(null);
+  const [selectedQuoteIds, setSelectedQuoteIds] = useState<Set<string>>(new Set());
+  const lastSelectedIndexRef = useRef<number | null>(null);
+
+  const rfqClientIds = useMemo(
+    () => new Set(rfqs.map((rfq) => rfq.clientId).filter(Boolean)),
+    [rfqs],
+  );
+
+  const rfqClients = useMemo(
+    () => clients.filter((client) => rfqClientIds.has(client.id)),
+    [clients, rfqClientIds],
+  );
+
+  const quoteModalClients = useMemo(() => {
+    if (!editingQuote?.clientId) {
+      return rfqClients;
+    }
+
+    if (rfqClients.some((client) => client.id === editingQuote.clientId)) {
+      return rfqClients;
+    }
+
+    const currentClient = clients.find(
+      (client) => client.id === editingQuote.clientId,
+    );
+
+    return currentClient ? [currentClient, ...rfqClients] : rfqClients;
+  }, [clients, editingQuote?.clientId, rfqClients]);
+
+  useEffect(() => {
+    if (!selectedId && id) {
+      navigate('/quotations', { replace: true });
+    } else if (selectedId && id !== selectedId) {
+      navigate(`/quotations/${selectedId}`, { replace: true });
+    }
+  }, [id, selectedId, navigate]);
 
   // Filter quotes
   const filteredQuotes = useMemo(() => {
@@ -24,12 +69,146 @@ const Quotations: React.FC = () => {
   }, [quotes, searchQuery, statusFilter]);
 
   const selectedQuote = quotes.find(q => q.id === selectedId);
+  const selectedQuoteCount = selectedQuoteIds.size;
+
+  const handleToggleSelection = (
+    quoteId: string,
+    index: number,
+    shiftKey: boolean,
+  ) => {
+    setSelectedQuoteIds((prev) => {
+      const next = new Set(prev);
+      if (shiftKey && lastSelectedIndexRef.current !== null) {
+        const start = Math.min(lastSelectedIndexRef.current, index);
+        const end = Math.max(lastSelectedIndexRef.current, index);
+        filteredQuotes.slice(start, end + 1).forEach((quote) => {
+          next.add(quote.id);
+        });
+      } else if (next.has(quoteId)) {
+        next.delete(quoteId);
+      } else {
+        next.add(quoteId);
+      }
+      return next;
+    });
+    lastSelectedIndexRef.current = index;
+  };
+
+  const handleRowClick = (
+    event: React.MouseEvent,
+    quoteId: string,
+    index: number,
+  ) => {
+    if (event.shiftKey) {
+      event.preventDefault();
+      handleToggleSelection(quoteId, index, true);
+      return;
+    }
+    setSelectedQuoteIds(new Set());
+    lastSelectedIndexRef.current = index;
+    handleSelectQuote(quoteId);
+  };
+
+  const handleListContainerClick = (event: React.MouseEvent) => {
+    if (event.shiftKey) {
+      return;
+    }
+    if (event.target === event.currentTarget) {
+      setSelectedQuoteIds(new Set());
+      lastSelectedIndexRef.current = null;
+    }
+  };
+
+  const handleCheckboxClick = (
+    event: React.MouseEvent,
+    quoteId: string,
+    index: number,
+  ) => {
+    event.stopPropagation();
+    handleToggleSelection(quoteId, index, event.shiftKey);
+  };
+  const handleSelectQuote = (quoteId: string) => {
+    navigate(`/quotations/${quoteId}`);
+  };
+  const selectedClient = clients.find((client) => client.id === selectedQuote?.clientId);
 
   const handleDelete = (quote: Quote) => {
+    const linkedRfqForQuote = rfqs.find((rfq) => rfq.quotationId === quote.id);
+    const hasLinkedRfq = Boolean(linkedRfqForQuote);
+    const message = hasLinkedRfq
+      ? `This quotation is linked to RFQ ${linkedRfqForQuote?.number || ''}. Deleting it will also delete the linked RFQ. Continue?`
+      : `Are you sure you want to delete "${quote.number}"? This action cannot be undone.`;
+
     showConfirmModal(
       'Delete Quotation',
-      `Are you sure you want to delete "${quote.number}"? This action cannot be undone.`,
-      () => deleteQuote(quote.id)
+      message,
+      async (choice?: boolean) => {
+        try {
+          await deleteQuote(quote.id, choice ? { forceDeleteLinkedRfq: true } : undefined);
+          // try to record audit event; ignore failures
+          try {
+            await apiRequest('/audit/events', {
+              method: 'POST',
+              body: JSON.stringify({
+                action: 'delete_quotation',
+                quotation_id: quote.id,
+                also_delete_linked_rfq: Boolean(choice),
+                performed_by: 'frontend',
+                timestamp: new Date().toISOString(),
+              }),
+            });
+          } catch {
+            // non-fatal
+          }
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : 'Failed to delete quotation', 'error');
+        }
+      },
+      { checkboxLabel: hasLinkedRfq ? 'Also delete linked RFQ' : undefined, checkboxDefault: false },
+    );
+  };
+
+  const handleBulkDelete = () => {
+    const ids = Array.from(selectedQuoteIds);
+    if (!ids.length) {
+      return;
+    }
+
+    const hasAnyLinked = ids.some((quoteId) => {
+      const quote = quotes.find((q) => q.id === quoteId);
+      return Boolean(quote && rfqs.some((r) => r.quotationId === quote.id));
+    });
+
+    showConfirmModal(
+      'Delete Quotations',
+      `Delete ${ids.length} quotation(s)? This action cannot be undone.`,
+      async (choice?: boolean) => {
+        try {
+          for (const quoteId of ids) {
+            await deleteQuote(quoteId, choice ? { forceDeleteLinkedRfq: true } : undefined);
+          }
+          setSelectedQuoteIds(new Set());
+          showToast(`Deleted ${ids.length} quotation(s).`, 'success');
+
+          try {
+            await apiRequest('/audit/events', {
+              method: 'POST',
+              body: JSON.stringify({
+                action: 'bulk_delete_quotations',
+                quotation_ids: ids,
+                also_delete_linked_rfqs: Boolean(choice),
+                performed_by: 'frontend',
+                timestamp: new Date().toISOString(),
+              }),
+            });
+          } catch {
+            // ignore audit failures
+          }
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : 'Failed to delete quotations', 'error');
+        }
+      },
+      { checkboxLabel: hasAnyLinked ? 'Also delete linked RFQ(s) for selected quotations' : undefined, checkboxDefault: false },
     );
   };
 
@@ -50,54 +229,44 @@ const Quotations: React.FC = () => {
 
   // Handle Print/PDF
   const handlePrintQuote = (quote: Quote) => {
-    generateQuotePDF({
-      number: quote.number,
-      date: quote.date,
-      client: quote.client,
-      clientId: quote.clientId,
-      validUntil: quote.validUntil,
-      items: quote.items,
-      notes: quote.notes,
-    }, {
-      name: 'Quotebot Solutions Pvt Ltd',
-      gstin: '27AABCU9603R1ZM',
-      address: 'Plot 42, MIDC Industrial Area',
-      city: 'Pune',
-      state: 'Maharashtra',
-      email: 'sales@quotebot.in',
-      phone: '+91 98765 43210',
-    });
+    downloadQuotationPdf(quote.id);
   };
 
   // Handle Email
-  const handleEmailQuote = (quote: Quote) => {
-    const subject = `Quotation ${quote.number} from Quotebot Solutions`;
-    const body = `Dear ${quote.client},
+  const handleEmailQuote = async (quote: Quote) => {
+    const recipient = clients.find((client) => client.id === quote.clientId)?.email || '';
+    if (!recipient) {
+      showToast('Client email is missing for this quotation.', 'warning');
+      return;
+    }
 
-Please find attached our quotation ${quote.number} dated ${quote.date}.
+    try {
+      setSendingQuoteId(quote.id);
+      await apiRequest(`/quotations/${quote.id}/send`, {
+        method: 'POST',
+        body: JSON.stringify({
+          to: [recipient],
+        }),
+      });
 
-Quote Details:
-- Items: ${quote.items.length}
-- Total Amount: ₹${calculateTotal(quote.items).toLocaleString('en-IN')}
-- Valid Until: ${quote.validUntil}
-
-You can review and accept this quotation by clicking the link below:
-[Review Quotation]
-
-For any questions, please feel free to contact us.
-
-Best regards,
-Quotebot Solutions Team
-sales@quotebot.in
-+91 98765 43210`;
-    
-    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      await refreshData();
+      showToast(`Quotation ${quote.number} queued for sending.`, 'success');
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : 'Failed to queue quotation email',
+        'error',
+      );
+    } finally {
+      setSendingQuoteId(null);
+    }
   };
 
   // Handle Export to CSV
   const handleExportQuotes = () => {
-    const exportData = prepareQuotesForExport(filteredQuotes);
-    exportToCSV(exportData, `quotations_${getDateStamp()}.csv`);
+    downloadQuotationsCsv({
+      search: searchQuery || undefined,
+      status: statusFilter === 'all' ? undefined : statusFilter,
+    });
   };
 
   // Handle Duplicate Quote
@@ -110,7 +279,7 @@ sales@quotebot.in
       status: 'draft',
     };
     addQuote(newQuote);
-    setSelectedId(newQuote.id);
+    navigate(`/quotations/${newQuote.id}`);
   };
 
   return (
@@ -120,14 +289,32 @@ sales@quotebot.in
         <div className="p-3 border-b border-[var(--erp-border)] space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-[var(--erp-text)] uppercase">Quotations</h2>
-            <button 
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1 px-2 py-1 bg-[var(--erp-accent)] text-white text-[11px] font-bold rounded hover:bg-opacity-90"
-              data-action="new-quote"
-            >
-              <span className="material-symbols-outlined !text-[14px]">add</span>
-              NEW QUOTE
-            </button>
+            <div className="flex items-center gap-2">
+              {selectedQuoteCount === 0 && (
+                <button 
+                  onClick={() => setShowAddModal(true)}
+                  className="btn btn-primary btn-sm"
+                  data-action="new-quote"
+                >
+                  <span className="material-symbols-outlined !text-[14px]">add</span>
+                  NEW QUOTE
+                </button>
+              )}
+              {selectedQuoteCount > 0 && (
+                <>
+                  <span className="text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                    {selectedQuoteCount} selected
+                  </span>
+                  <button
+                    onClick={handleBulkDelete}
+                    className="p-1 hover:bg-slate-200 rounded"
+                    title="Delete selected"
+                  >
+                    <span className="material-symbols-outlined !text-[16px] text-[var(--erp-text-muted)]">delete</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
           <div className="relative">
             <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 !text-[16px]">search</span>
@@ -177,18 +364,37 @@ sales@quotebot.in
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {filteredQuotes.map(quote => (
+        <div
+          className="flex-1 overflow-y-auto select-none"
+          onClick={handleListContainerClick}
+        >
+          {filteredQuotes.map((quote, index) => (
             <div 
               key={quote.id}
-              onClick={() => setSelectedId(quote.id)}
+              onClick={(event) => handleRowClick(event, quote.id, index)}
               className={`px-3 py-3 border-b border-[var(--erp-border)] cursor-pointer transition-colors ${
-                selectedId === quote.id ? 'bg-blue-50 border-l-2 border-l-[var(--erp-accent)]' : 'hover:bg-slate-50'
+                selectedId === quote.id || selectedQuoteIds.has(quote.id)
+                  ? 'bg-blue-50 border-l-2 border-l-[var(--erp-accent)]'
+                  : 'hover:bg-slate-50'
               }`}
             >
               <div className="flex items-start justify-between gap-2 mb-1">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-bold text-[var(--erp-accent)]">{quote.number}</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(event) => handleCheckboxClick(event, quote.id, index)}
+                      className={`material-symbols-outlined !text-[16px] transition-colors ${
+                        selectedQuoteIds.has(quote.id)
+                          ? 'text-blue-600'
+                          : 'text-slate-400'
+                      }`}
+                      aria-pressed={selectedQuoteIds.has(quote.id)}
+                    >
+                      {selectedQuoteIds.has(quote.id) ? 'check_box' : 'check_box_outline_blank'}
+                    </button>
+                    <p className="text-[12px] font-bold text-[var(--erp-accent)]">{quote.display_name || quote.number}</p>
+                  </div>
                   <p className="text-[12px] font-medium text-[var(--erp-text)] truncate mt-0.5">{quote.client}</p>
                 </div>
                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${getStatusBadge(quote.status)}`}>
@@ -222,7 +428,7 @@ sales@quotebot.in
           <>
             <div className="h-14 border-b border-[var(--erp-border)] flex items-center justify-between px-5 shrink-0 bg-slate-50">
               <div className="flex items-center gap-4">
-                <h1 className="text-lg font-bold text-[var(--erp-accent)]">{selectedQuote.number}</h1>
+                <h1 className="text-lg font-bold text-[var(--erp-accent)]">{selectedQuote.display_name || selectedQuote.number}</h1>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getStatusBadge(selectedQuote.status)}`}>
                   {selectedQuote.status.toUpperCase()}
                 </span>
@@ -235,8 +441,11 @@ sales@quotebot.in
                 >
                   <span className="material-symbols-outlined !text-[16px]">print</span> Print
                 </button>
-                <button 
-                  onClick={() => handleEmailQuote(selectedQuote)}
+                <button
+                  onClick={() => {
+                    void handleEmailQuote(selectedQuote);
+                  }}
+                  disabled={!selectedClient?.email || sendingQuoteId === selectedQuote.id}
                   className="flex items-center gap-1 px-3 py-1.5 border border-[var(--erp-border)] bg-white rounded text-[12px] font-medium hover:bg-slate-50"
                   data-action="email"
                 >
@@ -252,7 +461,7 @@ sales@quotebot.in
                 </button>
                 <button 
                   onClick={() => setEditingQuote(selectedQuote)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-[var(--erp-accent)] text-white rounded text-[12px] font-medium hover:bg-opacity-90"
+                  className="btn btn-primary btn-sm"
                 >
                   <span className="material-symbols-outlined !text-[16px]">edit</span> Edit
                 </button>
@@ -314,6 +523,7 @@ sales@quotebot.in
                         <th className="px-3 py-2 text-left">Item & Description</th>
                         <th className="px-3 py-2 text-right w-20">Qty</th>
                         <th className="px-3 py-2 text-left w-16">Unit</th>
+                        <th className="px-3 py-2 text-left w-32">Status</th>
                         <th className="px-3 py-2 text-right w-24">Rate</th>
                         <th className="px-3 py-2 text-right w-24">Amount</th>
                       </tr>
@@ -328,6 +538,25 @@ sales@quotebot.in
                           </td>
                           <td className="px-3 py-2 text-right">{item.quantity}</td>
                           <td className="px-3 py-2 text-[var(--erp-text-muted)]">{item.unit}</td>
+                          <td className="px-3 py-2 text-[var(--erp-text-muted)]">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              item.availability === 'insufficient_stock'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : item.availability === 'out_of_stock'
+                                  ? 'bg-red-50 text-red-700 border-red-200'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}>
+                              {(item.availability || 'available').replace('_', ' ').toUpperCase()}
+                            </span>
+                            {typeof item.availableQuantity === 'number' ? (
+                              <div className="mt-1 text-[11px] text-[var(--erp-text-muted)]">
+                                Available: {item.availableQuantity}
+                              </div>
+                            ) : null}
+                            {item.notes ? (
+                              <div className="mt-1 text-[11px] text-[var(--erp-text-muted)]">{item.notes}</div>
+                            ) : null}
+                          </td>
                           <td className="px-3 py-2 text-right">₹{item.rate.toLocaleString()}</td>
                           <td className="px-3 py-2 text-right font-medium">₹{item.total.toLocaleString()}</td>
                         </tr>
@@ -335,15 +564,15 @@ sales@quotebot.in
                     </tbody>
                     <tfoot className="bg-slate-50 font-bold">
                       <tr className="border-t border-[var(--erp-border)]">
-                        <td colSpan={5} className="px-3 py-2 text-right text-[var(--erp-text-muted)]">Subtotal:</td>
+                        <td colSpan={6} className="px-3 py-2 text-right text-[var(--erp-text-muted)]">Subtotal:</td>
                         <td className="px-3 py-2 text-right">₹{calculateTotal(selectedQuote.items).toLocaleString()}</td>
                       </tr>
                       <tr>
-                        <td colSpan={5} className="px-3 py-2 text-right text-[var(--erp-text-muted)]">Tax (18% GST):</td>
+                        <td colSpan={6} className="px-3 py-2 text-right text-[var(--erp-text-muted)]">Tax (18% GST):</td>
                         <td className="px-3 py-2 text-right">₹{Math.round(calculateTotal(selectedQuote.items) * 0.18).toLocaleString()}</td>
                       </tr>
                       <tr className="text-lg border-t border-[var(--erp-border)]">
-                        <td colSpan={5} className="px-3 py-2 text-right text-[var(--erp-accent)]">Grand Total:</td>
+                        <td colSpan={6} className="px-3 py-2 text-right text-[var(--erp-accent)]">Grand Total:</td>
                         <td className="px-3 py-2 text-right text-[var(--erp-accent)]">₹{Math.round(calculateTotal(selectedQuote.items) * 1.18).toLocaleString()}</td>
                       </tr>
                     </tfoot>
@@ -355,7 +584,7 @@ sales@quotebot.in
               <div className="mb-6">
                 <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest border-b border-[var(--erp-border)] pb-1 mb-3">Update Status</h3>
                 <div className="flex gap-2">
-                  {['draft', 'sent', 'accepted', 'declined', 'expired'].map(status => (
+                  {['draft', 'sent', 'accepted', 'declined'].map(status => (
                     <button
                       key={status}
                       onClick={() => updateQuote(selectedQuote.id, { status: status as Quote['status'] })}
@@ -384,17 +613,23 @@ sales@quotebot.in
                 <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest border-b border-[var(--erp-border)] pb-1 mb-3">Quick Actions</h3>
                 <div className="flex gap-2">
                   <button 
-                    onClick={() => updateQuote(selectedQuote.id, { status: 'sent' })}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-[var(--erp-accent)] text-white text-[12px] font-medium rounded hover:bg-opacity-90"
+                    onClick={() => {
+                      void handleEmailQuote(selectedQuote);
+                    }}
+                    disabled={sendingQuoteId === selectedQuote.id}
+                    className="btn btn-primary btn-md"
                   >
                     <span className="material-symbols-outlined !text-[16px]">send</span>
-                    Send Quote
+                    {sendingQuoteId === selectedQuote.id ? 'Sending...' : 'Send Quote'}
                   </button>
-                  <button className="flex items-center gap-1.5 px-3 py-2 border border-[var(--erp-border)] text-[12px] font-medium rounded hover:bg-slate-50">
+                  <button
+                    onClick={() => handleDuplicateQuote(selectedQuote)}
+                    className="flex items-center gap-1.5 px-3 py-2 border border-[var(--erp-border)] text-[12px] font-medium rounded hover:bg-slate-50"
+                  >
                     <span className="material-symbols-outlined !text-[16px]">content_copy</span>
                     Duplicate
                   </button>
-                  <button className="flex items-center gap-1.5 px-3 py-2 border border-[var(--erp-border)] text-[12px] font-medium rounded hover:bg-slate-50">
+                  <button onClick={() => downloadQuotationPdf(selectedQuote.id)} className="flex items-center gap-1.5 px-3 py-2 border border-[var(--erp-border)] text-[12px] font-medium rounded hover:bg-slate-50">
                     <span className="material-symbols-outlined !text-[16px]">download</span>
                     Download PDF
                   </button>
@@ -416,8 +651,9 @@ sales@quotebot.in
       {(showAddModal || editingQuote) && (
         <QuoteModal
           quote={editingQuote}
-          clients={clients}
+          clients={quoteModalClients}
           products={products}
+          addClient={addClient}
           onClose={() => { setShowAddModal(false); setEditingQuote(null); }}
           onSave={(data) => {
             if (editingQuote) {
@@ -440,17 +676,33 @@ interface QuoteModalProps {
   quote: Quote | null;
   clients: { id: string; name: string }[];
   products: { id: string; name: string; basePrice: number; unit: string }[];
+  addClient: (client: Omit<import('../context/AppContext').Client, 'id'>) => Promise<import('../context/AppContext').Client | void>;
   onClose: () => void;
   onSave: (data: Partial<Quote>) => void;
 }
 
-const QuoteModal: React.FC<QuoteModalProps> = ({ quote, clients, products, onClose, onSave }) => {
+const QuoteModal: React.FC<QuoteModalProps> = ({ quote, clients, products, addClient, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     client: quote?.client || '',
     clientId: quote?.clientId || '',
     status: quote?.status || 'draft',
     validUntil: quote?.validUntil || '',
     notes: quote?.notes || '',
+  });
+
+  const [clientMode, setClientMode] = useState<'existing' | 'new'>('existing');
+  const [newClientData, setNewClientData] = useState({
+    name: quote?.client || '',
+    type: 'company' as 'company' | 'individual',
+    email: '',
+    phone: '',
+    website: '',
+    address: '',
+    city: '',
+    state: '',
+    gst: '',
+    pan: '',
+    tier: 'new' as 'new' | 'regular' | 'top',
   });
 
   const [items, setItems] = useState<QuoteItem[]>(quote?.items || [{
@@ -476,18 +728,80 @@ const QuoteModal: React.FC<QuoteModalProps> = ({ quote, clients, products, onClo
     }
   };
 
-  const handleSubmit = () => {
-    if (!formData.client || items.length === 0) return;
+  const handleSubmit = async () => {
+    let resolvedClientId = formData.clientId;
+    let resolvedClientName = formData.client;
+
+    if (clientMode === 'new' && !formData.clientId) {
+      const createdClient = await handleCreateInlineClient();
+      if (!createdClient) {
+        return;
+      }
+
+      resolvedClientId = createdClient.id;
+      resolvedClientName = createdClient.name;
+    }
+
+    if (!resolvedClientName || items.length === 0) return;
     onSave({
       ...formData,
+      clientId: resolvedClientId,
+      client: resolvedClientName,
       items,
     } as Partial<Quote>);
+  };
+
+  const handleClientChange = async (value: string) => {
+    if (value === '__add_new__') {
+      setClientMode('new');
+      setFormData((prev) => ({ ...prev, clientId: '', client: newClientData.name || prev.client }));
+      return;
+    }
+
+    setClientMode('existing');
+    const client = clients.find((item) => item.id === value);
+    setFormData({ ...formData, clientId: value, client: client?.name || '' });
+  };
+
+  const handleCreateInlineClient = async () => {
+    if (!newClientData.name.trim() || !newClientData.email.trim()) {
+      return null;
+    }
+
+    const createdClient = await addClient({
+      name: newClientData.name.trim(),
+      type: newClientData.type,
+      email: newClientData.email.trim(),
+      phone: newClientData.phone.trim(),
+      website: newClientData.website.trim(),
+      address: newClientData.address.trim(),
+      city: newClientData.city.trim(),
+      state: newClientData.state.trim(),
+      gst: newClientData.gst.trim(),
+      pan: newClientData.pan.trim(),
+      tier: newClientData.tier,
+      totalOrders: 0,
+      totalValue: 0,
+      createdAt: new Date().toISOString().split('T')[0],
+    } as import('../context/AppContext').Client);
+
+    if (createdClient && 'id' in createdClient) {
+      setFormData((prev) => ({
+        ...prev,
+        clientId: createdClient.id,
+        client: createdClient.name,
+      }));
+      setClientMode('existing');
+      return createdClient;
+    }
+
+    return null;
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose}></div>
-      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 overflow-hidden">
+      <div className={`relative bg-white rounded-lg shadow-xl w-full mx-4 overflow-hidden ${clientMode === 'new' ? 'max-w-5xl' : 'max-w-3xl'}`}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--erp-border)] bg-slate-50">
           <h3 className="text-lg font-bold text-[var(--erp-text)]">{quote ? 'Edit Quotation' : 'Create New Quotation'}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
@@ -495,20 +809,32 @@ const QuoteModal: React.FC<QuoteModalProps> = ({ quote, clients, products, onClo
           </button>
         </div>
         <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          <div className="grid grid-cols-2 gap-4">
+          <div className={`grid gap-4 ${clientMode === 'new' ? 'grid-cols-2' : 'grid-cols-2'}`}>
             <div>
               <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">Client *</label>
-              <select
+              <div className="flex items-center gap-2">
+                <select
                 value={formData.clientId}
-                onChange={(e) => {
-                  const client = clients.find(c => c.id === e.target.value);
-                  setFormData({ ...formData, clientId: e.target.value, client: client?.name || '' });
-                }}
+                onChange={(e) => { void handleClientChange(e.target.value); }}
                 className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2 bg-white"
               >
                 <option value="">Select client...</option>
+                {clients.length === 0 && (
+                  <option value="" disabled>
+                    No RFQ-linked clients available
+                  </option>
+                )}
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="__add_new__">+ Add client</option>
               </select>
+                <button
+                  type="button"
+                  onClick={() => { setClientMode('new'); setFormData((prev) => ({ ...prev, clientId: '', client: newClientData.name || prev.client })); }}
+                  className="text-[12px] text-[var(--erp-accent)] hover:underline"
+                >
+                  + Add client
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">Valid Until</label>
@@ -520,6 +846,146 @@ const QuoteModal: React.FC<QuoteModalProps> = ({ quote, clients, products, onClo
               />
             </div>
           </div>
+
+          {clientMode === 'new' && (
+            <div className="rounded-xl border border-[var(--erp-border)] bg-slate-50 p-4 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-[13px] font-bold text-[var(--erp-text)]">Add Client Inline</h4>
+                  <p className="text-[11px] text-[var(--erp-text-muted)]">Create the client now and attach it to this quotation.</p>
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--erp-accent)]">New client</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">Company / Contact Name *</label>
+                  <input
+                    type="text"
+                    value={newClientData.name}
+                    onChange={(e) => setNewClientData((prev) => ({ ...prev, name: e.target.value }))}
+                    className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2"
+                    placeholder="Acme Industries Pvt. Ltd."
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">Email *</label>
+                  <input
+                    type="email"
+                    value={newClientData.email}
+                    onChange={(e) => setNewClientData((prev) => ({ ...prev, email: e.target.value }))}
+                    className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2"
+                    placeholder="billing@acme.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    value={newClientData.phone}
+                    onChange={(e) => setNewClientData((prev) => ({ ...prev, phone: e.target.value }))}
+                    className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2"
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">Type</label>
+                  <select
+                    value={newClientData.type}
+                    onChange={(e) => setNewClientData((prev) => ({ ...prev, type: e.target.value as 'company' | 'individual' }))}
+                    className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2 bg-white"
+                  >
+                    <option value="company">Company</option>
+                    <option value="individual">Individual</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">Tier</label>
+                  <select
+                    value={newClientData.tier}
+                    onChange={(e) => setNewClientData((prev) => ({ ...prev, tier: e.target.value as 'new' | 'regular' | 'top' }))}
+                    className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2 bg-white"
+                  >
+                    <option value="new">New</option>
+                    <option value="regular">Regular</option>
+                    <option value="top">Top</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">Website</label>
+                  <input
+                    type="text"
+                    value={newClientData.website}
+                    onChange={(e) => setNewClientData((prev) => ({ ...prev, website: e.target.value }))}
+                    className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2"
+                    placeholder="https://acme.com"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">Address</label>
+                  <input
+                    type="text"
+                    value={newClientData.address}
+                    onChange={(e) => setNewClientData((prev) => ({ ...prev, address: e.target.value }))}
+                    className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2"
+                    placeholder="Street, area, building, landmark"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">City</label>
+                  <input
+                    type="text"
+                    value={newClientData.city}
+                    onChange={(e) => setNewClientData((prev) => ({ ...prev, city: e.target.value }))}
+                    className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2"
+                    placeholder="City"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">State</label>
+                  <input
+                    type="text"
+                    value={newClientData.state}
+                    onChange={(e) => setNewClientData((prev) => ({ ...prev, state: e.target.value }))}
+                    className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2"
+                    placeholder="State"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">GSTIN</label>
+                  <input
+                    type="text"
+                    value={newClientData.gst}
+                    onChange={(e) => setNewClientData((prev) => ({ ...prev, gst: e.target.value }))}
+                    className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2"
+                    placeholder="27AABCA1234A1ZA"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">PAN</label>
+                  <input
+                    type="text"
+                    value={newClientData.pan}
+                    onChange={(e) => setNewClientData((prev) => ({ ...prev, pan: e.target.value }))}
+                    className="w-full text-sm border border-[var(--erp-border)] rounded px-3 py-2"
+                    placeholder="ABCDE1234F"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => { void handleCreateInlineClient(); }}
+                  className="btn btn-primary btn-sm"
+                  disabled={!newClientData.name.trim() || !newClientData.email.trim()}
+                >
+                  <span className="material-symbols-outlined !text-[16px]">person_add</span>
+                  Save Client
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Line Items */}
           <div>
@@ -604,10 +1070,10 @@ const QuoteModal: React.FC<QuoteModalProps> = ({ quote, clients, products, onClo
           </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--erp-border)] bg-slate-50">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-[var(--erp-text-muted)] hover:text-[var(--erp-text)]">
+          <button onClick={onClose} className="btn btn-ghost btn-md">
             Cancel
           </button>
-          <button onClick={handleSubmit} className="px-5 py-2 text-sm font-bold text-white bg-[var(--erp-accent)] rounded hover:bg-opacity-90">
+          <button onClick={handleSubmit} className="btn btn-primary btn-md">
             {quote ? 'Update Quote' : 'Create Quote'}
           </button>
         </div>

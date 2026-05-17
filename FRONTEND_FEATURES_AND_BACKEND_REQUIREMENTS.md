@@ -516,6 +516,24 @@ GET /api/inbox/:id/attachments
 POST /api/inbox/:id/reply
 ```
 
+#### **Internal Email Integration Endpoints (n8n):**
+```
+POST /api/internal/email/inbound
+     (X-Internal-Key header required)
+     Request: { email_account_id, external_id, thread_id, provider, 
+                sender_email, sender_name, subject, body, raw_payload, received_at }
+     Response: { success, message, conversation_id, client_id, is_duplicate }
+
+GET /api/internal/email/outbound?status=pending
+    (X-Internal-Key and X-Tenant-ID headers required)
+    Response: { data: [...emails pending send...], count }
+
+PATCH /api/internal/email/outbound/:id
+      (X-Internal-Key header required)
+      Request: { status, provider?, last_error?, attempts? }
+      Response: { success, data: {...updated record} }
+```
+
 ---
 
 ### 7️⃣ **Analytics** (`/analytics`)

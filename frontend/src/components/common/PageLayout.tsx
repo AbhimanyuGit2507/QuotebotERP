@@ -15,7 +15,7 @@ const PageLayout: React.FC<PageLayoutProps> = ({
   fiscalYear 
 }) => {
   return (
-    <div className="bg-slate-50 text-[var(--erp-text)] h-screen overflow-hidden flex flex-col font-['Inter']">
+    <div className="erp-theme bg-[var(--erp-bg)] text-[var(--erp-text)] h-screen overflow-hidden flex flex-col font-['Inter']">
       <Header />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />

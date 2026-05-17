@@ -61,13 +61,13 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
         <div className="flex justify-end gap-2 mt-5">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-[var(--erp-text-muted)] hover:text-[var(--erp-text)] border border-[var(--erp-border)] rounded hover:bg-slate-50"
+            className="btn btn-secondary btn-md"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 text-sm font-bold text-white bg-red-600 rounded hover:bg-red-700"
+            className="btn btn-danger btn-md"
           >
             Delete
           </button>
@@ -110,7 +110,7 @@ export const ErrorModal: React.FC<ErrorModalProps> = ({
         <div className="flex justify-end mt-5">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-bold text-white bg-[var(--erp-accent)] rounded hover:bg-opacity-90"
+            className="btn btn-primary btn-md"
           >
             Close
           </button>
@@ -204,13 +204,13 @@ export const ManualOverrideModal: React.FC<ManualOverrideModalProps> = ({
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-[var(--erp-text-muted)] hover:text-[var(--erp-text)] border border-[var(--erp-border)] rounded hover:bg-slate-50"
+            className="btn btn-secondary btn-md"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirm}
-            className="px-4 py-2 text-sm font-bold text-white bg-[var(--erp-accent)] rounded hover:bg-opacity-90"
+            className="btn btn-primary btn-md"
           >
             Apply Override
           </button>
@@ -283,13 +283,13 @@ export const QuickCreateQuoteModal: React.FC<QuickCreateQuoteModalProps> = ({
       <div className="border-t border-[var(--erp-border)] px-5 py-3 flex justify-end gap-2 bg-slate-50">
         <button
           onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-[var(--erp-text-muted)] hover:text-[var(--erp-text)]"
+          className="btn btn-ghost btn-md"
         >
           Cancel
         </button>
         <button
           onClick={handleSubmit}
-          className="px-5 py-2 text-sm font-bold text-white bg-[var(--erp-accent)] rounded hover:bg-opacity-90"
+          className="btn btn-primary btn-md"
         >
           Create Quote
         </button>
@@ -372,13 +372,13 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
       <div className="border-t border-[var(--erp-border)] px-5 py-3 flex justify-end gap-2 bg-slate-50">
         <button
           onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-[var(--erp-text-muted)] hover:text-[var(--erp-text)]"
+          className="btn btn-ghost btn-md"
         >
           Cancel
         </button>
         <button
           onClick={handleSubmit}
-          className="px-5 py-2 text-sm font-bold text-white bg-[var(--erp-accent)] rounded hover:bg-opacity-90"
+          className="btn btn-primary btn-md"
         >
           Add Product
         </button>

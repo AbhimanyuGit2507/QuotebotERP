@@ -28,10 +28,11 @@ let AppController = class AppController {
         };
     }
     getDocs() {
+        const apiPrefix = process.env.API_PREFIX || 'api';
         return {
             message: 'Quotebot Backend API Documentation',
             version: '1.0.0',
-            baseUrl: 'http://localhost:3001/api',
+            baseUrl: process.env.PUBLIC_API_URL || `/${apiPrefix}`,
             endpoints: {
                 auth: {
                     login: 'POST /api/auth/login',

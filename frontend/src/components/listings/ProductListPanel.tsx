@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useApp } from '../../context/AppContext';
 
 // Dummy data for Products
 const productData = {
@@ -38,6 +39,7 @@ interface ProductListPanelProps {
 }
 
 const ProductListPanel: React.FC<ProductListPanelProps> = ({ onItemSelect, selectedSku }) => {
+  const { showToast } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [filterStock, setFilterStock] = useState<StockFilter>('all');
@@ -228,7 +230,7 @@ const ProductListPanel: React.FC<ProductListPanelProps> = ({ onItemSelect, selec
 
       {/* Add New Button */}
       <div className="p-3 bg-slate-50 border-t border-[var(--erp-border)]">
-        <button className="w-full bg-[var(--erp-accent)] text-white py-2 text-sm font-bold rounded shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-2">
+        <button className="btn btn-primary btn-block btn-lg" onClick={() => showToast('Product creation modal coming soon!', 'info')}>
           <span className="material-symbols-outlined !text-base">add_circle</span>
           NEW PRODUCT
         </button>

@@ -40,7 +40,7 @@ curl http://localhost:3001/api/health
 
 ### Login
 ```bash
-curl -X POST http://localhost:3001/api/auth/login \
+curl -c cookies.txt -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@quotebot.com",
@@ -48,17 +48,11 @@ curl -X POST http://localhost:3001/api/auth/login \
   }'
 ```
 
-**Response**: JWT token in `access_token` field
+**Response**: auth cookies set (`qb_access_token`, `qb_refresh_token`)
 
-### Use Token
+### Use Cookies
 ```bash
-ADMIN_TOKEN=$(curl -s -X POST http://localhost:3001/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@quotebot.com","password":"Admin@123"}' \
-  | jq -r '.access_token')
-
-curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:3001/api/protected-route
+curl -b cookies.txt http://localhost:3001/api/auth/me
 ```
 
 ---
@@ -157,6 +151,47 @@ POST /api/auth/validate   → Validate token
 🔜 GET    /api/dashboard             → Dashboard KPIs
 🔜 GET    /api/analytics/sales-trend → Sales analytics
 🔜 POST   /api/files/upload          → Upload file
+```
+
+### Internal Email Endpoints (n8n Integration)
+```
+POST  /api/internal/email/inbound     → Ingest email from provider
+      Headers: X-Internal-Key, X-Tenant-ID
+      
+GET   /api/internal/email/outbound    → Fetch pending outbound emails
+      Headers: X-Internal-Key, X-Tenant-ID
+      
+PATCH /api/internal/email/outbound/:id → Update send status
+                  Headers: X-Internal-Key, X-Tenant-ID
+```
+
+**Example - Test inbound endpoint:**
+```bash
+export N8N_SECRET="replace-with-strong-internal-key"
+export N8N_TENANT_ID="your-tenant-id"
+
+curl -X POST http://localhost:3001/api/internal/email/inbound \
+  -H "Content-Type: application/json" \
+      -H "X-Internal-Key: ${N8N_SECRET}" \
+      -H "X-Tenant-ID: ${N8N_TENANT_ID}" \
+  -d '{
+    "email_account_id": "acc_123",
+    "external_id": "gmail_msg_456",
+    "provider": "gmail",
+    "sender_email": "client@example.com",
+    "sender_name": "John Doe",
+    "subject": "RFQ for parts",
+    "body": "Need 100 units",
+    "received_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+  }'
+```
+
+**n8n worker environment variables:**
+```bash
+API_BASE_URL=http://localhost:3001/api
+N8N_SECRET=replace-with-strong-internal-key
+N8N_TENANT_ID=your-tenant-id
+RFQ_LLM_MODEL=llama3:8b
 ```
 
 ---

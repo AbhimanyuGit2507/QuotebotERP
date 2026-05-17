@@ -1,11 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageLayout from '../components/common/PageLayout';
 import { useApp } from '../context/AppContext';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { rfqs, quotes, clients, products, showToast } = useApp();
+  const { rfqs, quotes, clients, products, invoices, showToast } = useApp();
 
   // Calculate KPI data from real state
   const kpiData = useMemo(() => {
@@ -17,15 +17,20 @@ const Dashboard: React.FC = () => {
     const totalQuotes = quotes.length;
     const conversionRate = totalQuotes > 0 ? Math.round((acceptedQuotes / totalQuotes) * 100) : 0;
     
+    const openInvoices = invoices.filter((inv) => inv.status === 'open').length;
+    const paidInvoices = invoices.filter((inv) => inv.status === 'paid').length;
+
     return [
       { label: 'Total RFQs', value: totalRfqs.toString(), sub: `${pendingRfqs} pending`, subColor: 'text-yellow-600', icon: 'inbox' },
       { label: 'Quotes Sent', value: sentQuotes.toString(), sub: `Total: ${totalQuotes}`, subColor: 'text-[var(--erp-accent)]', icon: 'send' },
       { label: 'Accepted', value: acceptedQuotes.toString(), sub: `Rate: ${conversionRate}%`, subColor: 'text-green-600', icon: 'check_circle' },
       { label: 'Declined', value: declinedQuotes.toString(), sub: `${totalQuotes > 0 ? Math.round((declinedQuotes / totalQuotes) * 100) : 0}% decline`, subColor: 'text-red-500', icon: 'cancel' },
       { label: 'Products', value: products.length.toString(), sub: `${products.filter(p => p.status === 'active').length} active`, subColor: 'text-purple-600', icon: 'inventory_2' },
-      { label: 'Clients', value: clients.length.toString(), sub: `${clients.filter(c => c.tier === 'gold').length} gold tier`, subColor: 'text-amber-600', icon: 'groups' },
+      { label: 'Clients', value: clients.length.toString(), sub: `${clients.filter(c => c.tier === 'top').length} top tier`, subColor: 'text-amber-600', icon: 'groups' },
+      { label: 'Open Invoices', value: openInvoices.toString(), sub: `Paid: ${paidInvoices}`, subColor: 'text-emerald-600', icon: 'receipt' },
+      { label: 'Paid Invoices', value: paidInvoices.toString(), sub: `Open: ${openInvoices}`, subColor: 'text-cyan-600', icon: 'credit_score' },
     ];
-  }, [rfqs, quotes, clients, products]);
+  }, [rfqs, quotes, clients, products, invoices]);
 
   // Status distribution for chart
   const quoteStatusData = useMemo(() => {
@@ -53,6 +58,22 @@ const Dashboard: React.FC = () => {
     ];
   }, [rfqs]);
 
+  // Helper to calculate time ago
+  const getTimeAgo = useCallback((dateStr: string): string => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hr${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+  }, []);
+
   // Recent RFQs (sorted by date, limited to 5)
   const recentRfqs = useMemo(() => {
     return [...rfqs]
@@ -65,9 +86,9 @@ const Dashboard: React.FC = () => {
     const activities: { time: string; icon: string; color: string; text: string; action: string; onClick: () => void }[] = [];
     
     // Add recent RFQs as activities
-    recentRfqs.slice(0, 2).forEach((rfq, i) => {
+    recentRfqs.slice(0, 2).forEach((rfq) => {
       activities.push({
-        time: i === 0 ? '2 min ago' : '15 min ago',
+        time: getTimeAgo(rfq.date),
         icon: 'mail',
         color: 'text-blue-500',
         text: `RFQ ${rfq.number} from ${rfq.client}`,
@@ -79,7 +100,7 @@ const Dashboard: React.FC = () => {
     // Add recent quotes
     quotes.filter(q => q.status === 'sent').slice(0, 1).forEach(quote => {
       activities.push({
-        time: '1 hr ago',
+        time: getTimeAgo(quote.date),
         icon: 'send',
         color: 'text-green-500',
         text: `Quote ${quote.number} sent to ${quote.client}`,
@@ -89,7 +110,7 @@ const Dashboard: React.FC = () => {
     });
     
     return activities;
-  }, [recentRfqs, quotes, navigate]);
+  }, [recentRfqs, quotes, navigate, getTimeAgo]);
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -126,7 +147,7 @@ const Dashboard: React.FC = () => {
         navigate('/products');
         break;
       case 5: // Clients
-        navigate('/clients');
+        navigate('/client-ledger');
         break;
     }
   };
@@ -139,7 +160,7 @@ const Dashboard: React.FC = () => {
           <div className="flex items-center gap-2">
             <button 
               onClick={() => navigate('/quotations')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--erp-accent)] text-white text-[12px] font-bold rounded hover:bg-opacity-90"
+              className="btn btn-primary btn-sm"
             >
               <span className="material-symbols-outlined !text-[16px]">add</span>
               Create Quote
@@ -166,7 +187,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-6 gap-px bg-[var(--erp-border)] border-b border-[var(--erp-border)] shrink-0">
+        <div className="grid grid-cols-8 gap-px bg-[var(--erp-border)] border-b border-[var(--erp-border)] shrink-0">
           {kpiData.map((kpi, idx) => (
             <div 
               key={idx} 
@@ -389,8 +410,8 @@ const Dashboard: React.FC = () => {
                   <span className="font-medium">{clients.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[var(--erp-text-muted)]">Gold Clients</span>
-                  <span className="font-medium text-amber-600">{clients.filter(c => c.tier === 'gold').length}</span>
+                  <span className="text-[var(--erp-text-muted)]">Top Clients</span>
+                  <span className="font-medium text-amber-600">{clients.filter(c => c.tier === 'top').length}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[var(--erp-text-muted)]">Draft Quotes</span>

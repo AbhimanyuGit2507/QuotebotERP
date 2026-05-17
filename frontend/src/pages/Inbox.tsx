@@ -1,16 +1,176 @@
-import React, { useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import PageLayout from '../components/common/PageLayout';
 import { useApp, InboxMessage } from '../context/AppContext';
 import { exportToCSV, prepareInboxMessagesForExport, getDateStamp } from '../utils/exportUtils';
+import {
+  apiRequest,
+  createRfqFromEmail,
+  previewRfqFromEmail,
+  RfqFromEmailItemPayload,
+  RfqPreviewFromEmailResponse,
+  retryInboxMessage,
+  sendEmail,
+} from '../services/api';
+
+interface GmailSyncStatus {
+  status: 'idle' | 'running' | 'completed' | 'failed' | string;
+  totalMessages?: number;
+  processedMessages?: number;
+  synced?: number;
+  duplicates?: number;
+  failed?: number;
+  error?: string | null;
+  user_error?: string | null;
+  technical_error?: string | null;
+}
 
 const Inbox: React.FC = () => {
-  const { inboxMessages, updateInboxMessage, addRFQ, showToast, showConfirmModal } = useApp();
+  const { inboxMessages, updateInboxMessage, showToast, showConfirmModal, refreshData } = useApp();
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   
-  const [selectedId, setSelectedId] = useState<string | null>(inboxMessages[0]?.id || null);
+  const selectedId = useMemo(() => {
+    if (!id || !inboxMessages.some((m) => m.id === id)) {
+      return inboxMessages[0]?.id || null;
+    }
+    return id;
+  }, [id, inboxMessages]);
+
   const [activeTab, setActiveTab] = useState<'raw' | 'parsed' | 'attachments'>('raw');
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [syncStatus, setSyncStatus] = useState<GmailSyncStatus | null>(null);
+  const [manualSyncRequested, setManualSyncRequested] = useState(false);
+  const [syncTriggering, setSyncTriggering] = useState(false);
+  const [manualSyncRunningSeen, setManualSyncRunningSeen] = useState(false);
+  const [retryingMessageId, setRetryingMessageId] = useState<string | null>(null);
+  const [bulkRetrying, setBulkRetrying] = useState(false);
+  const [creatingFromPreview, setCreatingFromPreview] = useState(false);
+  const [pendingCreatePreview, setPendingCreatePreview] = useState<{
+    message: InboxMessage;
+    candidateItems: RfqFromEmailItemPayload[];
+    preview: RfqPreviewFromEmailResponse;
+    parsingSource: string;
+    parsingConfidence: string;
+  } | null>(null);
+  const [showComposeModal, setShowComposeModal] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const [composeForm, setComposeForm] = useState<{
+    to: string[];
+    cc: string[];
+    subject: string;
+    body: string;
+  }>({
+    to: [],
+    cc: [],
+    subject: '',
+    body: '',
+  });
+  const hasAutoReloadedAfterSync = useRef(false);
+  const lastSelectedIndexRef = useRef<number | null>(null);
+  const syncFailureNotified = useRef(false);
+
+  const loadSyncStatus = useCallback(async () => {
+    try {
+      const status = await apiRequest<GmailSyncStatus>('/email-integrations/sync-status');
+      setSyncStatus(status);
+    } catch {
+      // Ignore optional sync status fetch failures in inbox UI.
+    }
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const refreshSyncStatus = async () => {
+      if (!isMounted) {
+        return;
+      }
+      await loadSyncStatus();
+    };
+
+    void refreshSyncStatus();
+    const interval = window.setInterval(() => {
+      void refreshSyncStatus();
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(interval);
+    };
+  }, [loadSyncStatus]);
+
+  useEffect(() => {
+    if (!syncStatus || syncStatus.status !== 'failed') {
+      return;
+    }
+
+    if (syncFailureNotified.current) {
+      return;
+    }
+
+    const userMessage =
+      syncStatus.user_error || syncStatus.error || 'Inbox sync failed.';
+    showToast(userMessage, 'error');
+
+    if (syncStatus.technical_error) {
+      console.error('[Inbox Sync]', syncStatus.technical_error);
+    }
+
+    syncFailureNotified.current = true;
+  }, [showToast, syncStatus]);
+
+  useEffect(() => {
+    if (!manualSyncRequested || !syncStatus) {
+      return;
+    }
+
+    if (syncStatus.status === 'running') {
+      setManualSyncRunningSeen(true);
+      return;
+    }
+
+    if (!manualSyncRunningSeen) {
+      return;
+    }
+
+    if (syncStatus.status === 'completed') {
+      setManualSyncRequested(false);
+      setManualSyncRunningSeen(false);
+      const added = Number(syncStatus.synced || 0);
+      if (added > 0) {
+        showToast(`Inbox sync completed. ${added} email(s) added.`, 'success');
+      } else {
+        showToast('Inbox sync completed. No new emails found.', 'info');
+      }
+
+      if (!hasAutoReloadedAfterSync.current) {
+        hasAutoReloadedAfterSync.current = true;
+        window.setTimeout(() => {
+          window.location.reload();
+        }, 450);
+      }
+    } else if (syncStatus.status === 'failed') {
+      setManualSyncRequested(false);
+      setManualSyncRunningSeen(false);
+      showToast(
+        syncStatus.user_error || syncStatus.error || 'Inbox sync failed',
+        'error',
+      );
+    }
+  }, [manualSyncRequested, manualSyncRunningSeen, showToast, syncStatus]);
+
+  useEffect(() => {
+    if (!selectedId && id) {
+      navigate('/inbox', { replace: true });
+    } else if (selectedId && id !== selectedId) {
+      navigate(`/inbox/${selectedId}`, { replace: true });
+    }
+  }, [id, selectedId, navigate]);
 
   // Filter messages
   const filteredMessages = useMemo(() => {
@@ -24,6 +184,181 @@ const Inbox: React.FC = () => {
   }, [inboxMessages, searchQuery, channelFilter, statusFilter]);
 
   const selectedMessage = inboxMessages.find(m => m.id === selectedId);
+  const selectedMessageCount = selectedMessageIds.size;
+
+  const getParsingSourceLabel = (source: string) => {
+    const normalized = source.toLowerCase();
+
+    switch (normalized) {
+      case 'backend_regex_classifier':
+      case 'regex':
+        return 'Regex classifier';
+      case 'backend_llm_classifier':
+      case 'llm_classifier':
+        return 'LLM classifier';
+      case 'backend_llm_extractor':
+      case 'llm_extractor':
+        return 'LLM extractor';
+      case 'backend_llm_pipeline':
+      case 'rfq_workflow':
+        return 'RFQ pipeline';
+      case 'rfq_unresolved':
+        return 'RFQ review';
+      case 'not_rfq':
+        return 'Non-RFQ';
+      default:
+        return normalized ? normalized.replace(/_/g, ' ') : 'Unknown';
+    }
+  };
+
+  const isParsingFailureMessage = (value: string) => {
+    const normalized = value.toLowerCase();
+    return [
+      'failed',
+      'error',
+      'rate-limited',
+      'rate limited',
+      'temporarily',
+      'invalid',
+      'missing',
+      'unable',
+      'could not',
+      'timeout',
+      'below threshold',
+    ].some((keyword) => normalized.includes(keyword));
+  };
+
+  const handleToggleSelection = useCallback(
+    (messageId: string, index: number, shiftKey: boolean) => {
+      setSelectedMessageIds((prev) => {
+        const next = new Set(prev);
+        if (shiftKey && lastSelectedIndexRef.current !== null) {
+          const start = Math.min(lastSelectedIndexRef.current, index);
+          const end = Math.max(lastSelectedIndexRef.current, index);
+          filteredMessages.slice(start, end + 1).forEach((msg) => {
+            next.add(msg.id);
+          });
+        } else if (next.has(messageId)) {
+          next.delete(messageId);
+        } else {
+          next.add(messageId);
+        }
+        return next;
+      });
+      lastSelectedIndexRef.current = index;
+    },
+    [filteredMessages],
+  );
+
+  const handleRowClick = (
+    event: React.MouseEvent,
+    msg: InboxMessage,
+    index: number,
+  ) => {
+    if (event.shiftKey) {
+      event.preventDefault();
+      handleToggleSelection(msg.id, index, true);
+      return;
+    }
+    setSelectedMessageIds(new Set());
+    lastSelectedIndexRef.current = index;
+    handleSelectMessage(msg);
+  };
+
+  const handleListContainerClick = (event: React.MouseEvent) => {
+    if (event.shiftKey) {
+      return;
+    }
+    if (event.target === event.currentTarget) {
+      setSelectedMessageIds(new Set());
+      lastSelectedIndexRef.current = null;
+    }
+  };
+
+  const handleCheckboxClick = (
+    event: React.MouseEvent,
+    msg: InboxMessage,
+    index: number,
+  ) => {
+    event.stopPropagation();
+    handleToggleSelection(msg.id, index, event.shiftKey);
+  };
+
+  const isMessageNotRfq = (msg: InboxMessage) => {
+    const source = (msg.parsingSource || '').toLowerCase();
+    const parsingError = (msg.parsingError || '').toLowerCase();
+
+    if (source === 'not_rfq') return true;
+    if (source === 'classified_non_rfq') return true;
+    if (source === 'classified_non_rfq_regex') return true;
+    if (parsingError.includes('non-rfq') || parsingError.includes('not rfq')) {
+      return true;
+    }
+
+    return (
+      (source === 'llm_classifier' || source === 'backend_llm_classifier') &&
+      msg.extractedItems <= 0 &&
+      !msg.autoRfqCreated &&
+      !msg.rfqId &&
+      !msg.quotationId
+    );
+  };
+
+  const isMessageRfq = (msg: InboxMessage) => {
+    if (isMessageNotRfq(msg)) return false;
+
+    const source = (msg.parsingSource || '').toLowerCase();
+    if (msg.quotationId) return true;
+    if (msg.rfqId) return true;
+    if (msg.autoRfqCreated) return true;
+    if (msg.extractedItems > 0) return true;
+    return [
+      'llm',
+      'llm_extractor',
+      'backend_llm_extractor',
+      'backend_llm_pipeline',
+      'rfq_workflow',
+      'regex',
+      'rfq_detected',
+    ].includes(source);
+  };
+
+  const extractItemsFromRawText = (text: string) => {
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const items = lines
+      .map((line) => {
+        const normalized = line.replace(/^\d+[).:\s-]*/, '').trim();
+        const explicitQty = normalized.match(/(.+?)\s+(?:for|x|qty[:\s]*)\s*(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?$/i);
+        const trailingQty = normalized.match(/(.+?)\s+(\d+(?:\.\d+)?)\s*(pc|pcs|piece|pieces|unit|units|kg|g|ltr|l|box|boxes)?$/i);
+        const match = explicitQty || trailingQty;
+
+        if (!match) {
+          return null;
+        }
+
+        const product_name = (match[1] || '').trim();
+        const quantity = Number(match[2] || 0);
+        const unit = (match[3] || 'pcs').toLowerCase();
+
+        if (!product_name || !Number.isFinite(quantity) || quantity <= 0) {
+          return null;
+        }
+
+        return {
+          product_name,
+          quantity,
+          unit,
+          notes: 'Recovered from raw message text (manual fallback).',
+        };
+      })
+      .filter((item): item is { product_name: string; quantity: number; unit: string; notes: string } => Boolean(item));
+
+    return items;
+  };
 
   const handleMarkAsRead = (msg: InboxMessage) => {
     if (!msg.isRead) {
@@ -32,25 +367,123 @@ const Inbox: React.FC = () => {
   };
 
   const handleSelectMessage = (msg: InboxMessage) => {
-    setSelectedId(msg.id);
     handleMarkAsRead(msg);
+    navigate(`/inbox/${msg.id}`);
   };
 
-  const handleConvertToRFQ = (msg: InboxMessage) => {
-    const newRfqNumber = `RFQ/25-26/${(2048 + Math.floor(Math.random() * 100)).toString()}`;
-    addRFQ({
-      number: newRfqNumber,
-      client: msg.sender,
-      clientId: '',
-      date: new Date().toISOString().split('T')[0],
-      items: msg.extractedItems,
-      value: '₹0',
-      status: 'pending',
-      channel: msg.channel,
-      priority: 'medium',
-    });
-    updateInboxMessage(msg.id, { status: 'parsed' });
-    showToast(`Created ${newRfqNumber} from message`, 'success');
+  const handleConvertToRFQ = async (msg: InboxMessage) => {
+    const parsedItems = msg.parsedItems || [];
+    const fallbackItems =
+      parsedItems.length > 0
+        ? []
+        : extractItemsFromRawText(msg.content || msg.preview || '');
+    const candidateItems = parsedItems.length > 0 ? parsedItems : fallbackItems;
+
+    if (candidateItems.length <= 0) {
+      showToast('No extracted items available to create an RFQ. Add a quantity like "for 10 pcs" in the message.', 'warning');
+      return;
+    }
+
+    if (msg.status === 'duplicate') {
+      showToast('Archived messages cannot be converted to RFQ.', 'warning');
+      return;
+    }
+
+    if (!msg.from) {
+      showToast('Sender email is required to create RFQ from parsed data.', 'warning');
+      return;
+    }
+
+    try {
+      const preview = await previewRfqFromEmail({
+        client_email: msg.from,
+        message_id: msg.id,
+        items: candidateItems,
+      });
+
+      if (!preview.matched_items?.length) {
+        showToast(
+          preview.summary ||
+            'No valid and available catalog products matched extracted items.',
+          'warning',
+        );
+        return;
+      }
+
+      setPendingCreatePreview({
+        message: msg,
+        candidateItems,
+        preview,
+        parsingSource:
+          parsedItems.length > 0
+            ? msg.parsingSource || 'manual_inbox_action'
+            : 'manual_text_fallback',
+        parsingConfidence: msg.parsingConfidence || 'medium',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not create RFQ from extracted data';
+      showToast(message, 'error');
+    }
+  };
+
+  const handleConfirmCreateFromPreview = async () => {
+    if (!pendingCreatePreview) {
+      return;
+    }
+
+    const { message, preview, parsingSource, parsingConfidence } = pendingCreatePreview;
+
+    try {
+      setCreatingFromPreview(true);
+
+      const created = await createRfqFromEmail({
+        client_email: message.from || '',
+        message_id: message.id,
+        parsing_source: parsingSource,
+        parsing_confidence: parsingConfidence,
+        items: preview.matched_items,
+      });
+
+      await apiRequest(`/inbox/messages/${message.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          processing_status: 'parsed',
+          auto_rfq_created: false,
+          rfq_id: created?.id,
+        }),
+      });
+
+      updateInboxMessage(message.id, { status: 'parsed' });
+      await refreshData();
+      // navigate to created RFQ or quotation if available
+      if (created?.id) {
+        navigate(`/rfqs/${created.id}`);
+      } else if (created?.quotation_id) {
+        navigate(`/quotations/${created.quotation_id}`);
+      }
+
+      setPendingCreatePreview(null);
+      showToast(
+        created?.number
+          ? `RFQ ${created.number} created from extracted data.${preview.unmatched_items?.length ? ` ${preview.unmatched_items.length} item(s) were rejected.` : ''}`
+          : `RFQ created from extracted data.${preview.unmatched_items?.length ? ` ${preview.unmatched_items.length} item(s) were rejected.` : ''}`,
+        'success',
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Could not create RFQ from extracted data';
+      showToast(message, 'error');
+    } finally {
+      setCreatingFromPreview(false);
+    }
+  };
+
+  const handleEditExtractedData = (msg: InboxMessage) => {
+    updateInboxMessage(msg.id, { status: 'needs_review' });
+    setActiveTab('raw');
+    showToast('Marked for manual extraction review in Raw Message tab.', 'info');
   };
 
   const handleArchive = (msg: InboxMessage) => {
@@ -69,22 +502,199 @@ const Inbox: React.FC = () => {
     showToast('Marked for review', 'warning');
   };
 
-  const getStatusBadge = (status: InboxMessage['status']) => {
-    const styles: Record<string, string> = {
-      new: 'bg-blue-100 text-blue-700 border-blue-200',
-      parsed: 'bg-green-100 text-green-700 border-green-200',
-      needs_review: 'bg-amber-100 text-amber-700 border-amber-200',
-      duplicate: 'bg-slate-100 text-slate-600 border-slate-200',
-      failed: 'bg-red-100 text-red-700 border-red-200',
-    };
-    const labels: Record<string, string> = {
-      new: 'NEW',
-      parsed: 'PARSED',
-      needs_review: 'REVIEW',
-      duplicate: 'ARCHIVED',
-      failed: 'FAILED',
-    };
-    return <span className={`text-[10px] font-bold px-1.5 py-0.5 border rounded ${styles[status]}`}>{labels[status]}</span>;
+  const waitForMessageRefresh = useCallback(
+    async (messageId: string, expectedRetryCount: number, timeoutMs = 30000) => {
+      const startedAt = Date.now();
+
+      while (Date.now() - startedAt < timeoutMs) {
+        try {
+          const latestMessages = await apiRequest<InboxMessage[]>('/inbox/messages?limit=200');
+          const refreshedMessage = latestMessages.find((message) => message.id === messageId);
+
+          if (
+            refreshedMessage &&
+            ((refreshedMessage.retryCount ?? 0) >= expectedRetryCount ||
+              (refreshedMessage.parsedItems || []).length > 0 ||
+              refreshedMessage.status === 'parsed')
+          ) {
+            await refreshData();
+            return refreshedMessage;
+          }
+        } catch {
+          // Ignore transient polling errors while the backend is processing.
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
+      }
+
+      await refreshData();
+      return null;
+    },
+    [refreshData],
+  );
+
+  const handleBulkArchive = () => {
+    const ids = Array.from(selectedMessageIds);
+    if (!ids.length) {
+      return;
+    }
+
+    showConfirmModal(
+      'Archive Messages',
+      `Archive ${ids.length} message(s)?`,
+      () => {
+        ids.forEach((messageId) => {
+          updateInboxMessage(messageId, { status: 'duplicate' });
+        });
+        setSelectedMessageIds(new Set());
+        showToast(`Archived ${ids.length} message(s).`, 'success');
+      },
+    );
+  };
+
+  const executeRetryParsing = async (msg: InboxMessage, forceRetry: boolean) => {
+    try {
+      setRetryingMessageId(msg.id);
+      const retriedAt = new Date().toISOString();
+      const nextRetryCount = Number(msg.retryCount || 0) + 1;
+      const previousProcessingStatus: 'pending' | 'parsed' | 'failed' =
+        msg.status === 'failed' ? 'failed' : msg.status === 'parsed' ? 'parsed' : 'pending';
+
+      const retryHistoryEntry: NonNullable<InboxMessage['retryHistory']>[number] = {
+        retried_at: retriedAt,
+        retried_by: 'manual_inbox_action',
+        reason: 'Manual retry requested from inbox UI.',
+        previous_processing_status: previousProcessingStatus,
+        ...(msg.parsingSource ? { previous_parsing_source: msg.parsingSource } : {}),
+        ...(msg.parsingError ? { previous_parsing_error: msg.parsingError } : {}),
+        ...(msg.extractedItems > 0 ? { previous_item_count: msg.extractedItems } : {}),
+        forced: forceRetry,
+      };
+
+      await retryInboxMessage(msg.id, {
+        force_retry: forceRetry,
+        reason: retryHistoryEntry.reason,
+      });
+
+      updateInboxMessage(msg.id, {
+        status: 'new',
+        extractedItems: 0,
+        parsedItems: [],
+        parsingSource: 'manual_retry_requested',
+        parsingConfidence: '',
+        parsingError: '',
+        rfqId: '',
+        quotationId: '',
+        autoRfqCreated: false,
+        autoQuotationCreated: false,
+        retryCount: nextRetryCount,
+        lastRetryAt: retriedAt,
+        retryHistory: [retryHistoryEntry, ...(msg.retryHistory || [])].slice(0, 10),
+      });
+
+      const syncResponse = await apiRequest<{
+        started?: boolean;
+        reason?: string;
+        status?: { status?: string };
+      }>('/email-integrations/sync-now', {
+        method: 'POST',
+      });
+
+      if (syncResponse?.started || syncResponse?.status?.status === 'running') {
+        showToast('Message re-queued. Parsing retry started.', 'info');
+      } else {
+        showToast(
+          syncResponse?.reason || 'Message re-queued for next parsing cycle.',
+          'info',
+        );
+      }
+
+      await waitForMessageRefresh(msg.id, nextRetryCount);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not retry parsing';
+      showToast(message, 'error');
+    } finally {
+      setRetryingMessageId(null);
+    }
+  };
+
+  const handleRetryParsing = (msg: InboxMessage) => {
+    const hasLinkedArtifacts =
+      Boolean(msg.rfqId) ||
+      Boolean(msg.quotationId) ||
+      msg.autoRfqCreated ||
+      msg.autoQuotationCreated;
+
+    if (!hasLinkedArtifacts) {
+      void executeRetryParsing(msg, false);
+      return;
+    }
+
+    showConfirmModal(
+      'Retry Parsing For Linked Message',
+      'This message is already linked to an RFQ or quotation. Retrying can cause duplicate records. Continue anyway?',
+      () => {
+        void executeRetryParsing(msg, true);
+      },
+    );
+  };
+
+  const handleRetryFailedMessages = () => {
+    const failedMessages = filteredMessages.filter(
+      (message) => message.status === 'failed' || message.status === 'needs_review',
+    );
+
+    if (failedMessages.length === 0) {
+      showToast('No failed/review messages found in current filter.', 'info');
+      return;
+    }
+
+    showConfirmModal(
+      'Retry Failed/Review Messages',
+      `Retry parsing for ${failedMessages.length} message(s)? Linked records will be force-retried.`,
+      () => {
+        void (async () => {
+          setBulkRetrying(true);
+          let retried = 0;
+          let failed = 0;
+
+          for (const message of failedMessages.slice(0, 50)) {
+            const hasLinkedArtifacts =
+              Boolean(message.rfqId) ||
+              Boolean(message.quotationId) ||
+              message.autoRfqCreated ||
+              message.autoQuotationCreated;
+
+            try {
+              await retryInboxMessage(message.id, {
+                force_retry: hasLinkedArtifacts,
+                reason: 'Bulk retry requested from Inbox page.',
+              });
+              retried += 1;
+            } catch {
+              failed += 1;
+            }
+          }
+
+          try {
+            await apiRequest('/email-integrations/sync-now', { method: 'POST' });
+          } catch {
+            // Ignore scheduler trigger failures; queueing already happened.
+          }
+
+          await refreshData();
+          if (retried > 0 && failed === 0) {
+            showToast(`Re-queued ${retried} message(s) for parsing.`, 'success');
+          } else if (retried > 0) {
+            showToast(`Re-queued ${retried} message(s), ${failed} failed to queue.`, 'warning');
+          } else {
+            showToast('Could not queue selected messages for re-parse.', 'error');
+          }
+
+          setBulkRetrying(false);
+        })();
+      },
+    );
   };
 
   const getChannelIcon = (channel: string) => {
@@ -97,20 +707,347 @@ const Inbox: React.FC = () => {
     return 'text-red-600';
   };
 
+  const formatRetryTimestamp = (value?: string) => {
+    if (!value) {
+      return '';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return date.toLocaleString('en-IN', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const getParsingStatusMeta = (message: InboxMessage) => {
+    const status = message.status;
+    const source = (message.parsingSource || '').toLowerCase();
+
+    // If backend has provided a parsing_error while still pending, show rate-limited/queued hint
+    if (status === 'new' && message.parsingError) {
+      const err = (message.parsingError || '').toLowerCase();
+      if (err.includes('rate') || err.includes('rate-limited') || err.includes('temporarily')) {
+        return {
+          label: 'Queued (Rate-limited)',
+          detail: message.parsingError || 'Message is queued and waiting for retry by backend.',
+          icon: 'schedule',
+          chipClass: 'bg-blue-100 text-blue-700 border-blue-200',
+          panelClass: 'bg-blue-50 border-blue-200 text-blue-800',
+          progressStep: 1 as const,
+        };
+      }
+    }
+
+    if (source === 'backend_llm_classifier' && status === 'parsed') {
+      return {
+        label: 'Classification Complete',
+        detail: 'RFQ classifier finished. Ready for extraction results.',
+        icon: 'rule_settings',
+        chipClass: 'bg-sky-100 text-sky-700 border-sky-200',
+        panelClass: 'bg-sky-50 border-sky-200 text-sky-800',
+        progressStep: 2 as const,
+      };
+    }
+
+    if (source === 'backend_llm_pipeline' && !message.autoRfqCreated) {
+      return {
+        label: 'Extracted (Review)',
+        detail: 'Items extracted. Manual review required before RFQ creation.',
+        icon: 'hourglass_top',
+        chipClass: 'bg-amber-100 text-amber-700 border-amber-200',
+        panelClass: 'bg-amber-50 border-amber-200 text-amber-800',
+        progressStep: 2 as const,
+      };
+    }
+
+    if (source === 'backend_llm_extractor' && status === 'failed') {
+      return {
+        label: 'Extraction Failed',
+        detail: 'RFQ detected, but item extraction failed. See error summary.',
+        icon: 'error',
+        chipClass: 'bg-red-100 text-red-700 border-red-200',
+        panelClass: 'bg-red-50 border-red-200 text-red-800',
+        progressStep: 2 as const,
+      };
+    }
+
+    if (source === 'rfq_unresolved' && status === 'parsed') {
+      return {
+        label: 'RFQ Detected (Low Match)',
+        detail: 'RFQ intent detected. Items need manual validation.',
+        icon: 'warning',
+        chipClass: 'bg-amber-100 text-amber-700 border-amber-200',
+        panelClass: 'bg-amber-50 border-amber-200 text-amber-800',
+        progressStep: 2 as const,
+      };
+    }
+    const meta: Record<
+      InboxMessage['status'],
+      {
+        label: string;
+        detail: string;
+        icon: string;
+        chipClass: string;
+        panelClass: string;
+        progressStep: 1 | 2 | 3;
+      }
+    > = {
+      new: {
+        label: 'Queued For RFQ Analysis',
+        detail: 'This message is waiting to be analyzed for RFQ items.',
+        icon: 'schedule',
+        chipClass: 'bg-blue-100 text-blue-700 border-blue-200',
+        panelClass: 'bg-blue-50 border-blue-200 text-blue-800',
+        progressStep: 1,
+      },
+      needs_review: {
+        label: 'Needs Manual Review',
+        detail: 'Automatic extraction was partial or uncertain. Manual check is recommended.',
+        icon: 'flag',
+        chipClass: 'bg-amber-100 text-amber-700 border-amber-200',
+        panelClass: 'bg-amber-50 border-amber-200 text-amber-800',
+        progressStep: 2,
+      },
+      parsed: {
+        label: message.autoQuotationCreated
+          ? 'Draft Quote Ready'
+          : message.autoRfqCreated
+            ? 'RFQ Created'
+            : 'RFQ Detected',
+        detail: message.autoQuotationCreated
+          ? 'RFQ and draft quotation are ready to send.'
+          : message.autoRfqCreated
+            ? 'RFQ created automatically from extracted items.'
+            : 'RFQ intent detected with extractable items.',
+        icon: 'task_alt',
+        chipClass: 'bg-green-100 text-green-700 border-green-200',
+        panelClass: 'bg-green-50 border-green-200 text-green-800',
+        progressStep: 3,
+      },
+      failed: {
+        label: 'Parsing Failed',
+        detail: 'Parsing failed. Manual follow-up required.',
+        icon: 'error',
+        chipClass: 'bg-red-100 text-red-700 border-red-200',
+        panelClass: 'bg-red-50 border-red-200 text-red-800',
+        progressStep: 1,
+      },
+      duplicate: {
+        label: 'Archived (Not RFQ)',
+        detail: 'Message archived and excluded from RFQ extraction.',
+        icon: 'inventory_2',
+        chipClass: 'bg-slate-100 text-slate-700 border-slate-200',
+        panelClass: 'bg-slate-100 border-slate-200 text-slate-700',
+        progressStep: 1,
+      },
+    };
+
+    if (status === 'parsed' && isMessageNotRfq(message)) {
+      return {
+        label: 'Not RFQ',
+        detail: 'Classified as non-RFQ. No action required.',
+        icon: 'shield',
+        chipClass: 'bg-slate-100 text-slate-700 border-slate-200',
+        panelClass: 'bg-slate-100 border-slate-200 text-slate-700',
+        progressStep: 1 as const,
+      };
+    }
+
+    if (status === 'parsed' && isMessageRfq(message) && !message.autoRfqCreated) {
+      return {
+        label: 'RFQ Detected',
+        detail: 'RFQ intent detected and items extracted.',
+        icon: 'manage_search',
+        chipClass: 'bg-green-100 text-green-700 border-green-200',
+        panelClass: 'bg-green-50 border-green-200 text-green-800',
+        progressStep: 3 as const,
+      };
+    }
+
+    return meta[status];
+  };
+
   const handleExportMessages = () => {
     const data = prepareInboxMessagesForExport(filteredMessages);
     exportToCSV(data, `inbox_messages_${getDateStamp()}.csv`);
   };
 
+  const handleManualSync = async () => {
+    try {
+      setSyncTriggering(true);
+      const response = await apiRequest<{
+        started?: boolean;
+        reason?: string;
+        status?: { status?: string };
+      }>('/email-integrations/sync-now', {
+        method: 'POST',
+      });
+
+      if (response?.started) {
+        setManualSyncRequested(true);
+        setManualSyncRunningSeen(false);
+        hasAutoReloadedAfterSync.current = false;
+        setSyncStatus((previous) => ({
+          ...(previous || {}),
+          status: 'running',
+        }));
+        void loadSyncStatus();
+        window.setTimeout(() => {
+          void loadSyncStatus();
+        }, 1200);
+        showToast('Manual inbox sync started', 'info');
+      } else if (response?.status?.status === 'running') {
+        setManualSyncRequested(true);
+        setManualSyncRunningSeen(true);
+        void loadSyncStatus();
+        showToast(response?.reason || 'Sync already in progress', 'info');
+      } else {
+        showToast(response?.reason || 'Sync already in progress', 'info');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not start inbox sync';
+      showToast(message, 'error');
+    } finally {
+      setSyncTriggering(false);
+    }
+  };
+
+  const handleOpenCompose = (msg: InboxMessage) => {
+    setComposeForm({
+      to: msg.from ? [msg.from] : [],
+      cc: [],
+      subject: `Re: ${msg.subject || ''}`,
+      body: `\n\n---\nOriginal Message:\n${msg.preview || msg.content || ''}\n`,
+    });
+    setShowComposeModal(true);
+  };
+
+  const handleSendEmail = async () => {
+    if (!composeForm.to.length || !composeForm.body.trim()) {
+      showToast('Email recipient and body are required.', 'warning');
+      return;
+    }
+
+    try {
+      setComposing(true);
+      await sendEmail({
+        to: composeForm.to,
+        cc: composeForm.cc.length > 0 ? composeForm.cc : undefined,
+        subject: composeForm.subject,
+        body: composeForm.body,
+      });
+      showToast('Email sent successfully!', 'success');
+      setShowComposeModal(false);
+      setComposeForm({ to: [], cc: [], subject: '', body: '' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not send email';
+      showToast(message, 'error');
+    } finally {
+      setComposing(false);
+    }
+  };
+
+  const handleCloseCompose = () => {
+    setShowComposeModal(false);
+    setComposeForm({ to: [], cc: [], subject: '', body: '' });
+  };
+
   const unreadCount = inboxMessages.filter(m => !m.isRead).length;
+  const failedCount = inboxMessages.filter(m => m.status === 'failed').length;
+  const parsingStatusMeta = selectedMessage
+    ? getParsingStatusMeta(selectedMessage)
+    : null;
+  const parsedItems = selectedMessage?.parsedItems || [];
+  const sanitizedHtml = selectedMessage?.contentHtml
+    ? DOMPurify.sanitize(selectedMessage.contentHtml, {
+        USE_PROFILES: { html: true },
+        FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed', 'link', 'meta', 'base'],
+        FORBID_ATTR: ['style'],
+      })
+    : '';
+  const syncProgressPercent = useMemo(() => {
+    if (!syncStatus) {
+      return 0;
+    }
+
+    const total = Number(syncStatus.totalMessages || 0);
+    const processed = Number(syncStatus.processedMessages || 0);
+    if (total <= 0) {
+      return 1;
+    }
+
+    return Math.max(1, Math.min(100, Math.round((processed / total) * 100)));
+  }, [syncStatus]);
+  const shouldShowSyncBanner =
+    manualSyncRequested &&
+    (
+      syncTriggering ||
+      syncStatus?.status === 'running' ||
+      !syncStatus ||
+      (syncStatus.status !== 'failed' && !manualSyncRunningSeen)
+    );
 
   return (
     <PageLayout>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {shouldShowSyncBanner && (
+          <div className="px-4 py-2 bg-blue-50 border-b border-blue-200">
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm font-medium text-blue-800">
+                {syncStatus?.status === 'running'
+                  ? `Syncing inbox... ${syncProgressPercent}%`
+                  : 'Starting inbox sync...'}
+              </p>
+              <p className="text-xs text-blue-700">
+                Found new emails: {syncStatus?.synced || 0} • Duplicates: {syncStatus?.duplicates || 0}
+              </p>
+            </div>
+            <div className="mt-2 h-1 w-full bg-blue-200 rounded">
+              <div
+                className="h-full bg-blue-500 transition-all duration-300 rounded"
+                style={{
+                  width: `${syncProgressPercent}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 flex overflow-hidden">
       {/* Left Panel - Message List */}
       <aside className="w-96 border-r border-[var(--erp-border)] flex flex-col bg-white shrink-0">
         <div className="h-12 border-b border-[var(--erp-border)] bg-slate-50 flex items-center justify-between px-3 shrink-0">
           <h2 className="text-sm font-bold text-[var(--erp-text)] uppercase tracking-wider">Inbox</h2>
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleRetryFailedMessages}
+              disabled={bulkRetrying}
+              className="p-1 hover:bg-slate-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Retry failed/review messages"
+            >
+              <span className={`material-symbols-outlined !text-[16px] text-[var(--erp-text-muted)] ${bulkRetrying ? 'animate-spin' : ''}`}>
+                restart_alt
+              </span>
+            </button>
+            <button
+              onClick={handleManualSync}
+              disabled={syncTriggering}
+              className="p-1 hover:bg-slate-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Sync inbox now"
+              data-action="sync-inbox"
+            >
+              <span className={`material-symbols-outlined !text-[16px] text-[var(--erp-text-muted)] ${syncTriggering ? 'animate-spin' : ''}`}>
+                sync
+              </span>
+            </button>
             <button 
               onClick={handleExportMessages}
               className="p-1 hover:bg-slate-200 rounded"
@@ -119,9 +1056,31 @@ const Inbox: React.FC = () => {
             >
               <span className="material-symbols-outlined !text-[16px] text-[var(--erp-text-muted)]">download</span>
             </button>
-            <span className="text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
-              {unreadCount} new
-            </span>
+            {selectedMessageCount > 0 ? (
+              <>
+                <span className="text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                  {selectedMessageCount} selected
+                </span>
+                <button
+                  onClick={handleBulkArchive}
+                  className="p-1 hover:bg-slate-200 rounded"
+                  title="Delete selected"
+                >
+                  <span className="material-symbols-outlined !text-[16px] text-[var(--erp-text-muted)]">delete</span>
+                </button>
+                <button
+                  onClick={handleBulkArchive}
+                  className="p-1 hover:bg-slate-200 rounded"
+                  title="Archive selected"
+                >
+                  <span className="material-symbols-outlined !text-[16px] text-[var(--erp-text-muted)]">archive</span>
+                </button>
+              </>
+            ) : (
+              <span className="text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                {unreadCount} new
+              </span>
+            )}
           </div>
         </div>
         
@@ -157,6 +1116,7 @@ const Inbox: React.FC = () => {
               <option value="new">New</option>
               <option value="parsed">Parsed</option>
               <option value="needs_review">Needs Review</option>
+              <option value="failed">Failed</option>
               <option value="duplicate">Archived</option>
             </select>
           </div>
@@ -173,19 +1133,39 @@ const Inbox: React.FC = () => {
           <span className="text-green-600 font-medium">
             {inboxMessages.filter(m => m.status === 'parsed').length} Parsed
           </span>
+          <span className="text-red-600 font-medium">
+            {failedCount} Failed
+          </span>
         </div>
 
         {/* Message List */}
-        <div className="flex-1 overflow-y-auto">
-          {filteredMessages.map(msg => (
+        <div
+          className="flex-1 overflow-y-auto select-none"
+          onClick={handleListContainerClick}
+        >
+          {filteredMessages.map((msg, index) => (
             <div 
               key={msg.id}
-              onClick={() => handleSelectMessage(msg)}
+              onClick={(event) => handleRowClick(event, msg, index)}
               className={`p-3 border-b border-[var(--erp-border)] cursor-pointer transition-colors ${
-                selectedId === msg.id ? 'bg-blue-50 border-l-[3px] border-l-[var(--erp-accent)]' : 'hover:bg-slate-50'
-              } ${!msg.isRead ? 'bg-blue-50/30' : ''}`}
+                selectedId === msg.id || selectedMessageIds.has(msg.id)
+                  ? 'bg-blue-50 border-l-[3px] !border-l-[var(--erp-accent)]'
+                  : 'border-l-[3px] border-l-transparent hover:bg-slate-50'
+              } ${!msg.isRead && selectedId !== msg.id ? 'bg-blue-50/30' : ''}`}
             >
               <div className="flex items-start gap-2">
+                <button
+                  type="button"
+                  onClick={(event) => handleCheckboxClick(event, msg, index)}
+                  className={`material-symbols-outlined !text-[18px] mt-0.5 transition-colors ${
+                    selectedMessageIds.has(msg.id)
+                      ? 'text-blue-600'
+                      : 'text-slate-400'
+                  }`}
+                  aria-pressed={selectedMessageIds.has(msg.id)}
+                >
+                  {selectedMessageIds.has(msg.id) ? 'check_box' : 'check_box_outline_blank'}
+                </button>
                 <span className={`material-symbols-outlined !text-[18px] mt-0.5 ${msg.channel === 'whatsapp' ? 'text-green-500' : 'text-blue-500'}`}>
                   {getChannelIcon(msg.channel)}
                 </span>
@@ -197,12 +1177,24 @@ const Inbox: React.FC = () => {
                     <span className="text-[10px] text-[var(--erp-text-muted)] shrink-0">{msg.timestamp}</span>
                   </div>
                   <p className={`text-[12px] truncate mb-1 ${!msg.isRead ? 'font-medium' : ''}`}>{msg.subject}</p>
+                  {msg.relativeTime ? (
+                    <p className="text-[10px] text-[var(--erp-text-muted)] mb-1">{msg.relativeTime}</p>
+                  ) : null}
                   <div className="flex items-center gap-2">
-                    {getStatusBadge(msg.status)}
                     {msg.extractedItems > 0 && (
                       <span className="text-[10px] text-[var(--erp-text-muted)]">{msg.extractedItems} items</span>
                     )}
-                    {msg.confidence > 0 && (
+                    {msg.status === 'new' && msg.parsingError && (
+                      <span className="text-[10px] text-blue-700 bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded truncate max-w-[10rem]">
+                        {msg.parsingError.length > 60 ? `${msg.parsingError.slice(0,60)}…` : msg.parsingError}
+                      </span>
+                    )}
+                    {(msg.retryCount || 0) > 0 && (
+                      <span className="text-[10px] text-violet-700 bg-violet-100 border border-violet-200 px-1.5 py-0.5 rounded">
+                        Retried {msg.retryCount}x
+                      </span>
+                    )}
+                    {isMessageRfq(msg) && msg.confidence > 0 && (
                       <span className={`text-[10px] font-medium ${getConfidenceColor(msg.confidence)}`}>
                         {msg.confidence}% conf.
                       </span>
@@ -240,10 +1232,10 @@ const Inbox: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {selectedMessage.status === 'new' && (
+                {selectedMessage.status === 'new' && !isMessageNotRfq(selectedMessage) && (
                   <button 
                     onClick={() => handleConvertToRFQ(selectedMessage)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-[var(--erp-accent)] text-white rounded text-[12px] font-medium hover:bg-opacity-90"
+                    className="btn btn-primary btn-sm"
                   >
                     <span className="material-symbols-outlined !text-[16px]">add</span> Create RFQ
                   </button>
@@ -259,6 +1251,17 @@ const Inbox: React.FC = () => {
                   className="flex items-center gap-1 px-3 py-1.5 border border-[var(--erp-border)] bg-white rounded text-[12px] font-medium hover:bg-slate-50"
                 >
                   <span className="material-symbols-outlined !text-[16px]">archive</span> Archive
+                </button>
+                <button
+                  onClick={() => handleRetryParsing(selectedMessage)}
+                  disabled={retryingMessageId === selectedMessage.id}
+                  className="flex items-center gap-1 px-3 py-1.5 border border-[var(--erp-border)] bg-white rounded text-[12px] font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Re-run RFQ parsing for this message"
+                >
+                  <span className={`material-symbols-outlined !text-[16px] ${retryingMessageId === selectedMessage.id ? 'animate-spin' : ''}`}>
+                    refresh
+                  </span>
+                  {retryingMessageId === selectedMessage.id ? 'Retrying...' : 'Retry Parsing'}
                 </button>
               </div>
             </div>
@@ -289,14 +1292,42 @@ const Inbox: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-5">
               {activeTab === 'raw' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div className="bg-slate-50 p-3 rounded border border-[var(--erp-border)]">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+                    <div className="bg-slate-50 p-2.5 rounded border border-[var(--erp-border)]">
                       <p className="text-[11px] text-[var(--erp-text-muted)] mb-1">From</p>
-                      <p className="text-sm font-medium">{selectedMessage.sender}</p>
+                      <p className="text-[13px] font-semibold leading-tight">{selectedMessage.sender}</p>
+                      {selectedMessage.from ? (
+                        <p className="text-[11px] text-[var(--erp-text-muted)] leading-tight truncate">{selectedMessage.from}</p>
+                      ) : null}
                     </div>
-                    <div className="bg-slate-50 p-3 rounded border border-[var(--erp-border)]">
+                    <div className="bg-slate-50 p-2.5 rounded border border-[var(--erp-border)]">
                       <p className="text-[11px] text-[var(--erp-text-muted)] mb-1">Received</p>
-                      <p className="text-sm font-medium">{selectedMessage.timestamp}</p>
+                      <p className="text-[13px] font-semibold leading-tight">{selectedMessage.timestamp}</p>
+                      {selectedMessage.relativeTime ? (
+                        <p className="text-[11px] text-[var(--erp-text-muted)] leading-tight">{selectedMessage.relativeTime}</p>
+                      ) : null}
+                    </div>
+                    <div className="bg-slate-50 p-2.5 rounded border border-[var(--erp-border)]">
+                      <p className="text-[11px] text-[var(--erp-text-muted)] mb-1">Parsing Status</p>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="material-symbols-outlined !text-[14px] text-[var(--erp-text-muted)]">
+                          {parsingStatusMeta?.icon || 'info'}
+                        </span>
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 border rounded ${parsingStatusMeta?.chipClass || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                          {parsingStatusMeta?.label || 'Unknown'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[var(--erp-text-muted)] leading-tight">
+                        {parsingStatusMeta?.detail || 'Status unavailable.'}
+                      </p>
+                      {(selectedMessage.retryCount || 0) > 0 ? (
+                        <p className="text-[11px] text-violet-700 leading-tight mt-1">
+                          Retried {selectedMessage.retryCount} time(s)
+                          {selectedMessage.lastRetryAt
+                            ? ` • Last: ${formatRetryTimestamp(selectedMessage.lastRetryAt)}`
+                            : ''}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                   <div>
@@ -305,66 +1336,166 @@ const Inbox: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest mb-2">Message Body</h3>
-                    <div className="bg-slate-50 p-4 rounded border border-[var(--erp-border)] text-sm text-[var(--erp-text)] whitespace-pre-wrap">
-                      {selectedMessage.preview}
-                      {'\n\n'}
-                      Please provide your best quotation including:
-                      {'\n'}- Unit prices
-                      {'\n'}- Delivery timeline
-                      {'\n'}- Payment terms
-                      {'\n'}- Warranty information
-                      {'\n\n'}
-                      Looking forward to your response.
-                      {'\n\n'}
-                      Best regards,
-                      {'\n'}{selectedMessage.sender}
-                    </div>
+                    {sanitizedHtml ? (
+                      <div
+                        className="bg-slate-50 p-4 rounded border border-[var(--erp-border)] text-sm text-[var(--erp-text)]"
+                        dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+                      />
+                    ) : (
+                      <div className="bg-slate-50 p-4 rounded border border-[var(--erp-border)] text-sm text-[var(--erp-text)] whitespace-pre-wrap">
+                        {selectedMessage.content || selectedMessage.preview || 'No message body available.'}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               {activeTab === 'parsed' && (
                 <div className="space-y-4">
+                  {selectedMessage.parsingError ? (
+                    <div
+                      className={`rounded border p-3 ${
+                        isParsingFailureMessage(selectedMessage.parsingError)
+                          ? 'border-red-200 bg-red-50'
+                          : 'border-amber-200 bg-amber-50'
+                      }`}
+                    >
+                      <p
+                        className={`text-[11px] font-bold uppercase tracking-widest ${
+                          isParsingFailureMessage(selectedMessage.parsingError)
+                            ? 'text-red-700'
+                            : 'text-amber-700'
+                        }`}
+                      >
+                        {isParsingFailureMessage(selectedMessage.parsingError)
+                          ? 'Parsing Error'
+                          : 'Parsing Note'}
+                      </p>
+                      <p
+                        className={`mt-1 text-sm ${
+                          isParsingFailureMessage(selectedMessage.parsingError)
+                            ? 'text-red-800'
+                            : 'text-amber-800'
+                        }`}
+                      >
+                        {selectedMessage.parsingError}
+                      </p>
+                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+                        Source: {getParsingSourceLabel(selectedMessage.parsingSource || '')}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded border border-emerald-200 bg-emerald-50 p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-700">
+                        Parsing Completed
+                      </p>
+                      <p className="mt-1 text-sm text-emerald-800">
+                        {parsingStatusMeta?.detail || 'RFQ extraction completed successfully.'}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className={`border rounded p-3 ${parsingStatusMeta?.panelClass || 'bg-slate-100 border-slate-200 text-slate-700'}`}>
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined !text-[18px]">
+                        {parsingStatusMeta?.icon || 'info'}
+                      </span>
+                      <p className="text-sm font-semibold">{parsingStatusMeta?.label || 'Parsing Status'}</p>
+                    </div>
+                    <p className="text-[12px] mt-1 opacity-90">
+                      {parsingStatusMeta?.detail || 'Status unavailable.'}
+                    </p>
+                    <div className="mt-3">
+                      <span className="text-[10px] font-semibold px-2 py-1 rounded border bg-white/70 border-current inline-flex items-center gap-1">
+                        <span className="material-symbols-outlined !text-[14px]">
+                          {parsingStatusMeta?.icon || 'info'}
+                        </span>
+                        {parsingStatusMeta?.label || 'Status'}
+                      </span>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <span className={`text-lg font-bold ${getConfidenceColor(selectedMessage.confidence)}`}>
-                        {selectedMessage.confidence}%
-                      </span>
-                      <span className="text-[12px] text-[var(--erp-text-muted)]">AI Confidence Score</span>
+                      {isMessageRfq(selectedMessage) ? (
+                        <>
+                          <span className={`text-lg font-bold ${getConfidenceColor(selectedMessage.confidence)}`}>
+                            {selectedMessage.confidence}%
+                          </span>
+                          <span className="text-[12px] text-[var(--erp-text-muted)]">AI Confidence Score</span>
+                        </>
+                      ) : (
+                        <span className="text-[12px] text-[var(--erp-text-muted)]">AI Confidence Score not applicable (non-RFQ email)</span>
+                      )}
                     </div>
-                    {getStatusBadge(selectedMessage.status)}
                   </div>
 
                   <div className="mb-4">
                     <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest mb-2">Extracted Items ({selectedMessage.extractedItems})</h3>
-                    {selectedMessage.extractedItems > 0 ? (
-                      <div className="border border-[var(--erp-border)] rounded overflow-hidden">
-                        <table className="w-full text-[12px]">
-                          <thead className="bg-slate-100">
-                            <tr>
-                              <th className="px-3 py-2 text-left">#</th>
-                              <th className="px-3 py-2 text-left">Item Description</th>
-                              <th className="px-3 py-2 text-center">Qty</th>
-                              <th className="px-3 py-2 text-center">Unit</th>
-                              <th className="px-3 py-2 text-center">Confidence</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-200">
-                            {Array.from({ length: Math.min(selectedMessage.extractedItems, 5) }, (_, i) => (
-                              <tr key={i} className="hover:bg-slate-50">
-                                <td className="px-3 py-2 text-[var(--erp-text-muted)]">{i + 1}</td>
-                                <td className="px-3 py-2 font-medium">Sample Product {i + 1}</td>
-                                <td className="px-3 py-2 text-center">{(i + 1) * 5}</td>
-                                <td className="px-3 py-2 text-center">Pcs</td>
-                                <td className="px-3 py-2 text-center">
-                                  <span className={`font-medium ${getConfidenceColor(95 - i * 5)}`}>
-                                    {95 - i * 5}%
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                    {(selectedMessage.rfqId || selectedMessage.quotationId) && (
+                      <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
+                        {selectedMessage.rfqId ? (
+                          <span className="px-2 py-1 rounded border border-green-200 bg-green-50 text-green-700 font-medium">
+                            RFQ Linked: {selectedMessage.rfqId}
+                          </span>
+                        ) : null}
+                        {selectedMessage.quotationId ? (
+                          <span className="px-2 py-1 rounded border border-blue-200 bg-blue-50 text-blue-700 font-medium">
+                            Quotation Draft: {selectedMessage.quotationId}
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
+                    {parsedItems.length > 0 ? (
+                      <div className="space-y-2">
+                        {parsedItems.map((item, index) => (
+                          <div
+                            key={`${item.product_name}-${index}`}
+                            className="p-3 bg-slate-50 rounded border border-[var(--erp-border)] text-sm"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium text-[var(--erp-text)]">{item.product_name}</p>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                                  item.status === 'rejected'
+                                    ? 'bg-red-50 text-red-700 border-red-200'
+                                    : item.availability === 'out_of_stock'
+                                      ? 'bg-red-50 text-red-700 border-red-200'
+                                      : item.availability === 'insufficient_stock'
+                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                }`}>
+                                  {(item.status || 'matched').toUpperCase()}
+                                </span>
+                                <p className="text-[12px] text-[var(--erp-text-muted)]">
+                                  Qty: <span className="font-semibold text-[var(--erp-text)]">{item.quantity}</span>
+                                  {item.unit ? ` ${item.unit}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            {item.availability === 'insufficient_stock' && typeof item.availableQuantity === 'number' ? (
+                              <p className="text-[12px] text-amber-700 mt-1">
+                                Only {item.availableQuantity} available right now.
+                              </p>
+                            ) : null}
+                            {item.availability === 'out_of_stock' ? (
+                              <p className="text-[12px] text-red-700 mt-1">Out of stock right now.</p>
+                            ) : null}
+                            {item.reason ? (
+                              <p className="text-[12px] text-red-700 mt-1">{item.reason}</p>
+                            ) : null}
+                            {item.notes ? (
+                              <p className="text-[12px] text-[var(--erp-text-muted)] mt-1">{item.notes}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : selectedMessage.extractedItems > 0 ? (
+                      <div className="p-4 bg-slate-50 rounded border border-[var(--erp-border)] text-sm text-[var(--erp-text)]">
+                        {selectedMessage.extractedItems} line items were detected in this message.
+                        <div className="text-[12px] text-[var(--erp-text-muted)] mt-1">
+                          Detailed parsed line-item fields are not available in this payload.
+                        </div>
                       </div>
                     ) : (
                       <div className="p-4 text-center text-sm text-slate-400 bg-slate-50 rounded border border-[var(--erp-border)]">
@@ -374,17 +1505,76 @@ const Inbox: React.FC = () => {
                     )}
                   </div>
 
+                  {(selectedMessage.retryHistory || []).length > 0 && (
+                    <div className="mb-4">
+                      <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest mb-2">
+                        Latest Retry
+                      </h3>
+                      {(selectedMessage.retryHistory || []).slice(0, 1).map((entry, index) => (
+                        <div
+                          key={`${entry.retried_at}-${index}`}
+                          className="p-3 bg-violet-50 rounded border border-violet-200 text-sm"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-medium text-violet-800">
+                              Retry #{Math.max((selectedMessage.retryCount || 0) - index, 1)}
+                            </p>
+                            <p className="text-[11px] text-violet-700">
+                              {formatRetryTimestamp(entry.retried_at)}
+                            </p>
+                          </div>
+                          <p className="text-[12px] text-violet-800 mt-1">{entry.reason}</p>
+                          <p className="text-[11px] text-violet-700 mt-1">
+                            Previous status: {entry.previous_processing_status}
+                            {typeof entry.previous_item_count === 'number'
+                              ? ` • Previous items: ${entry.previous_item_count}`
+                              : ''}
+                            {entry.forced ? ' • Forced retry' : ''}
+                          </p>
+                          {entry.previous_parsing_error ? (
+                            <p className="text-[11px] text-violet-700 mt-1">
+                              Previous error: {entry.previous_parsing_error}
+                            </p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <button 
                       onClick={() => handleConvertToRFQ(selectedMessage)}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-[var(--erp-accent)] text-white text-[12px] font-medium rounded hover:bg-opacity-90"
+                      disabled={
+                          (parsedItems.length <= 0 && extractItemsFromRawText(selectedMessage.content || selectedMessage.preview || '').length <= 0) ||
+                        selectedMessage.status === 'duplicate' ||
+                        selectedMessage.autoRfqCreated ||
+                          Boolean(selectedMessage.rfqId)
+                      }
+                      className="btn btn-primary btn-md"
                     >
                       <span className="material-symbols-outlined !text-[16px]">add</span>
-                      Create RFQ from Extracted Data
+                      {selectedMessage.autoRfqCreated
+                        ? 'RFQ Already Auto-Created'
+                        : selectedMessage.rfqId
+                          ? 'RFQ Already Linked'
+                        : isMessageNotRfq(selectedMessage)
+                          ? 'Force Create RFQ'
+                          : 'Create RFQ from Extracted Data'}
                     </button>
-                    <button className="flex items-center gap-1.5 px-4 py-2 border border-[var(--erp-border)] text-[12px] font-medium rounded hover:bg-slate-50">
+                    <button
+                      onClick={() => handleEditExtractedData(selectedMessage)}
+                      className="flex items-center gap-1.5 px-4 py-2 border border-[var(--erp-border)] text-[12px] font-medium rounded hover:bg-slate-50"
+                    >
                       <span className="material-symbols-outlined !text-[16px]">edit</span>
                       Edit Extracted Data
+                    </button>
+                    <button
+                      onClick={() => handleOpenCompose(selectedMessage)}
+                      className="flex items-center gap-1.5 px-4 py-2 border border-[var(--erp-border)] text-[12px] font-medium rounded hover:bg-slate-50"
+                      title="Send a direct email response"
+                    >
+                      <span className="material-symbols-outlined !text-[16px]">mail</span>
+                      Send Email
                     </button>
                   </div>
                 </div>
@@ -393,23 +1583,24 @@ const Inbox: React.FC = () => {
               {activeTab === 'attachments' && (
                 <div className="space-y-4">
                   <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest mb-2">Attachments</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { name: 'RFQ_Requirements.pdf', size: '245 KB', icon: 'picture_as_pdf', color: 'text-red-500' },
-                      { name: 'Product_List.xlsx', size: '128 KB', icon: 'table_chart', color: 'text-green-600' },
-                    ].map((file, i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 border border-[var(--erp-border)] rounded hover:bg-slate-50 cursor-pointer">
-                        <span className={`material-symbols-outlined !text-[24px] ${file.color}`}>{file.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{file.name}</p>
-                          <p className="text-[11px] text-[var(--erp-text-muted)]">{file.size}</p>
+                  {selectedMessage.attachments && selectedMessage.attachments.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {selectedMessage.attachments.map((attachment, index) => (
+                        <div key={`${attachment}-${index}`} className="flex items-center gap-3 p-3 border border-[var(--erp-border)] rounded">
+                          <span className="material-symbols-outlined !text-[24px] text-slate-500">attach_file</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{attachment}</p>
+                            <p className="text-[11px] text-[var(--erp-text-muted)]">Attachment metadata unavailable</p>
+                          </div>
                         </div>
-                        <button className="text-[var(--erp-accent)] hover:bg-blue-50 p-1 rounded">
-                          <span className="material-symbols-outlined !text-[18px]">download</span>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-sm text-slate-400 bg-slate-50 rounded border border-[var(--erp-border)]">
+                      <span className="material-symbols-outlined text-2xl mb-2">attach_file_off</span>
+                      <p>No attachments available</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -423,6 +1614,206 @@ const Inbox: React.FC = () => {
           </div>
         )}
       </main>
+        </div>
+      </div>
+
+      {pendingCreatePreview ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-lg border border-[var(--erp-border)] bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-[var(--erp-border)] px-4 py-3">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--erp-text)]">Review Extracted Lines</h3>
+                <p className="text-[12px] text-[var(--erp-text-muted)]">
+                  {pendingCreatePreview.message.subject}
+                </p>
+              </div>
+              <button
+                onClick={() => setPendingCreatePreview(null)}
+                disabled={creatingFromPreview}
+                className="rounded p-1 text-[var(--erp-text-muted)] hover:bg-slate-100 disabled:opacity-50"
+                title="Close"
+              >
+                <span className="material-symbols-outlined !text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
+              <div className="rounded border border-green-200 bg-green-50 p-3">
+                <p className="text-[12px] font-semibold text-green-700">
+                  Matched ({pendingCreatePreview.preview.matched_items.length})
+                </p>
+                <div className="mt-2 max-h-48 space-y-1 overflow-y-auto text-[12px]">
+                  {pendingCreatePreview.preview.matched_items.length > 0 ? (
+                    pendingCreatePreview.preview.matched_items.map((item, index) => (
+                      <div key={`${item.product_name || item.name || 'item'}-${index}`} className="rounded border border-green-200 bg-white px-2 py-1">
+                        {(item.product_name || item.name || 'Unknown item')} - {item.quantity}{item.unit ? ` ${item.unit}` : ''}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-[11px] text-green-700">No valid catalog matches.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded border border-amber-200 bg-amber-50 p-3">
+                <p className="text-[12px] font-semibold text-amber-700">
+                  Rejected ({pendingCreatePreview.preview.unmatched_items.length})
+                </p>
+                <div className="mt-2 max-h-48 space-y-1 overflow-y-auto text-[12px]">
+                  {pendingCreatePreview.preview.unmatched_items.length > 0 ? (
+                    pendingCreatePreview.preview.unmatched_items.map((item, index) => (
+                      <div key={`${item.input_name || 'rejected'}-${index}`} className="rounded border border-amber-200 bg-white px-2 py-1">
+                        {(item.input_name || 'Unnamed line')} - {item.reason.replaceAll('_', ' ')}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-[11px] text-amber-700">No rejected lines.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-[var(--erp-border)] px-4 py-3">
+              <p className="text-[11px] text-[var(--erp-text-muted)]">
+                Candidate lines: {pendingCreatePreview.candidateItems.length} • {pendingCreatePreview.preview.summary}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPendingCreatePreview(null)}
+                  disabled={creatingFromPreview}
+                  className="rounded border border-[var(--erp-border)] px-3 py-1.5 text-[12px] font-medium hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmCreateFromPreview}
+                  disabled={creatingFromPreview || pendingCreatePreview.preview.matched_items.length === 0}
+                  className="btn btn-primary btn-md"
+                >
+                  {creatingFromPreview ? 'Creating...' : 'Create RFQ'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showComposeModal && selectedMessage ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-lg border border-[var(--erp-border)] bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-[var(--erp-border)] px-4 py-3">
+              <h3 className="text-sm font-bold text-[var(--erp-text)]">Compose Email</h3>
+              <button
+                onClick={handleCloseCompose}
+                disabled={composing}
+                className="rounded p-1 text-[var(--erp-text-muted)] hover:bg-slate-100 disabled:opacity-50"
+                title="Close"
+              >
+                <span className="material-symbols-outlined !text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-4 p-4">
+              <div>
+                <label className="text-[12px] font-semibold text-[var(--erp-text-muted)] uppercase tracking-widest">
+                  To
+                </label>
+                <input
+                  type="email"
+                  disabled={composing}
+                  placeholder="recipient@example.com"
+                  className="mt-1 w-full rounded border border-[var(--erp-border)] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--erp-accent)]"
+                  value={composeForm.to.join(', ')}
+                  onChange={(e) =>
+                    setComposeForm({
+                      ...composeForm,
+                      to: e.target.value.split(',').map(t => t.trim()).filter(Boolean),
+                    })
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="text-[12px] font-semibold text-[var(--erp-text-muted)] uppercase tracking-widest">
+                  CC
+                </label>
+                <input
+                  type="email"
+                  disabled={composing}
+                  placeholder="cc@example.com (optional)"
+                  className="mt-1 w-full rounded border border-[var(--erp-border)] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--erp-accent)]"
+                  value={composeForm.cc.join(', ')}
+                  onChange={(e) =>
+                    setComposeForm({
+                      ...composeForm,
+                      cc: e.target.value.split(',').map(c => c.trim()).filter(Boolean),
+                    })
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="text-[12px] font-semibold text-[var(--erp-text-muted)] uppercase tracking-widest">
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  disabled={composing}
+                  placeholder="Email subject"
+                  className="mt-1 w-full rounded border border-[var(--erp-border)] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--erp-accent)]"
+                  value={composeForm.subject}
+                  onChange={(e) =>
+                    setComposeForm({
+                      ...composeForm,
+                      subject: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="text-[12px] font-semibold text-[var(--erp-text-muted)] uppercase tracking-widest">
+                  Message
+                </label>
+                <textarea
+                  disabled={composing}
+                  placeholder="Email body..."
+                  className="mt-1 w-full h-64 rounded border border-[var(--erp-border)] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--erp-accent)] font-mono"
+                  value={composeForm.body}
+                  onChange={(e) =>
+                    setComposeForm({
+                      ...composeForm,
+                      body: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-[var(--erp-border)] px-4 py-3">
+              <p className="text-[11px] text-[var(--erp-text-muted)]">
+                Sending as: {composeForm.to.length} recipient(s)
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCloseCompose}
+                  disabled={composing}
+                  className="rounded border border-[var(--erp-border)] px-3 py-1.5 text-[12px] font-medium hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendEmail}
+                  disabled={composing || !composeForm.to.length || !composeForm.body.trim()}
+                  className="btn btn-primary btn-md"
+                >
+                  {composing ? 'Sending...' : 'Send Email'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </PageLayout>
   );
 };

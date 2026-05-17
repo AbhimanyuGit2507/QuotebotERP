@@ -1,3 +1,4 @@
+/// <reference types="jest" />
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -16,10 +17,19 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
+  afterEach(async () => {
+    await app.close();
+  });
+
   it('/ (GET)', () => {
     return request(app.getHttpServer())
       .get('/')
       .expect(200)
-      .expect('Hello World!');
+      .expect((res) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        if (!res.body || typeof res.body.message !== 'string') {
+          throw new Error('Unexpected root response shape');
+        }
+      });
   });
 });

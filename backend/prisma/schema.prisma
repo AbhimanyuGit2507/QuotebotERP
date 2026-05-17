@@ -27,13 +27,23 @@ model Tenant {
   clients         Client[]
   rfqs            RFQ[]
   quotations      Quotation[]
+  invoices        Invoice[]
+  payments        Payment[]
+  accounting_integrations AccountingIntegration[]
+  accounting_exports AccountingExport[]
   activities      Activity[]
   files           File[]
   analytics_cache AnalyticsCache[]
   audit_logs      AuditLog[]
+  parse_runs      ParseRun[]
+  conversations   Conversation[]
+  messages        Message[]
+  email_accounts  EmailAccount[]
+  outbound_emails OutboundEmail[]
   settings_company SettingsCompany?
   settings_notifications SettingsNotifications?
   automation_rules AutomationRule[]
+  integration_mappings IntegrationMapping[]
 
   @@index([company_name])
 }
@@ -55,6 +65,7 @@ model User {
   name            String
   role_id         String
   status          String    @default("active")
+  permissions     Json?
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
 
@@ -62,6 +73,8 @@ model User {
   role            Role      @relation(fields: [role_id], references: [id])
   activities      Activity[]
   audit_logs      AuditLog[]
+  messages        Message[]
+  email_accounts  EmailAccount[]
 
   @@unique([tenant_id, email])
   @@index([tenant_id])
@@ -143,6 +156,7 @@ model Client {
   tenant          Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   rfqs            RFQ[]
   quotations      Quotation[]
+  conversations   Conversation[]
 
   @@unique([tenant_id, email])
   @@index([tenant_id])
@@ -164,12 +178,16 @@ model RFQ {
   status          String    @default("pending")
   confidence_score Int     @default(0)
   due_date        DateTime?
+  display_name    String?
+  search_tokens   Json?
+  quotation_id    String?   @unique
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
 
   tenant          Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   client          Client    @relation(fields: [client_id], references: [id])
   items           RFQItem[]
+  quotation       Quotation? @relation(fields: [quotation_id], references: [id])
 
   @@unique([tenant_id, number])
   @@index([tenant_id])
@@ -203,6 +221,8 @@ model Quotation {
   tenant_id       String
   number          String
   client_id       String
+  display_name    String?
+  search_tokens   Json?
   date            String    // YYYY-MM-DD
   valid_until     String    // YYYY-MM-DD
   subtotal        Float     @default(0)
@@ -217,6 +237,8 @@ model Quotation {
   client          Client    @relation(fields: [client_id], references: [id])
   items           QuotationItem[]
   versions        QuotationVersion[]
+  rfq             RFQ?
+  invoices        Invoice[]
 
   @@unique([tenant_id, number])
   @@index([tenant_id])
@@ -234,6 +256,9 @@ model QuotationItem {
   unit_price      Float
   tax_percent     Float
   total           Float
+  notes           String?
+  availability    String?
+  available_quantity Float?
 
   quotation       Quotation @relation(fields: [quotation_id], references: [id], onDelete: Cascade)
   product         Product   @relation(fields: [product_id], references: [id])
@@ -297,6 +322,172 @@ model AuditLog {
   @@index([created_at])
 }
 
+model ParseRun {
+  id                  String    @id @default(cuid())
+  tenant_id           String
+  message_id          String?
+  client_email        String?
+  stage               String    // preview | create
+  status              String    // success | partial | failed
+  source              String?
+  matched_count       Int       @default(0)
+  unmatched_count     Int       @default(0)
+  input_items_json    Json?
+  matched_items_json  Json?
+  unmatched_items_json Json?
+  error_message       String?
+  created_at          DateTime  @default(now())
+
+  tenant              Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([message_id])
+  @@index([stage])
+  @@index([status])
+  @@index([created_at])
+}
+
+// ============================================
+// INBOX & MESSAGING
+// ============================================
+
+model Conversation {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  client_id       String
+  email_account_id String?   // linked EmailAccount if from email provider
+  subject         String
+  channel         String    // email, whatsapp
+  status          String    @default("open") // open, closed, archived
+  thread_id       String?   // email thread ID for grouping
+  rfq_id          String?   // linked RFQ if applicable
+  quotation_id    String?   // linked Quotation if applicable
+  unread_count    Int       @default(0)
+  last_message_at DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  tenant          Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  client          Client        @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  email_account   EmailAccount? @relation(fields: [email_account_id], references: [id], onDelete: SetNull)
+  messages        Message[]
+
+  @@index([tenant_id])
+  @@index([client_id])
+  @@index([email_account_id])
+  @@index([channel])
+  @@index([thread_id])
+  @@index([status])
+  @@index([created_at])
+}
+
+model Message {
+  id                  String    @id @default(cuid())
+  conversation_id     String
+  tenant_id           String
+  sender_id           String?   // User ID if sent by internal user, null if from client
+  sender_name         String    // Display name of sender
+  sender_email        String    // Email of sender
+  body                String    // Message content (plaintext or HTML)
+  channel             String    // email, whatsapp
+  is_read             Boolean   @default(false)
+  
+  // Email-specific fields
+  external_id         String?   // Gmail message ID, SES ID, etc (for dedup)
+  email_account_id    String?   // EmailAccount this came from
+  provider            String?   // gmail, ses, smtp, forward
+  thread_id           String?   // Email thread ID for grouping
+  raw_payload         Json?     // Full email headers/metadata from provider
+  
+  // Processing state
+  is_processed        Boolean   @default(false)
+  processing_status   String    @default("pending") // pending | parsed | failed
+  direction           String    @default("inbound") // inbound | outbound
+  
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @default(now()) @updatedAt
+
+  tenant              Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  conversation        Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender              User?        @relation(fields: [sender_id], references: [id], onDelete: SetNull)
+  email_account       EmailAccount? @relation(fields: [email_account_id], references: [id], onDelete: SetNull)
+
+  // DB-level dedup for provider webhooks/retries
+  @@unique([email_account_id, external_id])
+  @@index([conversation_id])
+  @@index([tenant_id])
+  @@index([sender_id])
+  @@index([email_account_id])
+  @@index([external_id])
+  @@index([is_read])
+  @@index([is_processed])
+  @@index([processing_status])
+  @@index([direction])
+  @@index([created_at])
+}
+
+// ============================================
+// EMAIL MANAGEMENT
+// ============================================
+
+model EmailAccount {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  user_id         String
+  
+  provider        String    // gmail | ses | smtp | forward
+  email_address   String
+  
+  // Credentials stored encrypted elsewhere; this is metadata
+  credentials     Json?     // encrypted via external vault
+  is_active       Boolean   @default(true)
+  
+  last_sync_at    DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  
+  tenant          Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  conversations   Conversation[]
+  messages        Message[]
+  outbound_emails OutboundEmail[]
+  
+  @@unique([tenant_id, user_id, email_address])
+  @@index([tenant_id])
+  @@index([user_id])
+  @@index([provider])
+  @@index([is_active])
+}
+
+model OutboundEmail {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  email_account_id String
+  
+  to              Json      // ["client@abc.com"]
+  cc              Json?     // ["cc@abc.com"]
+  subject         String
+  body            String    // HTML/plaintext body
+  
+  status          String    @default("pending") // pending | sent | failed
+  provider        String?   // gmail | ses (determined by email_account)
+  
+  attempts        Int       @default(0)
+  last_error      String?
+  
+  created_at      DateTime  @default(now())
+  sent_at         DateTime?
+  updated_at      DateTime  @updatedAt
+  
+  tenant          Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  email_account   EmailAccount  @relation(fields: [email_account_id], references: [id], onDelete: Cascade)
+  
+  @@index([tenant_id])
+  @@index([email_account_id])
+  @@index([status])
+  @@index([created_at])
+}
+
 // ============================================
 // FILES
 // ============================================
@@ -342,6 +533,7 @@ model SettingsCompany {
   tenant_id       String    @unique
   currency        String    @default("INR")
   logo_url        String?
+  profile_json    Json?
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
 
@@ -387,4 +579,114 @@ model AutomationRule {
   tenant          Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 
   @@index([tenant_id])
+}
+
+// ============================================
+// INVOICES & PAYMENTS (basic AR tracking)
+// ============================================
+
+model Invoice {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  quotation_id    String?
+  number          String
+  display_name    String?
+  search_tokens   Json?
+  date            String    // YYYY-MM-DD
+  due_date        String?
+  currency        String    @default("INR")
+  subtotal        Float     @default(0)
+  tax             Float     @default(0)
+  total           Float     @default(0)
+  status          String    @default("open") // open | paid | partial | cancelled
+  paid_amount     Float     @default(0)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  tenant          Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  quotation       Quotation? @relation(fields: [quotation_id], references: [id])
+  payments        Payment[]
+  exports         AccountingExport[]
+
+  @@index([tenant_id])
+  @@index([quotation_id])
+  @@index([status])
+  @@unique([tenant_id, number])
+}
+
+model Payment {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  invoice_id      String
+  amount          Float
+  method          String?   // stripe|bank|cheque|cash
+  external_id     String?
+  created_at      DateTime  @default(now())
+  processed_at    DateTime?
+
+  tenant          Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  invoice         Invoice   @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([invoice_id])
+}
+
+model AccountingIntegration {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  provider        String    // xero | quickbooks
+  access_token    String
+  refresh_token   String?
+  expires_at      DateTime?
+  scope           String?
+  realm_id        String?   // QuickBooks company realm
+  tenant_external_id String? // Xero tenant id
+  status          String    @default("connected")
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  tenant          Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, provider])
+  @@index([tenant_id])
+}
+
+model AccountingExport {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  invoice_id      String
+  provider        String    // xero | quickbooks
+  status          String    @default("queued") // queued | success | failed
+  request_json    Json?
+  response_json   Json?
+  external_id     String?
+  error_message   String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  tenant          Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  invoice         Invoice   @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([invoice_id])
+  @@index([provider])
+  @@index([status])
+}
+
+// Persistent external->local mappings for integrations
+model IntegrationMapping {
+  id            String   @id @default(cuid())
+  tenant_id     String
+  provider      String   // zoho | odoo | xero | quickbooks
+  external_id   String
+  local_entity  String   // 'Client' | 'Product' | 'Invoice' etc
+  local_id      String
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([provider, external_id])
+  @@unique([tenant_id, provider, external_id, local_entity])
 }

@@ -1,0 +1,48 @@
+
+> quotebot-frontend@0.1.0 start
+> CHOKIDAR_USEPOLLING=true CHOKIDAR_INTERVAL=1000 WATCHPACK_POLLING=true WATCHPACK_POLLING_INTERVAL=1000 react-scripts start
+
+Attempting to bind to HOST environment variable: localhost
+If this was unintentional, check that you haven't mistakenly set it in your shell.
+Learn more here: https://cra.link/advanced-config
+
+(node:606743) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:606743) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:606743) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+Starting the development server...
+
+Compiled with warnings.
+
+[eslint] 
+src/pages/Products.tsx
+  Line 8:137:  'showToast' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+WARNING in [eslint] 
+src/pages/Products.tsx
+  Line 8:137:  'showToast' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+webpack compiled with 1 warning
+No issues found.
+(node:606743) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+Proxy error: Could not proxy request /api/auth/me from localhost:3000 to http://localhost:3001.
+See https://nodejs.org/api/errors.html#errors_common_system_errors for more information (ECONNREFUSED).
+
+Proxy error: Could not proxy request /api/auth/me from localhost:3000 to http://localhost:3001.
+See https://nodejs.org/api/errors.html#errors_common_system_errors for more information (ECONNREFUSED).
+
+Proxy error: Could not proxy request /api/auth/refresh from localhost:3000 to http://localhost:3001.
+See https://nodejs.org/api/errors.html#errors_common_system_errors for more information (ECONNREFUSED).
+
+Proxy error: Could not proxy request /api/auth/refresh from localhost:3000 to http://localhost:3001.
+See https://nodejs.org/api/errors.html#errors_common_system_errors for more information (ECONNREFUSED).
+
+Proxy error: Could not proxy request /api/inbox/messages from localhost:3000 to http://localhost:3001.
+See https://nodejs.org/api/errors.html#errors_common_system_errors for more information (ECONNREFUSED).
+
+Proxy error: Could not proxy request /api/inbox/messages from localhost:3000 to http://localhost:3001.
+See https://nodejs.org/api/errors.html#errors_common_system_errors for more information (ECONNRESET).
+

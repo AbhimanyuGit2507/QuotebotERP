@@ -1,16 +1,45 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
+import { json, urlencoded } from 'express';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Support full HTML email payloads from Gmail sync.
+  app.use(json({ limit: '10mb' }));
+  app.use(urlencoded({ extended: true, limit: '10mb' }));
+  app.use(cookieParser());
+
+  const allowedOrigins = (
+    process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3001'
+  )
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
   // Enable CORS
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || ['http://localhost:3000', 'http://localhost:3001'],
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean | string) => void,
+    ) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, origin ?? true);
+        return;
+      }
+
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Internal-Key',
+      'X-Tenant-ID',
+    ],
   });
 
   // Set global API prefix

@@ -1,0 +1,6 @@
+            id             |           name           |    sku     | stock | status 
+---------------------------+--------------------------+------------+-------+--------
+ cmnek1lqx000n8ce8k4m2vro5 | 19 inch Network Rack 27U | HW-CAB-002 |     6 | active
+ cmnek1lq300098ce8yzmjvavt | LED Monitor 27 inch QHD  | HW-MN-002  |    14 | active
+(2 rows)
+

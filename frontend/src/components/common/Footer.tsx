@@ -5,9 +5,21 @@ interface FooterProps {
   fiscalYear?: string;
 }
 
+const getCurrentFiscalYear = () => {
+  const now = new Date();
+  const month = now.getMonth();
+  const year = now.getFullYear();
+
+  // Financial year is Apr-Mar.
+  const startYear = month >= 3 ? year : year - 1;
+  const endYear = startYear + 1;
+
+  return `${startYear}-${endYear}`;
+};
+
 const Footer: React.FC<FooterProps> = ({ 
   companyName = 'Quotebot Enterprise Pvt Ltd',
-  fiscalYear = '2023-2024'
+  fiscalYear = getCurrentFiscalYear(),
 }) => {
   const currentDate = new Date().toLocaleDateString('en-IN', { 
     day: '2-digit', 

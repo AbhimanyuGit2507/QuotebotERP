@@ -1,0 +1,18 @@
+{
+  "status": "completed",
+  "tenantId": "cmmvzc6z60003bze8i4uhs03l",
+  "startedAt": "2026-05-14T17:21:08.697Z",
+  "endedAt": "2026-05-14T17:23:27.243Z",
+  "lastRunAt": "2026-05-14T17:23:27.243Z",
+  "accountsTotal": 1,
+  "accountsProcessed": 1,
+  "totalMessages": 326,
+  "processedMessages": 326,
+  "synced": 326,
+  "duplicates": 0,
+  "failed": 0,
+  "currentAccountId": null,
+  "error": null,
+  "user_error": null,
+  "technical_error": null
+}
