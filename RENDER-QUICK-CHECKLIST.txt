@@ -1,0 +1,131 @@
+╔══════════════════════════════════════════════════════════════╗
+║          RENDER BACKEND DEPLOYMENT - QUICK CHECKLIST         ║
+╚══════════════════════════════════════════════════════════════╝
+
+🔗 START HERE: https://dashboard.render.com
+
+═══════════════════════════════════════════════════════════════
+
+📦 PART 1: CREATE POSTGRESQL DATABASE (2 min)
+═══════════════════════════════════════════════════════════════
+
+☐ Go to https://dashboard.render.com
+☐ Click "New +" → "PostgreSQL"
+☐ Fill in:
+    Name: quotebot-db
+    Database: quotebot
+    User: quotebot
+    Region: Singapore
+    Plan: Free
+☐ Click "Create Database"
+☐ Wait 60 seconds
+☐ COPY Internal Database URL (save it!)
+    Format: postgresql://quotebot:xxx@dpg-xxx.singapore-postgres.render.com/quotebot
+
+═══════════════════════════════════════════════════════════════
+
+🚀 PART 2: DEPLOY BACKEND SERVICE (5 min)
+═══════════════════════════════════════════════════════════════
+
+☐ Click "New +" → "Web Service"
+☐ Connect repository: QuotebotERP
+☐ Fill in:
+    Name: quotebot-backend
+    Region: Singapore (same as DB!)
+    Branch: main
+    Root Directory: backend
+    Build Command: npm install && npx prisma generate && npm run build
+    Start Command: npx prisma migrate deploy && npm run start:prod
+    Plan: Free
+
+☐ ADD ENVIRONMENT VARIABLES (one by one):
+
+    DATABASE_URL = <YOUR INTERNAL DATABASE URL FROM PART 1>
+    JWT_SECRET = your-super-secret-jwt-key-change-this-in-production-abc123xyz
+    INTERNAL_API_KEY = quotebot-internal-2024-secure-key
+    FRONTEND_URL = https://quotebot-sigma.vercel.app
+    NODE_ENV = production
+    PORT = 3000
+    AUTO_EMAIL_SYNC_ENABLED = false
+    AUTO_SEND_QUOTATION = false
+    BACKEND_RFQ_PIPELINE_ENABLED = false
+
+☐ Click "Create Web Service"
+☐ Wait 5-7 minutes (watch logs)
+☐ COPY your backend URL when done
+    Format: https://quotebot-backend.onrender.com
+
+═══════════════════════════════════════════════════════════════
+
+✅ PART 3: VERIFY BACKEND (30 sec)
+═══════════════════════════════════════════════════════════════
+
+☐ Test in browser: https://quotebot-backend.onrender.com/
+☐ Should see: {"status":"ok"}
+☐ Check logs for: "Nest application successfully started"
+
+═══════════════════════════════════════════════════════════════
+
+🌐 PART 4: UPDATE VERCEL FRONTEND (2 min)
+═══════════════════════════════════════════════════════════════
+
+☐ Go to https://vercel.com/dashboard
+☐ Click "quotebot-sigma" project
+☐ Settings → Environment Variables
+☐ Add/Update:
+    VITE_API_URL = https://quotebot-backend.onrender.com
+☐ Click "Save"
+☐ Deployments → Redeploy (use existing cache)
+☐ Wait 1-2 minutes
+
+═══════════════════════════════════════════════════════════════
+
+🎉 PART 5: TEST COMPLETE SYSTEM (1 min)
+═══════════════════════════════════════════════════════════════
+
+☐ Open: https://quotebot-sigma.vercel.app/
+☐ Login:
+    Email: admin@quotebot.com
+    Password: admin123
+☐ Dashboard loads? ✅ SUCCESS!
+
+═══════════════════════════════════════════════════════════════
+
+📝 SAVE THESE URLS:
+═══════════════════════════════════════════════════════════════
+
+Backend:  https://quotebot-backend.onrender.com
+Frontend: https://quotebot-sigma.vercel.app
+Database: postgresql://quotebot:xxx@dpg-xxx.singapore-postgres.render.com/quotebot
+
+═══════════════════════════════════════════════════════════════
+
+⚠️  IMPORTANT NOTES:
+═══════════════════════════════════════════════════════════════
+
+• Free tier backend SLEEPS after 15min → 30s cold start on first request
+• Free tier database expires after 90 days
+• Upgrade to Starter ($7/month each) for production
+• Change admin password after first login!
+
+═══════════════════════════════════════════════════════════════
+
+🆘 TROUBLESHOOTING:
+═══════════════════════════════════════════════════════════════
+
+Backend won't deploy?
+  → Check Render logs for errors
+  → Verify DATABASE_URL is INTERNAL url (not External)
+  → Make sure all env vars are set
+
+Frontend can't connect?
+  → Check browser console (F12)
+  → Verify VITE_API_URL matches backend URL
+  → Check FRONTEND_URL on backend matches Vercel URL
+
+Backend returns 503?
+  → Free tier is waking up, wait 30-60 seconds
+
+═══════════════════════════════════════════════════════════════
+
+See RENDER-BACKEND-DEPLOY.md for detailed instructions!
