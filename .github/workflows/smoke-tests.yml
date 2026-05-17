@@ -28,13 +28,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Install root deps
         run: npm ci
 
       - name: Install backend deps
-        run: cd backend && npm ci
+        run: cd backend && npm ci --legacy-peer-deps
+
+      - name: Generate Prisma client
+        run: cd backend && npx prisma generate
 
       - name: Wait for Postgres
         run: |
@@ -47,7 +50,7 @@ jobs:
         run: |
           cd backend
           npx prisma migrate deploy
-          npx prisma db seed || true
+          npm run db:seed || true
 
       - name: Build backend
         run: cd backend && npm run build
@@ -55,7 +58,7 @@ jobs:
       - name: Start backend
         run: |
           cd backend
-          NODE_ENV=production DATABASE_URL=postgresql://postgres:postgres@localhost:5432/quotebot npm run start:prod & sleep 6
+          NODE_ENV=production DATABASE_URL=postgresql://postgres:postgres@localhost:5432/quotebot INTERNAL_API_KEY=test_internal_key npm run start:prod & sleep 6
 
       - name: Run smoke tests
         env:
