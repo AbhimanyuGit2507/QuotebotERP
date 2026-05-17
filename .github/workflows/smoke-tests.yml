@@ -1,0 +1,66 @@
+name: CI - Smoke Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  smoke-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: quotebot
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install root deps
+        run: npm ci
+
+      - name: Install backend deps
+        run: cd backend && npm ci
+
+      - name: Wait for Postgres
+        run: |
+          echo "Waiting for Postgres..."
+          for i in {1..30}; do pg_isready -h localhost -p 5432 && break || sleep 2; done
+
+      - name: Setup DB
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/quotebot
+        run: |
+          cd backend
+          npx prisma migrate deploy
+          npx prisma db seed || true
+
+      - name: Build backend
+        run: cd backend && npm run build
+
+      - name: Start backend
+        run: |
+          cd backend
+          NODE_ENV=production DATABASE_URL=postgresql://postgres:postgres@localhost:5432/quotebot npm run start:prod & sleep 6
+
+      - name: Run smoke tests
+        env:
+          API_BASE_URL: http://localhost:3001/api
+          N8N_SECRET: test_internal_key
+        run: |
+          cd backend
+          node scripts/test-all-endpoints.js

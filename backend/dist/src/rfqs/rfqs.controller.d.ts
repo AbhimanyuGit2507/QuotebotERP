@@ -17,8 +17,8 @@ export declare class RfqsController {
             unit: string;
             notes: string | null;
             id: string;
-            product_id: string;
             rfq_id: string;
+            product_id: string;
         }[];
         client: {
             name: string;
@@ -67,8 +67,8 @@ export declare class RfqsController {
         client_id: string;
         display_name: string | null;
         search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
-        quotation_id: string | null;
         channel: string;
+        quotation_id: string | null;
         priority: string;
         confidence_score: number;
         due_date: Date | null;
@@ -81,8 +81,8 @@ export declare class RfqsController {
             unit: string;
             notes: string | null;
             id: string;
-            product_id: string;
             rfq_id: string;
+            product_id: string;
         }[];
         client: {
             name: string;
@@ -131,8 +131,8 @@ export declare class RfqsController {
         client_id: string;
         display_name: string | null;
         search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
-        quotation_id: string | null;
         channel: string;
+        quotation_id: string | null;
         priority: string;
         confidence_score: number;
         due_date: Date | null;
@@ -144,8 +144,8 @@ export declare class RfqsController {
             unit: string;
             notes: string | null;
             id: string;
-            product_id: string;
             rfq_id: string;
+            product_id: string;
         }[];
         client: {
             name: string;
@@ -194,8 +194,8 @@ export declare class RfqsController {
         client_id: string;
         display_name: string | null;
         search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
-        quotation_id: string | null;
         channel: string;
+        quotation_id: string | null;
         priority: string;
         confidence_score: number;
         due_date: Date | null;
@@ -208,8 +208,8 @@ export declare class RfqsController {
             unit: string;
             notes: string | null;
             id: string;
-            product_id: string;
             rfq_id: string;
+            product_id: string;
         }[] | undefined;
         client?: {
             name: string;
@@ -270,8 +270,8 @@ export declare class RfqsController {
             unit: string;
             notes: string | null;
             id: string;
-            product_id: string;
             rfq_id: string;
+            product_id: string;
         }[];
         client: {
             name: string;
@@ -320,8 +320,8 @@ export declare class RfqsController {
         client_id: string;
         display_name: string | null;
         search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
-        quotation_id: string | null;
         channel: string;
+        quotation_id: string | null;
         priority: string;
         confidence_score: number;
         due_date: Date | null;
@@ -333,8 +333,8 @@ export declare class RfqsController {
             unit: string;
             notes: string | null;
             id: string;
-            product_id: string;
             rfq_id: string;
+            product_id: string;
         }[];
         client: {
             name: string;
@@ -383,8 +383,8 @@ export declare class RfqsController {
         client_id: string;
         display_name: string | null;
         search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
-        quotation_id: string | null;
         channel: string;
+        quotation_id: string | null;
         priority: string;
         confidence_score: number;
         due_date: Date | null;

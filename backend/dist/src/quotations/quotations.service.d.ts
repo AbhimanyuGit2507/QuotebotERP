@@ -70,8 +70,8 @@ export declare class QuotationsService {
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -145,8 +145,8 @@ export declare class QuotationsService {
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -220,8 +220,8 @@ export declare class QuotationsService {
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -302,8 +302,8 @@ export declare class QuotationsService {
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -375,8 +375,8 @@ export declare class QuotationsService {
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -464,8 +464,8 @@ export declare class QuotationsService {
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -556,8 +556,8 @@ export declare class QuotationsService {
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -651,8 +651,8 @@ export declare class QuotationsService {
                 client_id: string;
                 display_name: string | null;
                 search_tokens: Prisma.JsonValue | null;
-                quotation_id: string | null;
                 channel: string;
+                quotation_id: string | null;
                 priority: string;
                 confidence_score: number;
                 due_date: Date | null;
