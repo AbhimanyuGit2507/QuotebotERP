@@ -674,7 +674,8 @@ async function run() {
     });
   }
   if (state.rfqId) {
-    await callApi({ name: 'RFQs Delete', method: 'DELETE', path: `/rfqs/${state.rfqId}?forceDeleteLinkedQuotation=true`, expected: [200] });
+    // RFQ may already be deleted by the force-delete of its linked quotation above
+    await callApi({ name: 'RFQs Delete', method: 'DELETE', path: `/rfqs/${state.rfqId}?forceDeleteLinkedQuotation=true`, expected: [200, 404] });
   }
   if (state.clientId) {
     await callApi({ name: 'Clients Delete', method: 'DELETE', path: `/clients/${state.clientId}`, expected: [200] });
