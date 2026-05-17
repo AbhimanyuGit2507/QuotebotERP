@@ -112,6 +112,8 @@ Subtotal: {{currency}} {{subtotal_amount}}
 Tax/GST: {{currency}} {{tax_amount}}
 Total: {{currency}} {{total_amount}}
 
+{{availability_warnings}}
+
 {{stock_warnings}}
 
 Best regards,
@@ -126,8 +128,9 @@ Best regards,
                     subtotal_amount: 'Subtotal before tax',
                     tax_amount: 'Tax/GST amount',
                     total_amount: 'Total quotation amount including tax',
-                    item_details: 'List of all quoted items with availability',
-                    stock_warnings: 'Stock/fulfillment warnings if any',
+                    item_details: 'List of all quoted items with availability status',
+                    availability_warnings: 'Summary of items with stock issues (out of stock, limited availability)',
+                    stock_warnings: 'Additional stock/fulfillment warnings if any',
                     custom_message: 'Optional custom message',
                 },
                 is_active: true,

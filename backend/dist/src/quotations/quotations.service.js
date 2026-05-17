@@ -358,6 +358,34 @@ let QuotationsService = class QuotationsService {
             return `${index + 1}. ${item.product_name} - Qty: ${item.quantity} ${item.unit} @ INR ${item.unit_price}/unit = INR ${item.total}${statusText}`;
         })
             .join('\n');
+        const availabilityWarnings = quotation.items
+            .filter(item => {
+            const status = item.availability || 'in_stock';
+            return status !== 'in_stock' && status !== 'available' && status !== 'not_specified';
+        })
+            .map((item, index) => {
+            const status = item.availability || 'in_stock';
+            const availableQty = item.available_quantity || 0;
+            const requestedQty = item.quantity;
+            let message = '';
+            if (status === 'out_of_stock') {
+                message = `❌ OUT OF STOCK: ${item.product_name} (Requested: ${requestedQty} ${item.unit})`;
+            }
+            else if (status === 'not_available') {
+                message = `❌ NOT AVAILABLE: ${item.product_name} (Requested: ${requestedQty} ${item.unit})`;
+            }
+            else if (status === 'low_stock') {
+                message = `⚠️  LIMITED AVAILABILITY: ${item.product_name} (Only ${availableQty} ${item.unit} available, requested ${requestedQty})`;
+            }
+            else if (status === 'insufficient_stock') {
+                message = `⚠️  INSUFFICIENT STOCK: ${item.product_name} (Available: ${availableQty}/${requestedQty} ${item.unit})`;
+            }
+            else {
+                message = `ℹ️  STATUS: ${item.product_name} - ${status}`;
+            }
+            return `${index + 1}. ${message}`;
+        })
+            .join('\n');
         const stockWarnings = String(quotation.terms_conditions || '')
             .split(/\r?\n/)
             .map((line) => line.trim())
@@ -381,6 +409,7 @@ let QuotationsService = class QuotationsService {
             tax_amount: quotedTax,
             total_amount: quotedTotal,
             item_details: itemDetails,
+            availability_warnings: availabilityWarnings || '',
             stock_warnings: stockWarnings || '',
             custom_message: (body.message || '').trim(),
         };

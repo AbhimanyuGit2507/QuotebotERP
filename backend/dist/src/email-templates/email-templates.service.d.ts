@@ -41,6 +41,7 @@ export declare class EmailTemplatesService {
             tax_amount: string;
             total_amount: string;
             item_details: string;
+            availability_warnings: string;
             stock_warnings: string;
             custom_message: string;
         };
