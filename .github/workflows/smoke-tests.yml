@@ -34,7 +34,7 @@ jobs:
         run: npm ci
 
       - name: Install backend deps
-        run: cd backend && npm ci
+        run: cd backend && npm ci --legacy-peer-deps
 
       - name: Wait for Postgres
         run: |
