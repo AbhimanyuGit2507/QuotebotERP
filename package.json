@@ -1,22 +1,30 @@
 {
-  "name": "quotebot",
+  "name": "quotebot-erp",
   "version": "1.0.0",
-  "description": "",
+  "description": "Intelligent Email-to-Quotation Automation ERP System",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AbhimanyuGit2507/Quotebot.git"
+    "url": "git+https://github.com/AbhimanyuGit2507/QuotebotERP.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "erp",
+    "quotation",
+    "invoice",
+    "automation",
+    "ai",
+    "email"
+  ],
+  "author": "Abhimanyu",
+  "license": "UNLICENSED",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/AbhimanyuGit2507/Quotebot/issues"
+    "url": "https://github.com/AbhimanyuGit2507/QuotebotERP/issues"
   },
-  "homepage": "https://github.com/AbhimanyuGit2507/Quotebot#readme",
-  "dependencies": {}
+  "homepage": "https://github.com/AbhimanyuGit2507/QuotebotERP#readme",
+  "dependencies": {},
+  "private": true
 }

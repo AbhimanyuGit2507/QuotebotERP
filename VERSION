@@ -1,0 +1,120 @@
+# QuotebotERP Version Information
+
+**Current Version:** 1.0.0  
+**Release Date:** May 17, 2026  
+**Status:** Production Ready  
+
+## Release Notes
+
+### Version 1.0.0 (May 17, 2026)
+
+#### Features
+- ✅ Email-to-Quotation automation system
+- ✅ AI-powered RFQ parsing (OpenAI GPT-4, Anthropic Claude)
+- ✅ Professional PDF generation with modern templates
+- ✅ Email templates with variable substitution
+- ✅ Real-time dashboard updates (5-10s polling)
+- ✅ Multi-tenant architecture
+- ✅ Entity relationship navigation
+- ✅ Purchase order processing
+- ✅ Invoice generation
+- ✅ Gmail OAuth integration
+- ✅ Auto-sync every 10 seconds
+
+#### Enhancements
+- ✅ Professional PDF templates with branding
+- ✅ Subtotal + Tax + Total breakdown in emails
+- ✅ Clickable RFQ/Quotation links in inbox
+- ✅ Accurate sync progress indicator
+- ✅ Currency formatting (₹ symbol, comma separation)
+- ✅ Color-coded status badges
+- ✅ Professional table layouts
+- ✅ Multi-page PDF support
+
+#### Bug Fixes
+- ✅ Tax not showing in quotation emails
+- ✅ Email sync stuck at 92%
+- ✅ Pricing calculation validation
+- ✅ Invoice inherits correct pricing
+- ✅ Company name from settings
+
+#### Testing
+- ✅ Complete end-to-end pipeline tested
+- ✅ 5 email test scenarios
+- ✅ Pricing validation
+- ✅ PDF generation verified
+- ✅ All components passing
+
+#### Documentation
+- ✅ Comprehensive README (1,200+ lines)
+- ✅ Deployment guides (Vercel, Render, Docker)
+- ✅ Bug fixes summary
+- ✅ System test report (40+ pages)
+- ✅ API documentation
+
+#### Deployment
+- ✅ Frontend: Vercel-ready
+- ✅ Backend: Render-ready
+- ✅ Database: PostgreSQL migrations
+- ✅ Docker support
+- ✅ Production configurations
+
+## Technical Stack
+
+**Frontend:**
+- React 19.2.4
+- TypeScript 4.9.5
+- React Router 7.13
+
+**Backend:**
+- NestJS 10.x
+- TypeScript 5.x
+- Prisma 5.x
+- PostgreSQL 15
+
+**AI/ML:**
+- OpenAI GPT-4
+- Anthropic Claude
+
+**Deployment:**
+- Vercel (Frontend)
+- Render (Backend + Database)
+- Docker support
+
+## Installation
+
+```bash
+# Clone repository
+git clone https://github.com/AbhimanyuGit2507/QuotebotERP.git
+cd QuotebotERP
+
+# Backend setup
+cd backend
+npm install
+npx prisma migrate dev
+npm run start:dev
+
+# Frontend setup
+cd frontend
+npm install
+npm start
+```
+
+## Deployment
+
+See deployment guides:
+- **Quick Deploy:** RENDER-QUICK-CHECKLIST.txt
+- **Detailed Guide:** RENDER-BACKEND-DEPLOY.md
+- **Full Documentation:** DEPLOYMENT.md
+
+## License
+
+UNLICENSED - Proprietary
+
+## Maintainer
+
+Abhimanyu (@AbhimanyuGit2507)
+
+---
+
+**Last Updated:** May 17, 2026, 6:22 PM IST

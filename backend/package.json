@@ -1,8 +1,8 @@
 {
-  "name": "backend",
-  "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "name": "quotebot-backend",
+  "version": "1.0.0",
+  "description": "QuotebotERP Backend - NestJS API Server",
+  "author": "Abhimanyu",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
