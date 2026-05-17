@@ -669,12 +669,12 @@ async function run() {
     await callApi({
       name: `Quotations Delete (${quotationId})`,
       method: 'DELETE',
-      path: `/quotations/${quotationId}`,
+      path: `/quotations/${quotationId}?forceDeleteLinkedRfq=true`,
       expected: [200],
     });
   }
   if (state.rfqId) {
-    await callApi({ name: 'RFQs Delete', method: 'DELETE', path: `/rfqs/${state.rfqId}`, expected: [200] });
+    await callApi({ name: 'RFQs Delete', method: 'DELETE', path: `/rfqs/${state.rfqId}?forceDeleteLinkedQuotation=true`, expected: [200] });
   }
   if (state.clientId) {
     await callApi({ name: 'Clients Delete', method: 'DELETE', path: `/clients/${state.clientId}`, expected: [200] });
