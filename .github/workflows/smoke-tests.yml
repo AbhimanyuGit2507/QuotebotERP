@@ -58,7 +58,7 @@ jobs:
       - name: Start backend
         run: |
           cd backend
-          NODE_ENV=production DATABASE_URL=postgresql://postgres:postgres@localhost:5432/quotebot npm run start:prod & sleep 6
+          NODE_ENV=production DATABASE_URL=postgresql://postgres:postgres@localhost:5432/quotebot INTERNAL_API_KEY=test_internal_key npm run start:prod & sleep 6
 
       - name: Run smoke tests
         env:

@@ -10,6 +10,7 @@ const failures = [];
 const results = [];
 
 let token = '';
+let cookieJar = {}; // name -> value
 
 const state = {
   userId: null,
@@ -40,6 +41,14 @@ async function callApi({
 }) {
   const headers = { ...customHeaders };
 
+  // Send stored cookies for authenticated requests
+  if (auth && Object.keys(cookieJar).length) {
+    headers.Cookie = Object.entries(cookieJar)
+      .map(([k, v]) => `${k}=${v}`)
+      .join('; ');
+  }
+
+  // Fallback: also send Bearer token if available
   if (auth && token) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -59,6 +68,17 @@ async function callApi({
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
+
+    // Capture Set-Cookie headers and store in cookie jar
+    const setCookies = response.headers.getSetCookie
+      ? response.headers.getSetCookie()
+      : (response.headers.get('set-cookie') || '').split(/,(?=\s*\w+=)/).filter(Boolean);
+    for (const sc of setCookies) {
+      const match = sc.match(/^([^=]+)=([^;]*)/);
+      if (match) {
+        cookieJar[match[1].trim()] = match[2].trim();
+      }
+    }
 
     if (responseType === 'buffer') {
       const bytes = await response.arrayBuffer();
@@ -166,13 +186,16 @@ async function run() {
     },
   });
 
-  if (!login.ok || !login.body?.access_token) {
+  // Token is set via HTTP-only cookie (qb_access_token), not in response body
+  const cookieToken = cookieJar['qb_access_token'] || '';
+  if (!login.ok || (!login.body?.access_token && !cookieToken)) {
+    console.error('\nLogin succeeded with HTTP 200 but no token found in body or cookies.');
     printSummary();
     process.exit(1);
     return;
   }
 
-  token = login.body.access_token;
+  token = login.body?.access_token || cookieToken;
 
   await callApi({ name: 'Auth Me', path: '/auth/me', expected: [200] });
   await callApi({ name: 'Auth Validate', method: 'POST', path: '/auth/validate', expected: [200] });
