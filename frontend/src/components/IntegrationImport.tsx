@@ -3,14 +3,12 @@ import Modals, { ManualOverrideModal } from './common/Modals';
 import { previewZohoCustomers, importZohoCustomers, previewZohoItems, importZohoItems } from '../services/api';
 
 const IntegrationImport: React.FC<{ provider: 'zoho' | 'odoo'; isOpen: boolean; onClose: () => void; showToast: (msg: string, type?: string) => void }> = ({ provider, isOpen, onClose, showToast }) => {
-  const [, setLoading] = useState(false);
   const [rows, setRows] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [overrides, setOverrides] = useState<Record<string, { externalId: string; localEntity: string; localId: string }>>({});
 
   const loadPreview = async (type: 'customers' | 'items') => {
-    setLoading(true);
     try {
       const resp = type === 'customers' ? await previewZohoCustomers() : await previewZohoItems();
       if (resp?.ok) {
@@ -20,13 +18,10 @@ const IntegrationImport: React.FC<{ provider: 'zoho' | 'odoo'; isOpen: boolean; 
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Preview error', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
   const commitImport = async (type: 'customers' | 'items') => {
-    setLoading(true);
     try {
       const ovArray = Object.values(overrides).filter((o) => o.localId && o.externalId);
       await (type === 'customers' ? importZohoCustomers(ovArray) : importZohoItems(ovArray));
@@ -34,8 +29,6 @@ const IntegrationImport: React.FC<{ provider: 'zoho' | 'odoo'; isOpen: boolean; 
       onClose();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Import failed', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
