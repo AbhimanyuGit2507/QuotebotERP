@@ -6,18 +6,18 @@ export declare class FilesService {
         id: string;
         created_at: Date;
         tenant_id: string;
+        size: number;
         filename: string;
         mime_type: string;
-        size: number;
         storage_path: string;
     }[]>;
     findOne(id: string, tenantId: string): Promise<{
         id: string;
         created_at: Date;
         tenant_id: string;
+        size: number;
         filename: string;
         mime_type: string;
-        size: number;
         storage_path: string;
     }>;
     create(tenantId: string, body: {
@@ -29,9 +29,9 @@ export declare class FilesService {
         id: string;
         created_at: Date;
         tenant_id: string;
+        size: number;
         filename: string;
         mime_type: string;
-        size: number;
         storage_path: string;
     }>;
     remove(id: string, tenantId: string): Promise<{

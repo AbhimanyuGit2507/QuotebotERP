@@ -8,27 +8,27 @@ export declare class FilesController {
         id: string;
         created_at: Date;
         tenant_id: string;
+        size: number;
         filename: string;
         mime_type: string;
-        size: number;
         storage_path: string;
     }[]>;
     findOne(id: string, user: AuthenticatedUser): Promise<{
         id: string;
         created_at: Date;
         tenant_id: string;
+        size: number;
         filename: string;
         mime_type: string;
-        size: number;
         storage_path: string;
     }>;
     upload(user: AuthenticatedUser, body: UploadFileDto): Promise<{
         id: string;
         created_at: Date;
         tenant_id: string;
+        size: number;
         filename: string;
         mime_type: string;
-        size: number;
         storage_path: string;
     }>;
     remove(id: string, user: AuthenticatedUser): Promise<{

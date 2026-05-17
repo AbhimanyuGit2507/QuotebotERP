@@ -522,50 +522,151 @@ let QuotationsService = class QuotationsService {
             select: { company_name: true },
         });
         return new Promise((resolve, reject) => {
-            const doc = new pdfkit_1.default({ margin: 40 });
+            const doc = new pdfkit_1.default({
+                margin: 50,
+                size: 'A4',
+                bufferPages: true,
+            });
             const buffers = [];
             doc.on('data', (chunk) => buffers.push(chunk));
             doc.on('end', () => resolve(Buffer.concat(buffers)));
             doc.on('error', reject);
-            doc.fontSize(20).text(`${tenant?.company_name || 'Quotebot'} Invoice`, {
-                align: 'center',
+            const primaryColor = '#2563eb';
+            const darkGray = '#1e293b';
+            const lightGray = '#64748b';
+            const borderColor = '#e2e8f0';
+            doc
+                .fontSize(24)
+                .fillColor(primaryColor)
+                .font('Helvetica-Bold')
+                .text(tenant?.company_name || 'Quotebot', { align: 'left' });
+            doc
+                .fontSize(10)
+                .fillColor(lightGray)
+                .font('Helvetica')
+                .text('Quotation', { align: 'left' });
+            doc
+                .moveTo(50, doc.y + 10)
+                .lineTo(545, doc.y + 10)
+                .strokeColor(borderColor)
+                .lineWidth(1)
+                .stroke();
+            doc.moveDown(1.5);
+            const startY = doc.y;
+            doc.fontSize(10).fillColor(darkGray);
+            doc.font('Helvetica-Bold').text('Bill To:', 50, startY);
+            doc.moveDown(0.3);
+            doc.font('Helvetica-Bold').fontSize(11).text(quotation.client.name);
+            doc.font('Helvetica').fontSize(9);
+            doc.text(quotation.client.email);
+            if (quotation.client.phone) {
+                doc.text(`Phone: ${quotation.client.phone}`);
+            }
+            if (quotation.client.gst) {
+                doc.text(`GSTIN: ${quotation.client.gst}`);
+            }
+            const rightX = 350;
+            doc.font('Helvetica-Bold').fontSize(10).text('Quotation Number:', rightX, startY);
+            doc.font('Helvetica').text(quotation.number, rightX + 110, startY);
+            doc.font('Helvetica-Bold').text('Date:', rightX, doc.y + 5);
+            doc.font('Helvetica').text(quotation.date, rightX + 110, doc.y - 12);
+            doc.font('Helvetica-Bold').text('Valid Until:', rightX, doc.y + 5);
+            doc.font('Helvetica').text(quotation.valid_until, rightX + 110, doc.y - 12);
+            doc.font('Helvetica-Bold').text('Status:', rightX, doc.y + 5);
+            doc.font('Helvetica').fillColor(quotation.status === 'draft' ? '#eab308' :
+                quotation.status === 'sent' ? '#3b82f6' :
+                    quotation.status === 'accepted' ? '#22c55e' : '#64748b').text(quotation.status.toUpperCase(), rightX + 110, doc.y - 12);
+            doc.moveDown(3);
+            doc.fillColor(darkGray);
+            const tableTop = doc.y;
+            const tableLeft = 50;
+            const tableWidth = 495;
+            doc
+                .rect(tableLeft, tableTop, tableWidth, 25)
+                .fillColor(primaryColor)
+                .fill();
+            doc
+                .fontSize(9)
+                .fillColor('white')
+                .font('Helvetica-Bold')
+                .text('Item', tableLeft + 5, tableTop + 8, { width: 200 })
+                .text('Qty', tableLeft + 210, tableTop + 8, { width: 50, align: 'center' })
+                .text('Unit Price', tableLeft + 270, tableTop + 8, { width: 70, align: 'right' })
+                .text('Tax %', tableLeft + 350, tableTop + 8, { width: 50, align: 'right' })
+                .text('Total', tableLeft + 410, tableTop + 8, { width: 80, align: 'right' });
+            let rowTop = tableTop + 30;
+            doc.fillColor(darkGray).font('Helvetica');
+            quotation.items.forEach((item, index) => {
+                const isEven = index % 2 === 0;
+                if (isEven) {
+                    doc
+                        .rect(tableLeft, rowTop - 5, tableWidth, 20)
+                        .fillColor('#f8fafc')
+                        .fill();
+                }
+                doc
+                    .fontSize(9)
+                    .fillColor(darkGray)
+                    .text(item.product_name, tableLeft + 5, rowTop, { width: 200, lineBreak: false, ellipsis: true })
+                    .text(`${item.quantity} ${item.unit}`, tableLeft + 210, rowTop, { width: 50, align: 'center' })
+                    .text(item.unit_price.toLocaleString('en-IN', { maximumFractionDigits: 2 }), tableLeft + 270, rowTop, { width: 70, align: 'right' })
+                    .text(`${item.tax_percent}%`, tableLeft + 350, rowTop, { width: 50, align: 'right' })
+                    .text(item.total.toLocaleString('en-IN', { maximumFractionDigits: 2 }), tableLeft + 410, rowTop, { width: 80, align: 'right' });
+                rowTop += 20;
             });
-            doc.moveDown();
-            if (company?.logo_url) {
+            doc
+                .rect(tableLeft, tableTop, tableWidth, rowTop - tableTop)
+                .strokeColor(borderColor)
+                .lineWidth(1)
+                .stroke();
+            doc.moveDown(2);
+            const summaryTop = rowTop + 20;
+            const summaryLeft = tableLeft + 320;
+            const summaryWidth = 175;
+            doc
+                .fontSize(10)
+                .font('Helvetica')
+                .fillColor(darkGray)
+                .text('Subtotal:', summaryLeft, summaryTop, { width: 80 })
+                .text(`₹ ${quotation.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, summaryLeft + 80, summaryTop, { width: 95, align: 'right' });
+            doc
+                .text('Tax/GST:', summaryLeft, doc.y + 5, { width: 80 })
+                .text(`₹ ${quotation.tax.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, summaryLeft + 80, doc.y - 12, { width: 95, align: 'right' });
+            const totalY = doc.y + 10;
+            doc
+                .rect(summaryLeft, totalY - 5, summaryWidth, 25)
+                .fillColor(primaryColor)
+                .fill();
+            doc
+                .fontSize(12)
+                .fillColor('white')
+                .font('Helvetica-Bold')
+                .text('Total:', summaryLeft + 5, totalY + 3, { width: 80 })
+                .text(`₹ ${quotation.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, summaryLeft + 80, totalY + 3, { width: 90, align: 'right' });
+            if (quotation.terms_conditions) {
+                doc.moveDown(3);
                 doc
                     .fontSize(10)
-                    .fillColor('#64748b')
-                    .text(`Logo / branding: ${company.logo_url}`, { align: 'center' });
-                doc.fillColor('#000000');
-                doc.moveDown(0.25);
-            }
-            doc.fontSize(12).text(`Quotation No: ${quotation.number}`);
-            doc.text(`Date: ${quotation.date}`);
-            doc.text(`Valid Until: ${quotation.valid_until}`);
-            doc.text(`Status: ${quotation.status}`);
-            doc.moveDown();
-            doc.fontSize(14).text('Client Details');
-            doc.fontSize(12).text(`Name: ${quotation.client.name}`);
-            doc.text(`Email: ${quotation.client.email}`);
-            doc.text(`Phone: ${quotation.client.phone ?? '-'}`);
-            doc.text(`GST: ${quotation.client.gst ?? '-'}`);
-            doc.moveDown();
-            doc.fontSize(14).text('Items');
-            doc.moveDown(0.5);
-            quotation.items.forEach((item, index) => {
+                    .fillColor(darkGray)
+                    .font('Helvetica-Bold')
+                    .text('Terms & Conditions', 50);
                 doc
-                    .fontSize(12)
-                    .text(`${index + 1}. ${item.product_name} | Qty: ${item.quantity} ${item.unit} | Price: ${item.unit_price} | Tax: ${item.tax_percent}% | Total: ${item.total}`);
-            });
-            doc.moveDown();
-            doc.fontSize(14).text('Summary');
-            doc.fontSize(12).text(`Subtotal: ${quotation.subtotal.toFixed(2)}`);
-            doc.text(`Tax: ${quotation.tax.toFixed(2)}`);
-            doc.text(`Total: ${quotation.total.toFixed(2)}`);
-            if (quotation.terms_conditions) {
-                doc.moveDown();
-                doc.fontSize(14).text('Terms & Conditions');
-                doc.fontSize(12).text(quotation.terms_conditions);
+                    .fontSize(9)
+                    .font('Helvetica')
+                    .fillColor(lightGray)
+                    .text(quotation.terms_conditions, 50, doc.y + 5, {
+                    width: 495,
+                    align: 'justify',
+                });
+            }
+            const pages = doc.bufferedPageRange();
+            for (let i = 0; i < pages.count; i++) {
+                doc.switchToPage(i);
+                doc
+                    .fontSize(8)
+                    .fillColor(lightGray)
+                    .text(`Page ${i + 1} of ${pages.count}`, 50, doc.page.height - 50, { align: 'center', width: doc.page.width - 100 });
+                doc.text(`Generated by ${tenant?.company_name || 'Quotebot'} | ${new Date().toLocaleDateString()}`, 50, doc.page.height - 35, { align: 'center', width: doc.page.width - 100 });
             }
             doc.end();
         });
