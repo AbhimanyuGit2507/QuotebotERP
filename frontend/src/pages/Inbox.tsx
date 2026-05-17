@@ -92,6 +92,7 @@ const Inbox: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
+    let manualSyncPolling: NodeJS.Timeout | null = null;
 
     const refreshSyncStatus = async () => {
       if (!isMounted) {
@@ -105,11 +106,21 @@ const Inbox: React.FC = () => {
       void refreshSyncStatus();
     }, 5000);
 
+    // Special fast polling for manual sync
+    if (manualSyncRequested && syncStatus?.status === 'running') {
+      manualSyncPolling = window.setInterval(() => {
+        void refreshSyncStatus();
+      }, 1000); // Poll every 1 second during manual sync
+    }
+
     return () => {
       isMounted = false;
       window.clearInterval(interval);
+      if (manualSyncPolling) {
+        window.clearInterval(manualSyncPolling);
+      }
     };
-  }, [loadSyncStatus]);
+  }, [loadSyncStatus, manualSyncRequested, syncStatus]);
 
   useEffect(() => {
     if (!syncStatus || syncStatus.status !== 'failed') {
@@ -1092,8 +1103,8 @@ const Inbox: React.FC = () => {
     (
       syncTriggering ||
       syncStatus?.status === 'running' ||
-      !syncStatus ||
-      (syncStatus.status !== 'failed' && !manualSyncRunningSeen)
+      (!syncStatus && !manualSyncRunningSeen) ||
+      (syncStatus?.status !== 'failed' && !manualSyncRunningSeen)
     );
 
   return (

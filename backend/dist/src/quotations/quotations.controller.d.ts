@@ -54,8 +54,8 @@ export declare class QuotationsController {
             display_name: string | null;
             search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
             conversation_id: string | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -136,8 +136,8 @@ export declare class QuotationsController {
             display_name: string | null;
             search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
             conversation_id: string | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -209,8 +209,8 @@ export declare class QuotationsController {
             display_name: string | null;
             search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
             conversation_id: string | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -289,8 +289,8 @@ export declare class QuotationsController {
             display_name: string | null;
             search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
             conversation_id: string | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -369,8 +369,8 @@ export declare class QuotationsController {
             display_name: string | null;
             search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
             conversation_id: string | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -470,8 +470,8 @@ export declare class QuotationsController {
             display_name: string | null;
             search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
             conversation_id: string | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -542,8 +542,8 @@ export declare class QuotationsController {
             display_name: string | null;
             search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
             conversation_id: string | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;

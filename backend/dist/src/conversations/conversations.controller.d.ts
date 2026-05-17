@@ -64,7 +64,6 @@ export declare class ConversationsController {
         tenant_id: string;
         status: string;
         client_id: string;
-        quotation_id: string | null;
         email_account_id: string | null;
         thread_id: string | null;
         subject: string;
@@ -74,6 +73,7 @@ export declare class ConversationsController {
         current_stage: import("@prisma/client").$Enums.ConversationStage;
         assigned_operator_id: string | null;
         rfq_id: string | null;
+        quotation_id: string | null;
         unread_count: number;
         last_message_at: Date | null;
     })[]>;
@@ -89,8 +89,8 @@ export declare class ConversationsController {
             display_name: string | null;
             search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
             conversation_id: string | null;
-            quotation_id: string | null;
             channel: string;
+            quotation_id: string | null;
             priority: string;
             confidence_score: number;
             due_date: Date | null;
@@ -246,7 +246,6 @@ export declare class ConversationsController {
         tenant_id: string;
         status: string;
         client_id: string;
-        quotation_id: string | null;
         email_account_id: string | null;
         thread_id: string | null;
         subject: string;
@@ -256,6 +255,7 @@ export declare class ConversationsController {
         current_stage: import("@prisma/client").$Enums.ConversationStage;
         assigned_operator_id: string | null;
         rfq_id: string | null;
+        quotation_id: string | null;
         unread_count: number;
         last_message_at: Date | null;
     }>;
@@ -268,7 +268,6 @@ export declare class ConversationsController {
         tenant_id: string;
         status: string;
         client_id: string;
-        quotation_id: string | null;
         email_account_id: string | null;
         thread_id: string | null;
         subject: string;
@@ -278,6 +277,7 @@ export declare class ConversationsController {
         current_stage: import("@prisma/client").$Enums.ConversationStage;
         assigned_operator_id: string | null;
         rfq_id: string | null;
+        quotation_id: string | null;
         unread_count: number;
         last_message_at: Date | null;
     }>;
@@ -288,7 +288,6 @@ export declare class ConversationsController {
         tenant_id: string;
         status: string;
         client_id: string;
-        quotation_id: string | null;
         email_account_id: string | null;
         thread_id: string | null;
         subject: string;
@@ -298,6 +297,7 @@ export declare class ConversationsController {
         current_stage: import("@prisma/client").$Enums.ConversationStage;
         assigned_operator_id: string | null;
         rfq_id: string | null;
+        quotation_id: string | null;
         unread_count: number;
         last_message_at: Date | null;
     }>;

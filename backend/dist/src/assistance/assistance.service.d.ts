@@ -35,7 +35,6 @@ export declare class AssistanceService {
             tenant_id: string;
             status: string;
             client_id: string;
-            quotation_id: string | null;
             email_account_id: string | null;
             thread_id: string | null;
             subject: string;
@@ -45,6 +44,7 @@ export declare class AssistanceService {
             current_stage: import("@prisma/client").$Enums.ConversationStage;
             assigned_operator_id: string | null;
             rfq_id: string | null;
+            quotation_id: string | null;
             unread_count: number;
             last_message_at: Date | null;
         };
@@ -181,7 +181,6 @@ export declare class AssistanceService {
             tenant_id: string;
             status: string;
             client_id: string;
-            quotation_id: string | null;
             email_account_id: string | null;
             thread_id: string | null;
             subject: string;
@@ -191,6 +190,7 @@ export declare class AssistanceService {
             current_stage: import("@prisma/client").$Enums.ConversationStage;
             assigned_operator_id: string | null;
             rfq_id: string | null;
+            quotation_id: string | null;
             unread_count: number;
             last_message_at: Date | null;
         };
