@@ -111,6 +111,15 @@ let PrismaService = class PrismaService {
     get integrationMapping() {
         return this.prismaClient.integrationMapping;
     }
+    get assistanceTicket() {
+        return this.prismaClient.assistanceTicket;
+    }
+    get assistancePurchaseOrder() {
+        return this.prismaClient.assistancePurchaseOrder;
+    }
+    get emailTemplate() {
+        return this.prismaClient.emailTemplate;
+    }
     get db() {
         return this.prismaClient;
     }

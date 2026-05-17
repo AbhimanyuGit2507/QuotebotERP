@@ -189,7 +189,7 @@ let EmailService = class EmailService {
             stdio: 'ignore',
             env: {
                 ...process.env,
-                N8N_TENANT_ID: tenantId,
+                SYNC_TENANT_ID: tenantId,
                 GMAIL_SYNC_STATUS_FILE: statusFile,
             },
         });
@@ -897,6 +897,13 @@ let EmailService = class EmailService {
         return email;
     }
     async sendNow(tenantId, data) {
+        console.log('[EmailService] sendNow called', {
+            tenantId,
+            emailAccountId: data.email_account_id,
+            to: data.to,
+            subject: data.subject,
+            attachmentsCount: data.attachments?.length || 0,
+        });
         const account = await this.prisma.emailAccount.findFirst({
             where: {
                 id: data.email_account_id,
@@ -905,9 +912,21 @@ let EmailService = class EmailService {
             },
         });
         if (!account) {
+            console.error('[EmailService] Email account not found', {
+                emailAccountId: data.email_account_id,
+                tenantId,
+            });
             throw new common_1.BadRequestException('Email account not found or not active');
         }
+        console.log('[EmailService] Email account found', {
+            id: account.id,
+            email: account.email_address,
+            provider: account.provider,
+        });
         if (account.provider !== 'gmail') {
+            console.error('[EmailService] Unsupported provider', {
+                provider: account.provider,
+            });
             throw new common_1.BadRequestException('Immediate send is only supported for Gmail accounts');
         }
         const credentials = this.readCredentials(account.credentials) || {};
@@ -926,14 +945,22 @@ let EmailService = class EmailService {
             return ts <= Date.now() + 60_000;
         };
         if (!accessToken || isExpired(expiresAt)) {
+            console.log('[EmailService] Access token expired or missing, refreshing...');
             try {
                 const refreshed = await this.refreshEmailAccountAccessToken(account.id, tenantId);
                 accessToken = refreshed.access_token;
+                console.log('[EmailService] Access token refreshed successfully');
             }
             catch (err) {
-                console.error('Failed to refresh access token for sendNow:', err);
+                console.error('[EmailService] Failed to refresh access token:', {
+                    error: err instanceof Error ? err.message : String(err),
+                    accountId: account.id,
+                });
                 throw new common_1.BadRequestException('Could not refresh Gmail access token');
             }
+        }
+        else {
+            console.log('[EmailService] Using existing access token');
         }
         const fromAddress = account.email_address;
         const rawMessage = this.buildRawMimeMessage({
@@ -950,6 +977,12 @@ let EmailService = class EmailService {
             .replace(/\//g, '_')
             .replace(/=+$/g, '');
         const sendUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
+        console.log('[EmailService] Sending email via Gmail API', {
+            url: sendUrl,
+            to: data.to,
+            from: fromAddress,
+            messageSize: rawMessage.length,
+        });
         let sendResponse = null;
         try {
             sendResponse = await fetch(sendUrl, {
@@ -962,27 +995,43 @@ let EmailService = class EmailService {
             });
         }
         catch (err) {
-            console.error('Gmail send network error:', err);
+            console.error('[EmailService] Gmail send network error:', {
+                error: err instanceof Error ? err.message : String(err),
+                stack: err instanceof Error ? err.stack : undefined,
+            });
         }
         const sent = Boolean(sendResponse &&
             typeof sendResponse === 'object' &&
             'ok' in sendResponse &&
             sendResponse['ok'] === true);
         let providerResult = {};
-        if (sendResponse &&
-            typeof sendResponse === 'object' &&
-            typeof sendResponse['json'] === 'function') {
-            try {
-                const jsonFn = sendResponse.json;
-                const parsed = await jsonFn();
-                if (parsed && typeof parsed === 'object') {
-                    providerResult = parsed;
+        let responseStatus;
+        let responseStatusText;
+        if (sendResponse && typeof sendResponse === 'object') {
+            responseStatus = sendResponse.status;
+            responseStatusText = sendResponse.statusText;
+            if (typeof sendResponse['json'] === 'function') {
+                try {
+                    const jsonFn = sendResponse.json;
+                    const parsed = await jsonFn();
+                    if (parsed && typeof parsed === 'object') {
+                        providerResult = parsed;
+                    }
+                }
+                catch (jsonErr) {
+                    console.error('[EmailService] Failed to parse Gmail API response:', jsonErr);
+                    providerResult = {};
                 }
             }
-            catch {
-                providerResult = {};
-            }
         }
+        console.log('[EmailService] Gmail API response', {
+            sent,
+            status: responseStatus,
+            statusText: responseStatusText,
+            hasError: !!providerResult.error,
+            errorDetails: providerResult.error,
+            messageId: providerResult.id,
+        });
         const outbound = await this.prisma.outboundEmail.create({
             data: {
                 tenant_id: tenantId,
@@ -998,8 +1047,20 @@ let EmailService = class EmailService {
             },
         });
         if (!sent) {
-            throw new common_1.BadRequestException(`Failed to send email via Gmail: ${JSON.stringify(providerResult)}`);
+            const errorMessage = `Failed to send email via Gmail: ${JSON.stringify(providerResult)}`;
+            console.error('[EmailService] Email send failed', {
+                outboundId: outbound.id,
+                error: providerResult,
+                status: responseStatus,
+                statusText: responseStatusText,
+            });
+            throw new common_1.BadRequestException(errorMessage);
         }
+        console.log('[EmailService] ✓ Email sent successfully', {
+            outboundId: outbound.id,
+            messageId: providerResult.id,
+            to: data.to,
+        });
         return {
             success: true,
             outbound_id: outbound.id,

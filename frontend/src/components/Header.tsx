@@ -15,9 +15,11 @@ interface SearchResult {
 
 interface NotificationItem {
   id: string;
-  type: 'rfq' | 'quote' | 'inbox' | 'system';
+  type: 'rfq' | 'quote' | 'inbox' | 'system' | 'stock';
+  title: string;
   message: string;
   time: string;
+  action?: () => void;
 }
 
 const PAGE_SEARCH_ITEMS: SearchResult[] = [
@@ -106,6 +108,9 @@ const Header: React.FC = () => {
   );
 
   const searchRef = useRef<HTMLDivElement>(null);
+  const quickActionsRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const currentDate = new Date().toLocaleDateString('en-IN', {
     day: '2-digit',
@@ -155,44 +160,73 @@ const Header: React.FC = () => {
   );
 
   const notifications = useMemo<NotificationItem[]>(() => {
-    const items: NotificationItem[] = [
-      ...rfqs
-        .filter((rfq) => rfq.status === 'pending')
-        .slice(0, 2)
-        .map((rfq) => ({
-          id: `rfq-${rfq.id}`,
-          type: 'rfq' as const,
-          message: `Pending RFQ ${rfq.number} from ${rfq.client}`,
-          time: rfq.date,
-        })),
-      ...quotes
-        .filter((quote) => quote.status === 'sent')
-        .slice(0, 2)
-        .map((quote) => ({
-          id: `quote-${quote.id}`,
-          type: 'quote' as const,
-          message: `Quotation ${quote.number} sent to ${quote.client}`,
-          time: quote.date,
-        })),
-      ...inboxMessages
-        .filter((message) => !message.isRead)
-        .slice(0, 2)
-        .map((message) => ({
-          id: `inbox-${message.id}`,
-          type: 'inbox' as const,
-          message: `Unread message: ${message.subject}`,
-          time: message.timestamp,
-        })),
-      {
-        id: 'system-sync',
-        type: 'system',
-        message: `Data sync active: ${rfqs.length} RFQs, ${quotes.length} quotes`,
-        time: currentDate,
-      },
-    ];
+    const items: NotificationItem[] = [];
+    
+    // Pending RFQs - high priority
+    const pendingRfqs = rfqs.filter((rfq) => rfq.status === 'pending').slice(0, 2);
+    pendingRfqs.forEach((rfq) => {
+      items.push({
+        id: `rfq-${rfq.id}`,
+        type: 'rfq' as const,
+        title: `New RFQ: ${rfq.number}`,
+        message: `From ${rfq.client} - Requires processing`,
+        time: new Date(rfq.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        action: () => navigate('/rfq-inbox'),
+      });
+    });
 
-    return items.slice(0, 6);
-  }, [currentDate, inboxMessages, quotes, rfqs]);
+    // Unread inbox messages
+    const unreadMessages = inboxMessages.filter((message) => !message.isRead).slice(0, 2);
+    unreadMessages.forEach((message) => {
+      items.push({
+        id: `inbox-${message.id}`,
+        type: 'inbox' as const,
+        title: 'Unread Email',
+        message: message.subject,
+        time: new Date(message.timestamp).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        action: () => navigate('/inbox'),
+      });
+    });
+
+    // Recent sent quotes
+    const sentQuotes = quotes.filter((quote) => quote.status === 'sent').slice(0, 1);
+    sentQuotes.forEach((quote) => {
+      items.push({
+        id: `quote-${quote.id}`,
+        type: 'quote' as const,
+        title: `Quotation Sent: ${quote.number}`,
+        message: `Delivered to ${quote.client}`,
+        time: new Date(quote.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        action: () => navigate('/quotations'),
+      });
+    });
+
+    // Low stock warnings
+    const lowStockProducts = products.filter(p => p.stock && p.stock <= 10).slice(0, 2);
+    lowStockProducts.forEach((product) => {
+      items.push({
+        id: `stock-${product.id}`,
+        type: 'stock' as const,
+        title: 'Low Stock Alert',
+        message: `${product.name} - Only ${product.stock} units remaining`,
+        time: currentDate,
+        action: () => navigate('/products'),
+      });
+    });
+
+    // System status
+    if (items.length < 5) {
+      items.push({
+        id: 'system-status',
+        type: 'system',
+        title: 'System Status',
+        message: `${rfqs.length} RFQs • ${quotes.length} Quotations • ${clients.length} Clients`,
+        time: currentDate,
+      });
+    }
+
+    return items.slice(0, 8);
+  }, [currentDate, inboxMessages, quotes, rfqs, products, clients, navigate]);
 
   useEffect(() => {
     if (searchQuery.trim()) {
@@ -213,6 +247,15 @@ const Header: React.FC = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowSearchResults(false);
+      }
+      if (quickActionsRef.current && !quickActionsRef.current.contains(event.target as Node)) {
+        setShowQuickActions(false);
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
       }
     };
 
@@ -242,30 +285,65 @@ const Header: React.FC = () => {
     setShowSearchResults(false);
   };
 
+  const pendingRfqsCount = rfqs.filter(rfq => rfq.status === 'pending').length;
+  const unresolvedQuotesCount = quotes.filter(quote => quote.status === 'sent' || quote.status === 'draft').length;
+  const unreadInboxCount = inboxMessages.filter(msg => !msg.isRead).length;
+  const lowStockCount = products.filter(p => p.stock && p.stock <= 10).length;
+
   const quickActions = [
     {
-      icon: 'add_circle',
-      label: 'New Quotation',
-      shortcut: 'Ctrl+Q',
-      action: () => navigate('/quotations'),
+      icon: 'inbox',
+      label: 'Inbox',
+      description: `${unreadInboxCount} unread messages`,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-50',
+      action: () => navigate('/inbox'),
+      count: unreadInboxCount,
     },
     {
-      icon: 'request_quote',
-      label: 'New RFQ',
-      shortcut: 'Ctrl+R',
+      icon: 'assignment',
+      label: 'Pending RFQs',
+      description: `${pendingRfqsCount} require attention`,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-50',
       action: () => navigate('/rfq-inbox'),
+      count: pendingRfqsCount,
     },
     {
-      icon: 'person_add',
-      label: 'Add Client',
-      shortcut: 'Ctrl+C',
-      action: () => navigate('/client-ledger'),
+      icon: 'receipt_long',
+      label: 'Active Quotations',
+      description: `${unresolvedQuotesCount} in progress`,
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-50',
+      action: () => navigate('/quotations'),
+      count: unresolvedQuotesCount,
     },
     {
-      icon: 'inventory_2',
-      label: 'Add Product',
-      shortcut: 'Ctrl+P',
+      icon: 'inventory',
+      label: 'Low Stock Items',
+      description: `${lowStockCount} need restocking`,
+      color: 'text-red-600',
+      bgColor: 'bg-red-50',
       action: () => navigate('/products'),
+      count: lowStockCount,
+    },
+    {
+      icon: 'analytics',
+      label: 'View Analytics',
+      description: 'Performance dashboard',
+      color: 'text-green-600',
+      bgColor: 'bg-green-50',
+      action: () => navigate('/analytics'),
+      count: 0,
+    },
+    {
+      icon: 'groups',
+      label: 'Client Ledger',
+      description: `${clients.length} total clients`,
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-50',
+      action: () => navigate('/client-ledger'),
+      count: clients.length,
     },
   ];
 
@@ -339,7 +417,7 @@ const Header: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-1">
-        <div className="relative">
+        <div className="relative" ref={quickActionsRef}>
           <button
             className={`p-2 rounded transition-colors ${showQuickActions ? 'bg-[var(--erp-surface-strong)]' : 'hover:bg-[var(--erp-surface)]'}`}
             onClick={() => {
@@ -352,33 +430,40 @@ const Header: React.FC = () => {
             <span className="material-symbols-outlined text-[var(--erp-text-muted)] !text-xl">bolt</span>
           </button>
           {showQuickActions && (
-            <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 w-56 overflow-hidden">
+            <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 w-72 overflow-hidden">
               <div className="p-2.5 border-b border-[var(--erp-border)] text-[11px] font-bold text-[var(--erp-text-muted)] uppercase bg-[var(--erp-surface)]">
                 Quick Actions
               </div>
-              {quickActions.map((action) => (
-                <button
-                  key={action.label}
-                  onClick={() => {
-                    action.action();
-                    setShowQuickActions(false);
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-[var(--erp-surface)] transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined !text-[18px] text-[var(--erp-accent)]">{action.icon}</span>
-                    <span>{action.label}</span>
-                  </div>
-                  <span className="text-[10px] text-[var(--erp-text-muted)] font-mono bg-[var(--erp-surface)] px-1.5 py-0.5 rounded">
-                    {action.shortcut}
-                  </span>
-                </button>
-              ))}
+              <div className="max-h-96 overflow-y-auto">
+                {quickActions.map((action) => (
+                  <button
+                    key={action.label}
+                    onClick={() => {
+                      action.action();
+                      setShowQuickActions(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-3 text-sm hover:bg-[var(--erp-surface)] transition-colors border-b border-[var(--erp-border)] last:border-0"
+                  >
+                    <div className={`w-9 h-9 rounded-lg ${action.bgColor} flex items-center justify-center shrink-0`}>
+                      <span className={`material-symbols-outlined !text-[20px] ${action.color}`}>{action.icon}</span>
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="font-medium text-[var(--erp-text)] truncate">{action.label}</p>
+                      <p className="text-[11px] text-[var(--erp-text-muted)] truncate">{action.description}</p>
+                    </div>
+                    {action.count > 0 && (
+                      <span className="text-xs font-bold text-[var(--erp-accent)] bg-[var(--erp-accent)]/10 px-2 py-0.5 rounded-full">
+                        {action.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        <div className="relative">
+        <div className="relative" ref={notificationsRef}>
           <button
             className={`p-2 rounded transition-colors relative ${showNotifications ? 'bg-[var(--erp-surface-strong)]' : 'hover:bg-[var(--erp-surface)]'}`}
             onClick={() => {
@@ -396,48 +481,85 @@ const Header: React.FC = () => {
             )}
           </button>
           {showNotifications && (
-            <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 w-80 overflow-hidden">
+            <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 w-96 overflow-hidden">
               <div className="p-3 border-b border-[var(--erp-border)] flex items-center justify-between bg-[var(--erp-surface)]">
                 <span className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase">Notifications</span>
-                <button
-                  onClick={markAllNotificationsRead}
-                  className="text-[12px] text-[var(--erp-accent)] hover:underline"
-                >
-                  Mark all read
-                </button>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      markAllNotificationsRead();
+                    }}
+                    className="text-[11px] text-[var(--erp-accent)] hover:underline font-medium"
+                  >
+                    Mark all read
+                  </button>
+                )}
               </div>
-              <div className="max-h-72 overflow-y-auto">
-                {notifications.map((notification) => {
-                  const unread = !readNotificationIds.has(notification.id);
-                  return (
-                    <div
-                      key={notification.id}
-                      onClick={() => markNotificationRead(notification.id)}
-                      className={`px-3 py-2.5 border-b border-[var(--erp-border)] hover:bg-[var(--erp-surface)] cursor-pointer transition-colors ${unread ? 'bg-[rgba(0,126,167,0.08)]' : ''}`}
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <span
-                          className={`material-symbols-outlined !text-[18px] mt-0.5 ${unread ? 'text-[var(--erp-accent)]' : 'text-[var(--erp-text-muted)]'}`}
-                        >
-                          {notification.type === 'rfq'
-                            ? 'request_quote'
-                            : notification.type === 'quote'
-                              ? 'description'
-                              : notification.type === 'inbox'
-                                ? 'mail'
-                                : 'info'}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm ${unread ? 'font-medium' : ''}`}>{notification.message}</p>
-                          <p className="text-[11px] text-[var(--erp-text-muted)] mt-0.5">{notification.time}</p>
+              <div className="max-h-96 overflow-y-auto">
+                {notifications.length > 0 ? (
+                  notifications.map((notification) => {
+                    const unread = !readNotificationIds.has(notification.id);
+                    return (
+                      <div
+                        key={notification.id}
+                        onClick={() => {
+                          markNotificationRead(notification.id);
+                          if (notification.action) {
+                            notification.action();
+                            setShowNotifications(false);
+                          }
+                        }}
+                        className={`px-3 py-3 border-b border-[var(--erp-border)] last:border-0 hover:bg-[var(--erp-surface)] cursor-pointer transition-colors ${unread ? 'bg-[rgba(0,126,167,0.05)]' : ''}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                            notification.type === 'rfq' ? 'bg-orange-50' :
+                            notification.type === 'quote' ? 'bg-purple-50' :
+                            notification.type === 'inbox' ? 'bg-blue-50' :
+                            notification.type === 'stock' ? 'bg-red-50' :
+                            'bg-gray-50'
+                          }`}>
+                            <span
+                              className={`material-symbols-outlined !text-[18px] ${
+                                notification.type === 'rfq' ? 'text-orange-600' :
+                                notification.type === 'quote' ? 'text-purple-600' :
+                                notification.type === 'inbox' ? 'text-blue-600' :
+                                notification.type === 'stock' ? 'text-red-600' :
+                                'text-gray-600'
+                              }`}
+                            >
+                              {notification.type === 'rfq'
+                                ? 'assignment'
+                                : notification.type === 'quote'
+                                  ? 'receipt_long'
+                                  : notification.type === 'inbox'
+                                    ? 'mail'
+                                    : notification.type === 'stock'
+                                      ? 'inventory'
+                                      : 'info'}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className={`text-sm ${unread ? 'font-semibold text-[var(--erp-text)]' : 'text-[var(--erp-text)]'}`}>{notification.title}</p>
+                              {unread && (
+                                <span className="w-2 h-2 bg-[var(--erp-accent)] rounded-full mt-1.5 shrink-0"></span>
+                              )}
+                            </div>
+                            <p className="text-[12px] text-[var(--erp-text-muted)] mt-0.5 line-clamp-2">{notification.message}</p>
+                            <p className="text-[10px] text-[var(--erp-text-muted)] mt-1 font-medium">{notification.time}</p>
+                          </div>
                         </div>
-                        {unread && (
-                          <span className="w-2 h-2 bg-[var(--erp-accent)] rounded-full mt-1.5"></span>
-                        )}
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                ) : (
+                  <div className="px-4 py-8 text-center">
+                    <span className="material-symbols-outlined text-[var(--erp-text-muted)] text-4xl mb-2">notifications_off</span>
+                    <p className="text-sm text-[var(--erp-text-muted)]">No notifications</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -467,7 +589,7 @@ const Header: React.FC = () => {
           </span>
         </Link>
 
-        <div className="relative">
+        <div className="relative" ref={userMenuRef}>
           <button
             className={`flex items-center gap-2 p-1.5 rounded transition-colors ${showUserMenu ? 'bg-[var(--erp-surface-strong)]' : 'hover:bg-[var(--erp-surface)]'}`}
             onClick={() => {
@@ -482,17 +604,25 @@ const Header: React.FC = () => {
             <span className="material-symbols-outlined text-[var(--erp-text-muted)] !text-[18px]">expand_more</span>
           </button>
           {showUserMenu && (
-            <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--erp-border)] rounded shadow-lg z-50 w-56">
-              <div className="p-3 border-b border-[var(--erp-border)]">
+            <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 w-56 overflow-hidden">
+              <div className="p-3 border-b border-[var(--erp-border)] bg-[var(--erp-surface)]">
                 <p className="font-semibold text-sm text-[var(--erp-text)]">{user?.name || 'User'}</p>
-                <p className="text-[12px] text-[var(--erp-text-muted)]">{user?.role || 'Member'}</p>
+                <p className="text-[11px] text-[var(--erp-text-muted)] mt-0.5">{user?.role || 'Member'}</p>
               </div>
               <div className="py-1">
-                <Link to="/user-permissions" className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-[var(--erp-surface)]">
+                <Link
+                  to="/user-permissions"
+                  onClick={() => setShowUserMenu(false)}
+                  className="flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[var(--erp-surface)] transition-colors"
+                >
                   <span className="material-symbols-outlined !text-[18px] text-[var(--erp-text-muted)]">person</span>
                   My Profile
                 </Link>
-                <Link to="/system-config" className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-[var(--erp-surface)]">
+                <Link
+                  to="/system-config"
+                  onClick={() => setShowUserMenu(false)}
+                  className="flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[var(--erp-surface)] transition-colors"
+                >
                   <span className="material-symbols-outlined !text-[18px] text-[var(--erp-text-muted)]">tune</span>
                   Preferences
                 </Link>
@@ -500,7 +630,7 @@ const Header: React.FC = () => {
               <div className="border-t border-[var(--erp-border)] py-1">
                 <button
                   onClick={logout}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--erp-accent)] hover:bg-[var(--erp-surface)]"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-[var(--erp-accent)] hover:bg-[var(--erp-surface)] transition-colors"
                 >
                   <span className="material-symbols-outlined !text-[18px]">logout</span>
                   Sign Out

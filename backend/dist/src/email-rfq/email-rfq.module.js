@@ -10,17 +10,27 @@ exports.EmailRfqModule = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma.service");
 const rfqs_module_1 = require("../rfqs/rfqs.module");
+const quotations_module_1 = require("../quotations/quotations.module");
+const email_module_1 = require("../email/email.module");
+const email_templates_module_1 = require("../email-templates/email-templates.module");
 const email_rfq_controller_1 = require("./email-rfq.controller");
 const email_rfq_service_1 = require("./email-rfq.service");
+const thread_resolver_service_1 = require("./thread-resolver.service");
+const po_matcher_service_1 = require("./po-matcher.service");
 let EmailRfqModule = class EmailRfqModule {
 };
 exports.EmailRfqModule = EmailRfqModule;
 exports.EmailRfqModule = EmailRfqModule = __decorate([
     (0, common_1.Module)({
-        imports: [rfqs_module_1.RfqsModule],
+        imports: [rfqs_module_1.RfqsModule, quotations_module_1.QuotationsModule, email_module_1.EmailModule, email_templates_module_1.EmailTemplatesModule],
         controllers: [email_rfq_controller_1.EmailRfqController],
-        providers: [email_rfq_service_1.EmailRfqService, prisma_service_1.PrismaService],
-        exports: [email_rfq_service_1.EmailRfqService],
+        providers: [
+            email_rfq_service_1.EmailRfqService,
+            prisma_service_1.PrismaService,
+            thread_resolver_service_1.ThreadResolverService,
+            po_matcher_service_1.PoMatcherService,
+        ],
+        exports: [email_rfq_service_1.EmailRfqService, thread_resolver_service_1.ThreadResolverService, po_matcher_service_1.PoMatcherService],
     })
 ], EmailRfqModule);
 //# sourceMappingURL=email-rfq.module.js.map

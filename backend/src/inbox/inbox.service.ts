@@ -3,7 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  AssistanceTicketStatus,
+  FollowupType,
+  MessageClassification,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
 type RetryHistoryEntry = {
@@ -754,5 +759,294 @@ export class InboxService {
         updated_at: new Date(),
       },
     });
+  }
+
+  async getInboxIntelligence(
+    tenantId: string,
+    classification?: MessageClassification,
+  ) {
+    const where: Prisma.MessageWhereInput = {
+      tenant_id: tenantId,
+      direction: 'inbound',
+      ...(classification ? { classification } : {}),
+    };
+
+    const [summaryRows, recent] = await Promise.all([
+      this.prisma.message.groupBy({
+        by: ['classification'],
+        where: {
+          tenant_id: tenantId,
+          direction: 'inbound',
+        },
+        _count: {
+          _all: true,
+        },
+      }),
+      this.prisma.message.findMany({
+        where,
+        include: {
+          conversation: {
+            select: {
+              id: true,
+              subject: true,
+              status: true,
+              current_stage: true,
+              customer_email: true,
+              customer_name: true,
+              assigned_operator_id: true,
+            },
+          },
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+        take: 100,
+      }),
+    ]);
+
+    const summary = {
+      RFQ: 0,
+      FOLLOWUP: 0,
+      PO: 0,
+      UNKNOWN: 0,
+    };
+
+    for (const row of summaryRows) {
+      const key = row.classification as keyof typeof summary;
+      if (key in summary) {
+        summary[key] = row._count._all;
+      }
+    }
+
+    return {
+      summary,
+      items: recent.map((message) => ({
+        id: message.id,
+        classification: message.classification,
+        confidence: message.classification_confidence,
+        followup_type: message.followup_type,
+        sender_email: message.sender_email,
+        sender_name: message.sender_name,
+        body_preview: this.stripHtmlTags(message.body).slice(0, 140),
+        created_at: message.created_at,
+        conversation: message.conversation,
+      })),
+    };
+  }
+
+  async getManualAssistanceQueue(
+    tenantId: string,
+    status: AssistanceTicketStatus = AssistanceTicketStatus.OPEN,
+    type?: FollowupType,
+  ) {
+    const tickets = await this.prisma.assistanceTicket.findMany({
+      where: {
+        tenant_id: tenantId,
+        status,
+        ...(type ? { type } : {}),
+      },
+      include: {
+        conversation: {
+          select: {
+            id: true,
+            subject: true,
+            customer_email: true,
+            customer_name: true,
+            current_stage: true,
+            status: true,
+          },
+        },
+        message: {
+          select: {
+            id: true,
+            sender_email: true,
+            sender_name: true,
+            body: true,
+            created_at: true,
+          },
+        },
+        assigned_to: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: [{ created_at: 'desc' }],
+      take: 200,
+    });
+
+    return tickets.map((ticket) => ({
+      id: ticket.id,
+      type: ticket.type,
+      status: ticket.status,
+      assigned_to: ticket.assigned_to,
+      created_at: ticket.created_at,
+      updated_at: ticket.updated_at,
+      conversation: ticket.conversation,
+      latest_message: {
+        id: ticket.message.id,
+        sender_email: ticket.message.sender_email,
+        sender_name: ticket.message.sender_name,
+        body_preview: this.stripHtmlTags(ticket.message.body).slice(0, 180),
+        created_at: ticket.message.created_at,
+      },
+    }));
+  }
+
+  async assignAssistanceTicket(
+    id: string,
+    tenantId: string,
+    assignedToId?: string,
+  ) {
+    const ticket = await this.prisma.assistanceTicket.findFirst({
+      where: {
+        id,
+        tenant_id: tenantId,
+      },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException(`Assistance ticket ${id} not found`);
+    }
+
+    if (assignedToId) {
+      const assignee = await this.prisma.user.findFirst({
+        where: {
+          id: assignedToId,
+          tenant_id: tenantId,
+        },
+        select: { id: true },
+      });
+
+      if (!assignee) {
+        throw new BadRequestException(
+          `Assigned user ${assignedToId} is not valid for this tenant`,
+        );
+      }
+    }
+
+    return this.prisma.assistanceTicket.update({
+      where: { id },
+      data: {
+        assigned_to_id: assignedToId || null,
+        status:
+          assignedToId && ticket.status === AssistanceTicketStatus.OPEN
+            ? AssistanceTicketStatus.IN_PROGRESS
+            : ticket.status,
+      },
+      include: {
+        assigned_to: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  async updateAssistanceTicketStatus(
+    id: string,
+    tenantId: string,
+    status: AssistanceTicketStatus,
+  ) {
+    const ticket = await this.prisma.assistanceTicket.findFirst({
+      where: {
+        id,
+        tenant_id: tenantId,
+      },
+      select: {
+        id: true,
+        conversation_id: true,
+      },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException(`Assistance ticket ${id} not found`);
+    }
+
+    const updated = await this.prisma.assistanceTicket.update({
+      where: { id },
+      data: { status },
+    });
+
+    if (status === AssistanceTicketStatus.RESOLVED) {
+      const openTicketsCount = await this.prisma.assistanceTicket.count({
+        where: {
+          tenant_id: tenantId,
+          conversation_id: ticket.conversation_id,
+          status: {
+            in: [
+              AssistanceTicketStatus.OPEN,
+              AssistanceTicketStatus.IN_PROGRESS,
+            ],
+          },
+        },
+      });
+
+      if (openTicketsCount === 0) {
+        await this.prisma.conversation.update({
+          where: { id: ticket.conversation_id },
+          data: {
+            current_stage: 'FOLLOWUP_PENDING',
+          },
+        });
+      }
+    }
+
+    return updated;
+  }
+
+  async getMessageThread(messageId: string, tenantId: string) {
+    // First, get the message and its conversation
+    const message = await this.prisma.message.findFirst({
+      where: {
+        id: messageId,
+        tenant_id: tenantId,
+      },
+      include: {
+        conversation: true,
+      },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    // Fetch all messages in the same conversation
+    const threadMessages = await this.prisma.message.findMany({
+      where: {
+        conversation_id: message.conversation_id,
+        tenant_id: tenantId,
+      },
+      orderBy: {
+        created_at: 'asc',
+      },
+    });
+
+    // Format messages for frontend
+    const formattedMessages = threadMessages.map((msg) => {
+      const rawPayload = this.readRawPayload(msg.raw_payload);
+      return {
+        id: msg.id,
+        sender: msg.sender_name || msg.sender_email,
+        sender_email: msg.sender_email,
+        subject: rawPayload?.subject || 'No subject',
+        preview: this.stripHtmlTags(msg.body).substring(0, 150),
+        timestamp: msg.created_at.toISOString(),
+        direction: msg.direction,
+        classification: msg.classification,
+        is_read: msg.is_read,
+      };
+    });
+
+    return {
+      messages: formattedMessages,
+      conversation_id: message.conversation_id,
+      total: formattedMessages.length,
+    };
   }
 }

@@ -19,16 +19,45 @@ const current_user_decorator_1 = require("../common/decorators/current-user.deco
 const update_message_processing_status_dto_1 = require("./dtos/update-message-processing-status.dto");
 const retry_message_dto_1 = require("./dtos/retry-message.dto");
 const internal_or_jwt_auth_guard_1 = require("../common/guards/internal-or-jwt-auth.guard");
+const client_1 = require("@prisma/client");
+const assign_assistance_ticket_dto_1 = require("./dtos/assign-assistance-ticket.dto");
+const update_assistance_ticket_status_dto_1 = require("./dtos/update-assistance-ticket-status.dto");
 let InboxController = class InboxController {
     inboxService;
     constructor(inboxService) {
         this.inboxService = inboxService;
+    }
+    getInboxIntelligence(user, classification) {
+        if (classification &&
+            !Object.values(client_1.MessageClassification).includes(classification)) {
+            throw new common_1.BadRequestException('Invalid classification');
+        }
+        return this.inboxService.getInboxIntelligence(user.tenant_id, classification);
+    }
+    getManualAssistanceQueue(user, status, type) {
+        const normalizedStatus = status || client_1.AssistanceTicketStatus.OPEN;
+        if (!Object.values(client_1.AssistanceTicketStatus).includes(normalizedStatus)) {
+            throw new common_1.BadRequestException('Invalid assistance status');
+        }
+        if (type && !Object.values(client_1.FollowupType).includes(type)) {
+            throw new common_1.BadRequestException('Invalid followup type');
+        }
+        return this.inboxService.getManualAssistanceQueue(user.tenant_id, normalizedStatus, type);
+    }
+    assignAssistanceTicket(id, user, body) {
+        return this.inboxService.assignAssistanceTicket(id, user.tenant_id, body.assigned_to_id);
+    }
+    updateAssistanceTicketStatus(id, user, body) {
+        return this.inboxService.updateAssistanceTicketStatus(id, user.tenant_id, body.status);
     }
     findMessages(user, processingStatus) {
         if (processingStatus) {
             return this.inboxService.findMessagesForProcessing(user.tenant_id, processingStatus);
         }
         return this.inboxService.findMessages(user.tenant_id);
+    }
+    getMessageThread(id, user) {
+        return this.inboxService.getMessageThread(id, user.tenant_id);
     }
     updateMessageProcessingStatus(id, user, body) {
         return this.inboxService.updateMessageProcessingStatus(id, user.tenant_id, body);
@@ -42,6 +71,41 @@ let InboxController = class InboxController {
 };
 exports.InboxController = InboxController;
 __decorate([
+    (0, common_1.Get)('intelligence'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('classification')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], InboxController.prototype, "getInboxIntelligence", null);
+__decorate([
+    (0, common_1.Get)('assistance-queue'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('status')),
+    __param(2, (0, common_1.Query)('type')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", void 0)
+], InboxController.prototype, "getManualAssistanceQueue", null);
+__decorate([
+    (0, common_1.Patch)('assistance-queue/:id/assign'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, assign_assistance_ticket_dto_1.AssignAssistanceTicketDto]),
+    __metadata("design:returntype", void 0)
+], InboxController.prototype, "assignAssistanceTicket", null);
+__decorate([
+    (0, common_1.Patch)('assistance-queue/:id/status'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, update_assistance_ticket_status_dto_1.UpdateAssistanceTicketStatusDto]),
+    __metadata("design:returntype", void 0)
+], InboxController.prototype, "updateAssistanceTicketStatus", null);
+__decorate([
     (0, common_1.Get)('messages'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('processing_status')),
@@ -49,6 +113,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], InboxController.prototype, "findMessages", null);
+__decorate([
+    (0, common_1.Get)('messages/:id/thread'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], InboxController.prototype, "getMessageThread", null);
 __decorate([
     (0, common_1.Patch)('messages/:id'),
     __param(0, (0, common_1.Param)('id')),

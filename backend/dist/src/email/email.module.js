@@ -12,6 +12,7 @@ const prisma_service_1 = require("../prisma.service");
 const email_controller_1 = require("./email.controller");
 const email_integrations_controller_1 = require("./email-integrations.controller");
 const email_service_1 = require("./email.service");
+const email_sync_scheduler_1 = require("./email-sync.scheduler");
 const internal_email_accounts_controller_1 = require("./internal-email-accounts.controller");
 const user_email_controller_1 = require("./user-email.controller");
 let EmailModule = class EmailModule {
@@ -25,7 +26,7 @@ exports.EmailModule = EmailModule = __decorate([
             internal_email_accounts_controller_1.InternalEmailAccountsController,
             user_email_controller_1.UserEmailController,
         ],
-        providers: [email_service_1.EmailService, prisma_service_1.PrismaService],
+        providers: [email_service_1.EmailService, email_sync_scheduler_1.EmailSyncScheduler, prisma_service_1.PrismaService],
         exports: [email_service_1.EmailService],
     })
 ], EmailModule);

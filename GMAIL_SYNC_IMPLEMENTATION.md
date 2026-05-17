@@ -9,15 +9,15 @@
 ## What Was Fixed
 
 ### Problem
-- N8N's cron trigger for inbox workflow was not executing despite showing as "active"
+- Previous automation platform's cron triggers were not executing reliably
 - Gmail emails were not being synced to Quotebot's inbox, even though manual POST tests worked
-- N8N's internal execution/trigger system appeared broken for scheduled runs
+- Scheduled email polling was unreliable
 
 ### Root Cause
-N8N's cron-based workflow triggers were not firing in this environment. The workflow was marked "active" but the cron scheduler never executed any runs.
+The previous cron-based workflow triggers were not firing consistently in this environment.
 
 ### Solution Implemented
-Created a **Direct Node.js Gmail Sync System** that bypasses N8N's broken cron triggers:
+Created a **Direct Node.js Gmail Sync System** with reliable scheduling:
 
 1. **sync-gmail.js** - Direct sync script that:
    - Fetches email accounts from backend
@@ -137,7 +137,7 @@ SELECT COUNT(*) FROM "Message" WHERE direction = 'inbound';
 ✅ **Production Ready**
 - Integrated with service management script
 - Proper logging to separate file
-- No dependency on broken N8N cron
+- No dependency on external automation platforms
 - Can be scheduled with system cron if needed
 
 ---
@@ -147,8 +147,8 @@ SELECT COUNT(*) FROM "Message" WHERE direction = 'inbound';
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `API_BASE_URL` | http://localhost:3001/api | Backend API endpoint |
-| `N8N_SECRET` | dev-internal-key | Internal auth key (X-Internal-Key header) |
-| `N8N_TENANT_ID` | cmmvzc6z60003bze8i4uhs03l | Tenant ID for multi-tenant routing |
+| `INTERNAL_API_KEY` | dev-internal-key | Internal auth key (X-Internal-Key header) |
+| `SYNC_TENANT_ID` | cmmvzc6z60003bze8i4uhs03l | Tenant ID for multi-tenant routing |
 | `SYNC_INTERVAL_MINUTES` | 1 | How often to sync (in minutes) |
 
 ---
@@ -164,11 +164,6 @@ SELECT COUNT(*) FROM "Message" WHERE direction = 'inbound';
   - Added `start_sync_scheduler()` function
   - Updated `start_all()` to include scheduler
   - Updated `stop_all()` to cleanup scheduler
-
-### N8N Workflows (Deprioritized)
-- [n8n/inbox.json](../n8n/inbox.json) - Now backup (wf_inbox_prod_v2 still active but not used)
-- [n8n/inbox-simple.json](../n8n/inbox-simple.json) - Simplified version (not used)
-- [n8n/inbox-backup-complex.json](../n8n/inbox-backup-complex.json) - Original complex version
 
 ---
 
@@ -186,18 +181,13 @@ SELECT COUNT(*) FROM "Message" WHERE direction = 'inbound';
 
 ---
 
-## N8N Status
+## Previous Architecture Note
 
-**Current N8N Workflows:**
-- **wf_inbox_prod_v2** (Prod v2 - Email Ingestion) - Active but NOT USED
-  - Reason: Cron trigger doesn't fire reliably
-  - Now replaced by: Direct Node.js sync-gmail.js + sync-scheduler.js
-
-- **wf_rfq_extraction_prod** (RFQ Extraction with Local LLM) - Active
-- **wf_outbox_prod_v2** (Prod v2 - Email Sending) - Active
-
-**Recommendation:**
-Consider disabling wf_inbox_prod_v2 in N8N if you want to fully rely on the Node.js sync system. The N8N workflow system can still be used for other automation (RFQ extraction, email sending).
+This implementation replaces the previous n8n-based email polling system, which had reliability issues with cron triggers. The new Node.js-based approach provides:
+- More reliable scheduling
+- Better error handling and logging
+- Easier debugging and maintenance
+- Direct integration with backend APIs
 
 ---
 
@@ -248,7 +238,7 @@ Database: No impact (efficient queries)
 1. Check sync-scheduler.log for errors
 2. Verify Gmail OAuth credentials in database
 3. Check API_BASE_URL is correct
-4. Verify N8N_TENANT_ID matches your tenant
+4. Verify SYNC_TENANT_ID matches your tenant
 5. Run manual sync test: `node backend/scripts/sync-gmail.js`
 
 **If scheduler doesn't start:**

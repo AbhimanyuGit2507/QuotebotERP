@@ -3,7 +3,7 @@ import Modals, { ManualOverrideModal } from './common/Modals';
 import { previewZohoCustomers, importZohoCustomers, previewZohoItems, importZohoItems } from '../services/api';
 
 const IntegrationImport: React.FC<{ provider: 'zoho' | 'odoo'; isOpen: boolean; onClose: () => void; showToast: (msg: string, type?: string) => void }> = ({ provider, isOpen, onClose, showToast }) => {
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [rows, setRows] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
   const [overrideOpen, setOverrideOpen] = useState(false);
@@ -29,7 +29,7 @@ const IntegrationImport: React.FC<{ provider: 'zoho' | 'odoo'; isOpen: boolean; 
     setLoading(true);
     try {
       const ovArray = Object.values(overrides).filter((o) => o.localId && o.externalId);
-      const resp = type === 'customers' ? await importZohoCustomers(ovArray) : await importZohoItems(ovArray);
+      await (type === 'customers' ? importZohoCustomers(ovArray) : importZohoItems(ovArray));
       showToast('Import complete', 'success');
       onClose();
     } catch (err) {

@@ -180,6 +180,8 @@ export interface InboxMessage {
   parsingSource?: string;
   parsingConfidence?: string;
   parsingError?: string;
+  classification?: 'RFQ' | 'FOLLOWUP' | 'PO' | 'UNKNOWN';
+  followupType?: 'TECHNICAL' | 'NEGOTIATION' | 'DELIVERY' | 'GENERAL';
   rfqId?: string;
   quotationId?: string;
   autoRfqCreated?: boolean;
@@ -770,6 +772,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         typeof message.parsingError === 'string' && message.parsingError.trim().length > 0
           ? message.parsingError
           : '',
+      classification:
+        typeof message.classification === 'string' && ['RFQ', 'FOLLOWUP', 'PO', 'UNKNOWN'].includes(message.classification)
+          ? (message.classification as 'RFQ' | 'FOLLOWUP' | 'PO' | 'UNKNOWN')
+          : undefined,
+      followupType:
+        typeof message.followupType === 'string' && ['TECHNICAL', 'NEGOTIATION', 'DELIVERY', 'GENERAL'].includes(message.followupType)
+          ? (message.followupType as 'TECHNICAL' | 'NEGOTIATION' | 'DELIVERY' | 'GENERAL')
+          : undefined,
       rfqId:
         typeof message.rfqId === 'string' && message.rfqId.trim().length > 0
           ? message.rfqId
@@ -940,6 +950,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [isAuthenticated, mapInboxMessage]);
 
+  const fetchRFQs = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const backendRfqs = await apiRequest<any[]>('/rfqs');
+      const productById = new Map(products.map((product) => [product.id, product]));
+      
+      const mappedRfqs: RFQ[] = backendRfqs.map((rfq) => {
+        const itemDetails: RFQLineItem[] = (rfq.items || []).map((item: any) => ({
+          id: item.id,
+          productId: item.product_id,
+          productName: item.product_name,
+          quantity: Number(item.quantity || 0),
+          unit: item.unit,
+          notes: item.notes || '',
+          availability: item.availability || undefined,
+          availableQuantity: Number.isFinite(Number(item.available_quantity))
+            ? Number(item.available_quantity)
+            : undefined,
+        }));
+        const estimatedValue = itemDetails.reduce((sum, item) => {
+          const product = productById.get(item.productId);
+          return sum + (product?.price || 0) * item.quantity;
+        }, 0);
+
+        return {
+          id: rfq.id,
+          number: rfq.number,
+          date: formatDate(rfq.created_at),
+          client: rfq.client?.name || '',
+          clientId: rfq.client_id,
+          items: itemDetails.length,
+          itemDetails,
+          value: estimatedValue ? formatCurrency(estimatedValue) : '₹0',
+          status: rfq.status === 'spam' ? 'expired' : (rfq.status as RFQ['status']),
+          channel: rfq.channel as RFQ['channel'],
+          priority: rfq.priority as RFQ['priority'],
+          dueDate: formatDate(rfq.due_date),
+          notes: itemDetails.map((item) => item.notes).filter(Boolean).join(', '),
+          quotationId: rfq.quotation?.id || rfq.quotation_id || undefined,
+        };
+      });
+      
+      setRFQs(mappedRfqs);
+    } catch {
+      // Ignore transient RFQ polling failures
+    }
+  }, [isAuthenticated, products]);
+
+  const fetchQuotations = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const backendQuotes = await apiRequest<any[]>('/quotations');
+      setQuotes(backendQuotes.map(mapQuote));
+    } catch {
+      // Ignore transient quotation polling failures
+    }
+  }, [isAuthenticated, mapQuote]);
+
   useEffect(() => {
     if (!isAuthenticated) {
       setRFQs([]);
@@ -973,6 +1041,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.clearInterval(interval);
     };
   }, [isAuthenticated, fetchInboxMessages]);
+
+  // Poll RFQs periodically for real-time updates
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let mounted = true;
+    const interval = window.setInterval(() => {
+      if (!mounted) return;
+      void fetchRFQs();
+    }, 10000); // Every 10 seconds
+
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
+  }, [isAuthenticated, fetchRFQs]);
+
+  // Poll Quotations periodically for real-time updates
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let mounted = true;
+    const interval = window.setInterval(() => {
+      if (!mounted) return;
+      void fetchQuotations();
+    }, 10000); // Every 10 seconds
+
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
+  }, [isAuthenticated, fetchQuotations]);
 
   // allow other pages to request a refresh via a window event
   useEffect(() => {

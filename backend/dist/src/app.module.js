@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
+const schedule_1 = require("@nestjs/schedule");
 const common_module_1 = require("./common/common.module");
 const auth_module_1 = require("./auth/auth.module");
 const products_module_1 = require("./products/products.module");
@@ -31,6 +32,10 @@ const accounting_integrations_module_1 = require("./integrations/accounting-inte
 const imports_module_1 = require("./imports/imports.module");
 const zoho_module_1 = require("./integrations/zoho/zoho.module");
 const odoo_module_1 = require("./integrations/odoo/odoo.module");
+const conversations_module_1 = require("./conversations/conversations.module");
+const assistance_module_1 = require("./assistance/assistance.module");
+const orders_module_1 = require("./orders/orders.module");
+const email_templates_module_1 = require("./email-templates/email-templates.module");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 let AppModule = class AppModule {
@@ -39,6 +44,7 @@ exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
+            schedule_1.ScheduleModule.forRoot(),
             common_module_1.CommonModule,
             auth_module_1.AuthModule,
             products_module_1.ProductsModule,
@@ -62,6 +68,10 @@ exports.AppModule = AppModule = __decorate([
             zoho_module_1.ZohoModule,
             odoo_module_1.OdooModule,
             imports_module_1.ImportsModule,
+            conversations_module_1.ConversationsModule,
+            assistance_module_1.AssistanceModule,
+            orders_module_1.OrdersModule,
+            email_templates_module_1.EmailTemplatesModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

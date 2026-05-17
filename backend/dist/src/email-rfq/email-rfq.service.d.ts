@@ -1,9 +1,19 @@
 import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { RfqsService } from '../rfqs/rfqs.service';
+import { QuotationsService } from '../quotations/quotations.service';
+import { ThreadResolverService } from './thread-resolver.service';
+import { PoMatcherService } from './po-matcher.service';
+import { EmailService } from '../email/email.service';
+import { EmailTemplatesService } from '../email-templates/email-templates.service';
 export declare class EmailRfqService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma;
     private readonly rfqsService;
+    private readonly quotationsService;
+    private readonly threadResolver;
+    private readonly poMatcher;
+    private readonly emailService;
+    private readonly emailTemplatesService;
     private readonly logger;
     private readonly enabled;
     private readonly intervalMs;
@@ -20,7 +30,7 @@ export declare class EmailRfqService implements OnModuleInit, OnModuleDestroy {
     private readonly llmRateLimitPerMinute;
     private llmCallTimestamps;
     private providerCooldownUntilMs;
-    constructor(prisma: PrismaService, rfqsService: RfqsService);
+    constructor(prisma: PrismaService, rfqsService: RfqsService, quotationsService: QuotationsService, threadResolver: ThreadResolverService, poMatcher: PoMatcherService, emailService: EmailService, emailTemplatesService: EmailTemplatesService);
     onModuleInit(): void;
     onModuleDestroy(): void;
     private normalizeName;
@@ -37,6 +47,14 @@ export declare class EmailRfqService implements OnModuleInit, OnModuleDestroy {
     private buildClassifierSnippet;
     private parseRetryAfterMs;
     private classifyRfqByRegex;
+    private classifyFollowupType;
+    private detectPoSignals;
+    private classifyPrimaryIntent;
+    private extractPoNumber;
+    private generateInvoiceNumber;
+    private ensureInvoiceForQuotation;
+    private createAssistanceTicketForFollowup;
+    private createOrUpdatePurchaseOrderRecord;
     private isRateLimitError;
     private buildStrictJsonMessages;
     private buildRepairPrompt;
@@ -73,7 +91,11 @@ export declare class EmailRfqService implements OnModuleInit, OnModuleDestroy {
         unresolved: number;
         llm_errors: number;
         skipped: number;
+        followups: number;
+        po_detected: number;
+        unknown: number;
         started: boolean;
         reason?: undefined;
     }>;
+    private autoCreateAndSendQuotation;
 }

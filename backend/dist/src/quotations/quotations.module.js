@@ -12,12 +12,13 @@ const quotations_controller_1 = require("./quotations.controller");
 const quotations_service_1 = require("./quotations.service");
 const prisma_service_1 = require("../prisma.service");
 const email_module_1 = require("../email/email.module");
+const email_templates_module_1 = require("../email-templates/email-templates.module");
 let QuotationsModule = class QuotationsModule {
 };
 exports.QuotationsModule = QuotationsModule;
 exports.QuotationsModule = QuotationsModule = __decorate([
     (0, common_1.Module)({
-        imports: [email_module_1.EmailModule],
+        imports: [email_module_1.EmailModule, email_templates_module_1.EmailTemplatesModule],
         controllers: [quotations_controller_1.QuotationsController],
         providers: [quotations_service_1.QuotationsService, prisma_service_1.PrismaService],
         exports: [quotations_service_1.QuotationsService],

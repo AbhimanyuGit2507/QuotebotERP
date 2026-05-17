@@ -18,7 +18,5 @@
     "url": "https://github.com/AbhimanyuGit2507/Quotebot/issues"
   },
   "homepage": "https://github.com/AbhimanyuGit2507/Quotebot#readme",
-  "dependencies": {
-    "n8n": "^2.13.4"
-  }
+  "dependencies": {}
 }

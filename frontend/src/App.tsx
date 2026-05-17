@@ -6,6 +6,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import Dashboard from './pages/Dashboard';
 import UserPermissions from './pages/UserPermissions';
 import Quotations from './pages/Quotations';
+import Orders from './pages/Orders';
 import Products from './pages/Products';
 import Analytics from './pages/Analytics';
 import RFQInbox from './pages/RFQInbox';
@@ -18,6 +19,7 @@ import AuthCallback from './pages/AuthCallback';
 import Landing from './pages/Landing';
 import AdminConsole from './pages/AdminConsole';
 import Invoices from './pages/Invoices';
+import EmailTemplates from './pages/EmailTemplates';
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const { isAuthenticated, isInitializing } = useAuth();
@@ -85,12 +87,14 @@ const AppRoutes = () => {
       <Route path="/inbox/:id?" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
       <Route path="/user-permissions" element={<ProtectedRoute><UserPermissions /></ProtectedRoute>} />
       <Route path="/quotations/:id?" element={<ProtectedRoute><Quotations /></ProtectedRoute>} />
+      <Route path="/orders/:id?" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
       <Route path="/invoices/:id?" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
       <Route path="/products/:id?" element={<ProtectedRoute><Products /></ProtectedRoute>} />
       <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
       <Route path="/rfq-inbox/:id?" element={<ProtectedRoute><RFQInbox /></ProtectedRoute>} />
       <Route path="/client-ledger/:id?" element={<ProtectedRoute><ClientLedger /></ProtectedRoute>} />
       <Route path="/system-config" element={<ProtectedRoute><SystemConfig /></ProtectedRoute>} />
+      <Route path="/email-templates" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
     </Routes>
   );
 };

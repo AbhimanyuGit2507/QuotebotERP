@@ -11,10 +11,10 @@ exports.InternalKeyAuthGuard = void 0;
 const common_1 = require("@nestjs/common");
 let InternalKeyAuthGuard = InternalKeyAuthGuard_1 = class InternalKeyAuthGuard {
     logger = new common_1.Logger(InternalKeyAuthGuard_1.name);
-    internalKey = process.env.N8N_SECRET || 'UNSET_N8N_SECRET';
+    internalKey = process.env.INTERNAL_API_KEY || 'UNSET_INTERNAL_API_KEY';
     canActivate(context) {
-        if (this.internalKey === 'UNSET_N8N_SECRET') {
-            this.logger.error('N8N_SECRET is not configured. Internal endpoints are disabled until it is set.');
+        if (this.internalKey === 'UNSET_INTERNAL_API_KEY') {
+            this.logger.error('INTERNAL_API_KEY is not configured. Internal endpoints are disabled until it is set.');
             throw new common_1.UnauthorizedException('Internal integration key is not configured');
         }
         const request = context.switchToHttp().getRequest();

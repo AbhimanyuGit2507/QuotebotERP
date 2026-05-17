@@ -44,6 +44,20 @@ export class InvoicesController {
     return this.invoicesService.get(tenantId, id);
   }
 
+  @Get(':id/quotation')
+  async getQuotation(@Req() req: AuthRequest, @Param('id') id: string) {
+    const tenantId = req.user?.tenant_id;
+    if (!tenantId) throw new BadRequestException('Missing tenant id');
+    return this.invoicesService.getRelatedQuotation(tenantId, id);
+  }
+
+  @Get(':id/purchase-orders')
+  async getPurchaseOrders(@Req() req: AuthRequest, @Param('id') id: string) {
+    const tenantId = req.user?.tenant_id;
+    if (!tenantId) throw new BadRequestException('Missing tenant id');
+    return this.invoicesService.getRelatedPurchaseOrders(tenantId, id);
+  }
+
   @Post(':id/payments')
   async recordPayment(
     @Req() req: AuthRequest,

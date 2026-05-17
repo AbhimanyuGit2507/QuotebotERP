@@ -14,16 +14,20 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.QuotationsService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const pdfkit_1 = __importDefault(require("pdfkit"));
 const prisma_service_1 = require("../prisma.service");
 const email_service_1 = require("../email/email.service");
+const email_templates_service_1 = require("../email-templates/email-templates.service");
 const export_util_1 = require("../common/utils/export.util");
 let QuotationsService = class QuotationsService {
     prisma;
     emailService;
-    constructor(prisma, emailService) {
+    emailTemplatesService;
+    constructor(prisma, emailService, emailTemplatesService) {
         this.prisma = prisma;
         this.emailService = emailService;
+        this.emailTemplatesService = emailTemplatesService;
     }
     formatShortDate(d = new Date()) {
         const dd = String(d.getDate()).padStart(2, '0');
@@ -328,43 +332,62 @@ let QuotationsService = class QuotationsService {
         const quotedTotal = Number(quotation.total || 0).toLocaleString('en-IN', {
             maximumFractionDigits: 2,
         });
+        const tenant = await this.prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { company_name: true },
+        });
+        const template = await this.emailTemplatesService.findByType(tenantId, client_1.EmailTemplateType.QUOTATION_EMAIL);
+        const itemDetails = quotation.items
+            .map((item, index) => {
+            const availabilityStatus = item.availability || 'in_stock';
+            const availableQty = item.available_quantity || 0;
+            const requestedQty = item.quantity;
+            let statusText = '';
+            if (availabilityStatus === 'out_of_stock') {
+                statusText = ' [OUT OF STOCK]';
+            }
+            else if (availabilityStatus === 'low_stock') {
+                statusText = ` [LIMITED AVAILABILITY: ${availableQty} available]`;
+            }
+            else if (availabilityStatus === 'not_available') {
+                statusText = ' [NOT AVAILABLE]';
+            }
+            else if (availableQty < requestedQty && availableQty > 0) {
+                statusText = ` [PARTIAL AVAILABILITY: ${availableQty}/${requestedQty} available]`;
+            }
+            return `${index + 1}. ${item.product_name} - Qty: ${item.quantity} ${item.unit} @ INR ${item.unit_price}/unit = INR ${item.total}${statusText}`;
+        })
+            .join('\n');
         const stockWarnings = String(quotation.terms_conditions || '')
             .split(/\r?\n/)
             .map((line) => line.trim())
-            .filter((line) => line.toLowerCase().includes('stock warning'));
-        const customMessage = (body.message || '').trim();
-        const lines = [
-            `Dear ${quotation.client.name},`,
-            '',
-            ...(customMessage ? [customMessage, ''] : []),
-            `Please find quotation ${quotation.number} and the attached invoice PDF in your Quotebot workflow.`,
-            '',
-            `Quotation Number: ${quotation.number}`,
-            `Date: ${quotation.date}`,
-            `Valid Until: ${quotation.valid_until}`,
-            `Total: INR ${quotedTotal}`,
-            ...(stockWarnings.length
-                ? [
-                    '',
-                    'Stock / fulfillment notes:',
-                    '',
-                    ...stockWarnings.map((note) => `- ${note}`),
-                ]
-                : []),
-            '',
-            'Regards,',
-            'Quotebot Sales Team',
-        ];
+            .filter((line) => line.toLowerCase().includes('stock warning'))
+            .map((warning) => `- ${warning}`)
+            .join('\n');
+        const variables = {
+            client_name: quotation.client.name,
+            company_name: tenant?.company_name || 'Quotebot',
+            quotation_number: quotation.number,
+            quotation_date: quotation.date,
+            valid_until: quotation.valid_until,
+            currency: 'INR',
+            total_amount: quotedTotal,
+            item_details: itemDetails,
+            stock_warnings: stockWarnings || '',
+            custom_message: (body.message || '').trim(),
+        };
+        const emailSubject = this.emailTemplatesService.substituteVariables(template.subject_template, variables);
+        const emailBody = this.emailTemplatesService.substituteVariables(template.body_template, variables);
         if (emailAccount.provider === 'gmail') {
             const sendResult = await this.emailService.sendNow(tenantId, {
                 email_account_id: emailAccount.id,
                 to: recipients,
                 ...(ccRecipients.length > 0 ? { cc: ccRecipients } : {}),
-                subject: `Quotation ${quotation.number}`,
-                body: lines.join('\n'),
+                subject: emailSubject,
+                body: emailBody,
                 attachments: [
                     {
-                        filename: `invoice-${quotation.number}.pdf`,
+                        filename: `quotation-${quotation.number}.pdf`,
                         content: pdfBuffer,
                         contentType: 'application/pdf',
                     },
@@ -374,6 +397,9 @@ let QuotationsService = class QuotationsService {
                 where: { id: quotation.id },
                 data: {
                     status: 'sent',
+                    sent_email_subject: emailSubject,
+                    sent_email_body: emailBody,
+                    sent_at: new Date(),
                 },
             });
             return {
@@ -390,13 +416,16 @@ let QuotationsService = class QuotationsService {
             email_account_id: emailAccount.id,
             to: recipients,
             ...(ccRecipients.length > 0 ? { cc: ccRecipients } : {}),
-            subject: `Quotation ${quotation.number}`,
-            body: lines.join('\n'),
+            subject: emailSubject,
+            body: emailBody,
         });
         await this.prisma.quotation.update({
             where: { id: quotation.id },
             data: {
                 status: 'sent',
+                sent_email_subject: emailSubject,
+                sent_email_body: emailBody,
+                sent_at: new Date(),
             },
         });
         return {
@@ -533,11 +562,72 @@ let QuotationsService = class QuotationsService {
             doc.end();
         });
     }
+    async getRelatedPurchaseOrders(quotationId, tenantId) {
+        const quotation = await this.prisma.quotation.findFirst({
+            where: { id: quotationId, tenant_id: tenantId },
+        });
+        if (!quotation) {
+            throw new common_1.NotFoundException('Quotation not found');
+        }
+        return this.prisma.assistancePurchaseOrder.findMany({
+            where: {
+                quotation_id: quotationId,
+                tenant_id: tenantId,
+            },
+            include: {
+                conversation: {
+                    select: {
+                        id: true,
+                        customer_name: true,
+                    },
+                },
+                invoice: {
+                    select: {
+                        id: true,
+                        number: true,
+                        total: true,
+                        status: true,
+                    },
+                },
+            },
+            orderBy: { created_at: 'desc' },
+        });
+    }
+    async getRelatedInvoices(quotationId, tenantId) {
+        const quotation = await this.prisma.quotation.findFirst({
+            where: { id: quotationId, tenant_id: tenantId },
+        });
+        if (!quotation) {
+            throw new common_1.NotFoundException('Quotation not found');
+        }
+        return this.prisma.invoice.findMany({
+            where: {
+                quotation_id: quotationId,
+                tenant_id: tenantId,
+            },
+            include: {
+                quotation: {
+                    select: {
+                        id: true,
+                        number: true,
+                    },
+                },
+                conversation: {
+                    select: {
+                        id: true,
+                        customer_name: true,
+                    },
+                },
+            },
+            orderBy: { created_at: 'desc' },
+        });
+    }
 };
 exports.QuotationsService = QuotationsService;
 exports.QuotationsService = QuotationsService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        email_service_1.EmailService])
+        email_service_1.EmailService,
+        email_templates_service_1.EmailTemplatesService])
 ], QuotationsService);
 //# sourceMappingURL=quotations.service.js.map

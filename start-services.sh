@@ -46,7 +46,7 @@ export RFQ_EXTRACT_DELAY_MS="1000"
 export RFQ_LLM_FALLBACK_ORDER="gemini,cerebras,groq"
 export BACKEND_RFQ_PIPELINE_INTERVAL_MS="120000"
 export FRONTEND_URL="http://localhost:3000"
-export N8N_SECRET="dev-internal-key"
+export INTERNAL_API_KEY="dev-internal-key"
 export TEST_INTERNAL_TENANT_ID="cmmvzc6z60003bze8i4uhs03l"
 
 echo "🔐 OAuth credentials configured"

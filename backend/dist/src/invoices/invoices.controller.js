@@ -40,6 +40,18 @@ let InvoicesController = class InvoicesController {
             throw new common_2.BadRequestException('Missing tenant id');
         return this.invoicesService.get(tenantId, id);
     }
+    async getQuotation(req, id) {
+        const tenantId = req.user?.tenant_id;
+        if (!tenantId)
+            throw new common_2.BadRequestException('Missing tenant id');
+        return this.invoicesService.getRelatedQuotation(tenantId, id);
+    }
+    async getPurchaseOrders(req, id) {
+        const tenantId = req.user?.tenant_id;
+        if (!tenantId)
+            throw new common_2.BadRequestException('Missing tenant id');
+        return this.invoicesService.getRelatedPurchaseOrders(tenantId, id);
+    }
     async recordPayment(req, id, body) {
         const tenantId = req.user?.tenant_id;
         if (!tenantId)
@@ -72,6 +84,22 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], InvoicesController.prototype, "get", null);
+__decorate([
+    (0, common_1.Get)(':id/quotation'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], InvoicesController.prototype, "getQuotation", null);
+__decorate([
+    (0, common_1.Get)(':id/purchase-orders'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], InvoicesController.prototype, "getPurchaseOrders", null);
 __decorate([
     (0, common_1.Post)(':id/payments'),
     __param(0, (0, common_1.Req)()),

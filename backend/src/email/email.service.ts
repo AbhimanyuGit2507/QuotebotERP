@@ -197,7 +197,7 @@ export class EmailService {
       stdio: 'ignore',
       env: {
         ...process.env,
-        N8N_TENANT_ID: tenantId,
+        SYNC_TENANT_ID: tenantId,
         GMAIL_SYNC_STATUS_FILE: statusFile,
       },
     });
@@ -1024,7 +1024,7 @@ export class EmailService {
 
   /**
    * Fetch pending outbound emails
-   * n8n queries GET /api/internal/email/outbound?status=pending
+   * Internal scripts query GET /api/internal/email/outbound?status=pending
    * Processes them via Gmail/SES, reports back via PATCH endpoint
    */
   async getPendingOutboundEmails(tenantId?: string, limit = 100) {
@@ -1115,7 +1115,7 @@ export class EmailService {
 
   /**
    * Update outbound email status after send attempt
-   * Called by n8n via PATCH /api/internal/email/outbound/:id
+   * Called by internal scripts via PATCH /api/internal/email/outbound/:id
    */
   async updateOutboundEmailStatus(
     tenantId: string | undefined,
@@ -1198,6 +1198,14 @@ export class EmailService {
       }>;
     },
   ) {
+    console.log('[EmailService] sendNow called', {
+      tenantId,
+      emailAccountId: data.email_account_id,
+      to: data.to,
+      subject: data.subject,
+      attachmentsCount: data.attachments?.length || 0,
+    });
+
     const account = await this.prisma.emailAccount.findFirst({
       where: {
         id: data.email_account_id,
@@ -1207,10 +1215,23 @@ export class EmailService {
     });
 
     if (!account) {
+      console.error('[EmailService] Email account not found', {
+        emailAccountId: data.email_account_id,
+        tenantId,
+      });
       throw new BadRequestException('Email account not found or not active');
     }
 
+    console.log('[EmailService] Email account found', {
+      id: account.id,
+      email: account.email_address,
+      provider: account.provider,
+    });
+
     if (account.provider !== 'gmail') {
+      console.error('[EmailService] Unsupported provider', {
+        provider: account.provider,
+      });
       throw new BadRequestException(
         'Immediate send is only supported for Gmail accounts',
       );
@@ -1235,16 +1256,25 @@ export class EmailService {
     };
 
     if (!accessToken || isExpired(expiresAt)) {
+      console.log(
+        '[EmailService] Access token expired or missing, refreshing...',
+      );
       try {
         const refreshed = await this.refreshEmailAccountAccessToken(
           account.id,
           tenantId,
         );
         accessToken = refreshed.access_token as string | undefined;
+        console.log('[EmailService] Access token refreshed successfully');
       } catch (err) {
-        console.error('Failed to refresh access token for sendNow:', err);
+        console.error('[EmailService] Failed to refresh access token:', {
+          error: err instanceof Error ? err.message : String(err),
+          accountId: account.id,
+        });
         throw new BadRequestException('Could not refresh Gmail access token');
       }
+    } else {
+      console.log('[EmailService] Using existing access token');
     }
 
     const fromAddress = account.email_address;
@@ -1268,6 +1298,13 @@ export class EmailService {
     const sendUrl =
       'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
 
+    console.log('[EmailService] Sending email via Gmail API', {
+      url: sendUrl,
+      to: data.to,
+      from: fromAddress,
+      messageSize: rawMessage.length,
+    });
+
     let sendResponse: unknown = null;
     try {
       sendResponse = await fetch(sendUrl, {
@@ -1279,7 +1316,10 @@ export class EmailService {
         body: JSON.stringify({ raw: encoded }),
       });
     } catch (err) {
-      console.error('Gmail send network error:', err);
+      console.error('[EmailService] Gmail send network error:', {
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
     }
 
     const sent = Boolean(
@@ -1290,26 +1330,45 @@ export class EmailService {
     );
 
     let providerResult: Record<string, unknown> = {};
-    if (
-      sendResponse &&
-      typeof sendResponse === 'object' &&
-      typeof (sendResponse as Record<string, unknown>)['json'] === 'function'
-    ) {
-      try {
-        // call json with typed function to avoid unsafe-call lint errors
-        const jsonFn = (
-          sendResponse as unknown as {
-            json: () => Promise<unknown>;
+    let responseStatus: number | undefined;
+    let responseStatusText: string | undefined;
+
+    if (sendResponse && typeof sendResponse === 'object') {
+      responseStatus = (sendResponse as any).status;
+      responseStatusText = (sendResponse as any).statusText;
+
+      if (
+        typeof (sendResponse as Record<string, unknown>)['json'] === 'function'
+      ) {
+        try {
+          // call json with typed function to avoid unsafe-call lint errors
+          const jsonFn = (
+            sendResponse as unknown as {
+              json: () => Promise<unknown>;
+            }
+          ).json;
+          const parsed = await jsonFn();
+          if (parsed && typeof parsed === 'object') {
+            providerResult = parsed as Record<string, unknown>;
           }
-        ).json;
-        const parsed = await jsonFn();
-        if (parsed && typeof parsed === 'object') {
-          providerResult = parsed as Record<string, unknown>;
+        } catch (jsonErr) {
+          console.error(
+            '[EmailService] Failed to parse Gmail API response:',
+            jsonErr,
+          );
+          providerResult = {};
         }
-      } catch {
-        providerResult = {};
       }
     }
+
+    console.log('[EmailService] Gmail API response', {
+      sent,
+      status: responseStatus,
+      statusText: responseStatusText,
+      hasError: !!providerResult.error,
+      errorDetails: providerResult.error,
+      messageId: providerResult.id,
+    });
 
     // Log outbound email
     const outbound = await this.prisma.outboundEmail.create({
@@ -1328,10 +1387,21 @@ export class EmailService {
     });
 
     if (!sent) {
-      throw new BadRequestException(
-        `Failed to send email via Gmail: ${JSON.stringify(providerResult)}`,
-      );
+      const errorMessage = `Failed to send email via Gmail: ${JSON.stringify(providerResult)}`;
+      console.error('[EmailService] Email send failed', {
+        outboundId: outbound.id,
+        error: providerResult,
+        status: responseStatus,
+        statusText: responseStatusText,
+      });
+      throw new BadRequestException(errorMessage);
     }
+
+    console.log('[EmailService] ✓ Email sent successfully', {
+      outboundId: outbound.id,
+      messageId: providerResult.id,
+      to: data.to,
+    });
 
     return {
       success: true,

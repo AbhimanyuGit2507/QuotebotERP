@@ -138,6 +138,7 @@ export declare class AdminService {
             tenant_id: string;
             status: string;
             body: string;
+            sent_at: Date | null;
             email_account_id: string;
             provider: string | null;
             subject: string;
@@ -145,7 +146,6 @@ export declare class AdminService {
             attempts: number;
             to: Prisma.JsonValue;
             cc: Prisma.JsonValue | null;
-            sent_at: Date | null;
         }[];
     }>;
     llms(tenantId: string): Promise<ProviderStatus[]>;

@@ -18,11 +18,11 @@ const Sidebar: React.FC = () => {
     location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   const mainMenuItems = [
-    { path: '/home', icon: 'home', label: 'Home' },
     { path: '/dashboard', icon: 'space_dashboard', label: 'Dashboard' },
     { path: '/inbox', icon: 'all_inbox', label: 'Inbox' },
     { path: '/rfq-inbox', icon: 'assignment', label: 'RFQ Management' },
     { path: '/quotations', icon: 'receipt_long', label: 'Quotations' },
+    { path: '/orders', icon: 'shopping_cart', label: 'Orders' },
     { path: '/invoices', icon: 'receipt', label: 'Invoices' },
     { path: '/products', icon: 'package_2', label: 'Products / Inventory' },
     { path: '/client-ledger', icon: 'groups', label: 'Clients' },

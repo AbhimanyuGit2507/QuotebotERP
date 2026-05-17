@@ -60,7 +60,7 @@ jobs:
       - name: Run smoke tests
         env:
           API_BASE_URL: http://localhost:3001/api
-          N8N_SECRET: test_internal_key
+          INTERNAL_API_KEY: test_internal_key
         run: |
           cd backend
           node scripts/test-all-endpoints.js

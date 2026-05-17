@@ -63,6 +63,12 @@ let QuotationsController = class QuotationsController {
     sendByEmail(id, user, body) {
         return this.quotationsService.sendByEmail(id, user.tenant_id, body);
     }
+    getPurchaseOrders(id, user) {
+        return this.quotationsService.getRelatedPurchaseOrders(id, user.tenant_id);
+    }
+    getInvoices(id, user) {
+        return this.quotationsService.getRelatedInvoices(id, user.tenant_id);
+    }
     remove(id, user, force) {
         const forceFlag = Boolean(force === 'true' || force === '1');
         return this.quotationsService.remove(id, user.tenant_id, {
@@ -148,6 +154,22 @@ __decorate([
     __metadata("design:paramtypes", [String, Object, send_quotation_email_dto_1.SendQuotationEmailDto]),
     __metadata("design:returntype", void 0)
 ], QuotationsController.prototype, "sendByEmail", null);
+__decorate([
+    (0, common_1.Get)(':id/purchase-orders'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], QuotationsController.prototype, "getPurchaseOrders", null);
+__decorate([
+    (0, common_1.Get)(':id/invoices'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], QuotationsController.prototype, "getInvoices", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),

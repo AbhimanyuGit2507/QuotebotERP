@@ -3,7 +3,7 @@
 const BASE_URL = process.env.API_BASE_URL || 'http://localhost:3001/api';
 const ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL || 'admin@quotebot.com';
 const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD || 'Admin@123';
-const INTERNAL_KEY = process.env.N8N_SECRET || '';
+const INTERNAL_KEY = process.env.INTERNAL_API_KEY || '';
 const INTERNAL_TENANT_ID = process.env.TEST_INTERNAL_TENANT_ID || 'test-tenant-email-api';
 
 const failures = [];
@@ -573,7 +573,7 @@ async function run() {
   // Internal Email Endpoints (no JWT auth, uses X-Internal-Key)
   if (!INTERNAL_KEY) {
     throw new Error(
-      'N8N_SECRET is required to run internal endpoint smoke checks',
+      'INTERNAL_API_KEY is required to run internal endpoint smoke checks',
     );
   }
 

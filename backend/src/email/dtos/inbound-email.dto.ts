@@ -9,7 +9,7 @@ import {
 /**
  * Inbound Email DTO
  * Single unified entry point for all email providers (Gmail, SES, SMTP, forwards)
- * n8n pushes to POST /api/internal/email/inbound
+ * Internal scripts push to POST /api/internal/email/inbound
  */
 export class InboundEmailDto {
   /**

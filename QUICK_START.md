@@ -153,7 +153,7 @@ POST /api/auth/validate   → Validate token
 🔜 POST   /api/files/upload          → Upload file
 ```
 
-### Internal Email Endpoints (n8n Integration)
+### Internal Email Endpoints (Automation Scripts)
 ```
 POST  /api/internal/email/inbound     → Ingest email from provider
       Headers: X-Internal-Key, X-Tenant-ID
@@ -167,13 +167,13 @@ PATCH /api/internal/email/outbound/:id → Update send status
 
 **Example - Test inbound endpoint:**
 ```bash
-export N8N_SECRET="replace-with-strong-internal-key"
-export N8N_TENANT_ID="your-tenant-id"
+export INTERNAL_API_KEY="dev-internal-key"
+export SYNC_TENANT_ID="your-tenant-id"
 
 curl -X POST http://localhost:3001/api/internal/email/inbound \
   -H "Content-Type: application/json" \
-      -H "X-Internal-Key: ${N8N_SECRET}" \
-      -H "X-Tenant-ID: ${N8N_TENANT_ID}" \
+  -H "X-Internal-Key: ${INTERNAL_API_KEY}" \
+  -H "X-Tenant-ID: ${SYNC_TENANT_ID}" \
   -d '{
     "email_account_id": "acc_123",
     "external_id": "gmail_msg_456",
@@ -186,12 +186,11 @@ curl -X POST http://localhost:3001/api/internal/email/inbound \
   }'
 ```
 
-**n8n worker environment variables:**
+**Automation script environment variables:**
 ```bash
 API_BASE_URL=http://localhost:3001/api
-N8N_SECRET=replace-with-strong-internal-key
-N8N_TENANT_ID=your-tenant-id
-RFQ_LLM_MODEL=llama3:8b
+INTERNAL_API_KEY=dev-internal-key
+SYNC_TENANT_ID=your-tenant-id
 ```
 
 ---

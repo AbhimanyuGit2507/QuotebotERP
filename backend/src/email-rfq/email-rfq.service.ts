@@ -5,9 +5,22 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  AssistanceTicketStatus,
+  ConversationStage,
+  FollowupType,
+  MessageClassification,
+  Prisma,
+  PurchaseOrderStatus,
+  EmailTemplateType,
+} from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { RfqsService } from '../rfqs/rfqs.service';
+import { QuotationsService } from '../quotations/quotations.service';
+import { ThreadResolverService } from './thread-resolver.service';
+import { PoMatcherService } from './po-matcher.service';
+import { EmailService } from '../email/email.service';
+import { EmailTemplatesService } from '../email-templates/email-templates.service';
 
 type LlmItem = {
   product_name: string;
@@ -54,6 +67,13 @@ type RegexClassificationResult = {
   verdict: 'rfq' | 'non_rfq' | 'uncertain';
   reason: string;
   confidence: 'high' | 'medium' | 'low';
+};
+
+type PrimaryIntentResult = {
+  classification: MessageClassification;
+  confidence: number;
+  reason: string;
+  followupType?: FollowupType;
 };
 
 @Injectable()
@@ -109,6 +129,11 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly rfqsService: RfqsService,
+    private readonly quotationsService: QuotationsService,
+    private readonly threadResolver: ThreadResolverService,
+    private readonly poMatcher: PoMatcherService,
+    private readonly emailService: EmailService,
+    private readonly emailTemplatesService: EmailTemplatesService,
   ) {}
 
   onModuleInit() {
@@ -530,6 +555,278 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       reason: 'Regex classifier could not confidently determine RFQ intent',
       confidence: 'low',
     };
+  }
+
+  private classifyFollowupType(subject: string, body: string): FollowupType {
+    const text = `${subject || ''}\n${body || ''}`.toLowerCase();
+
+    if (
+      /(spec|datasheet|technical|compatib|grade|standard|warranty|certif|test report|material)/i.test(
+        text,
+      )
+    ) {
+      return FollowupType.TECHNICAL;
+    }
+
+    if (
+      /(discount|reduce|best price|negot|counter offer|revise quote|too high|lower rate)/i.test(
+        text,
+      )
+    ) {
+      return FollowupType.NEGOTIATION;
+    }
+
+    if (
+      /(delivery|lead time|dispatch|shipment|shipping|eta|timeline|schedule|when can you deliver)/i.test(
+        text,
+      )
+    ) {
+      return FollowupType.DELIVERY;
+    }
+
+    return FollowupType.GENERAL;
+  }
+
+  private detectPoSignals(
+    subject: string,
+    body: string,
+    payload: Record<string, unknown>,
+  ) {
+    const text = `${subject || ''}\n${body || ''}`.toLowerCase();
+    const phraseMatch =
+      /(please find attached po|purchase\s*order|order\s*confirmed|kindly process attached purchase order|we confirm order|po\s*number)/i.test(
+        text,
+      );
+
+    const attachmentsRaw = payload.attachments ?? payload.attachments_json;
+    const attachments = Array.isArray(attachmentsRaw)
+      ? attachmentsRaw
+          .map((item) => this.asText(item, '').toLowerCase())
+          .filter((item) => item.length > 0)
+      : [];
+
+    const attachmentMatch = attachments.some((name) =>
+      /(\bpo\b|purchase[_\s-]*order|order\.pdf|po\.pdf)/i.test(name),
+    );
+
+    return {
+      matched: phraseMatch || attachmentMatch,
+      confidence:
+        attachmentMatch && phraseMatch ? 0.97 : phraseMatch ? 0.9 : 0.86,
+    };
+  }
+
+  private classifyPrimaryIntent(
+    subject: string,
+    body: string,
+    payload: Record<string, unknown>,
+    conversationQuotationId?: string | null,
+  ): PrimaryIntentResult {
+    const poSignals = this.detectPoSignals(subject, body, payload);
+    if (poSignals.matched) {
+      return {
+        classification: MessageClassification.PO,
+        confidence: poSignals.confidence,
+        reason: 'PO intent detected from attachment/body signals',
+      };
+    }
+
+    const regexDecision = this.classifyRfqByRegex(subject, body);
+    if (regexDecision.verdict === 'rfq') {
+      return {
+        classification: MessageClassification.RFQ,
+        confidence: regexDecision.confidence === 'high' ? 0.92 : 0.78,
+        reason: regexDecision.reason,
+      };
+    }
+
+    const text = `${subject || ''}\n${body || ''}`.toLowerCase();
+    const mentionsQuote =
+      /(quote|quotation|qt\/|regarding quote|your quotation|our quotation)/i.test(
+        text,
+      ) || Boolean(conversationQuotationId);
+    const hasQuestionOrClarification =
+      /\?|clarify|doubt|please confirm|can you|could you|need clarification|delivery|lead time|discount|best offer|negot/i.test(
+        text,
+      );
+
+    if (mentionsQuote && hasQuestionOrClarification) {
+      const followupType = this.classifyFollowupType(subject, body);
+      return {
+        classification: MessageClassification.FOLLOWUP,
+        confidence: 0.84,
+        reason:
+          'Followup detected based on quote reference and clarification/negotiation intent',
+        followupType,
+      };
+    }
+
+    if (regexDecision.verdict === 'uncertain') {
+      return {
+        classification: MessageClassification.RFQ,
+        confidence: 0.6,
+        reason: regexDecision.reason,
+      };
+    }
+
+    return {
+      classification: MessageClassification.UNKNOWN,
+      confidence: 0.35,
+      reason: 'No strong RFQ/FOLLOWUP/PO intent signals detected',
+    };
+  }
+
+  private extractPoNumber(subject: string, body: string): string {
+    const text = `${subject || ''}\n${body || ''}`;
+    const poMatch = text.match(
+      /\b(?:po\s*(?:number|no\.?|#)?\s*[:-]?\s*)([A-Z0-9/-]{4,})\b/i,
+    );
+    return poMatch?.[1]?.trim() || '';
+  }
+
+  private generateInvoiceNumber() {
+    const year = new Date().getFullYear();
+    const ts = Date.now().toString().slice(-6);
+    const rand = Math.floor(100 + Math.random() * 900);
+    return `INV/${year}-${ts}${rand}`;
+  }
+
+  private async ensureInvoiceForQuotation(
+    tenantId: string,
+    quotationId: string,
+    conversationId: string,
+  ) {
+    const existing = await this.prisma.invoice.findFirst({
+      where: {
+        tenant_id: tenantId,
+        quotation_id: quotationId,
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const quotation = await this.prisma.quotation.findFirst({
+      where: {
+        id: quotationId,
+        tenant_id: tenantId,
+      },
+      include: {
+        client: true,
+        items: true,
+      },
+    });
+
+    if (!quotation) {
+      return null;
+    }
+
+    const companySettings = await this.prisma.settingsCompany.findUnique({
+      where: { tenant_id: tenantId },
+    });
+
+    return this.prisma.invoice.create({
+      data: {
+        tenant_id: tenantId,
+        quotation_id: quotationId,
+        conversation_id: conversationId,
+        number: this.generateInvoiceNumber(),
+        date: new Date().toISOString().split('T')[0],
+        currency: companySettings?.currency ?? 'INR',
+        subtotal: quotation.subtotal ?? 0,
+        tax: quotation.tax ?? 0,
+        total: quotation.total ?? 0,
+        status: 'open',
+      },
+    });
+  }
+
+  private async createAssistanceTicketForFollowup(params: {
+    tenantId: string;
+    conversationId: string;
+    messageId: string;
+    type: FollowupType;
+  }) {
+    const existing = await this.prisma.assistanceTicket.findFirst({
+      where: {
+        tenant_id: params.tenantId,
+        message_id: params.messageId,
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return this.prisma.assistanceTicket.create({
+      data: {
+        tenant_id: params.tenantId,
+        conversation_id: params.conversationId,
+        message_id: params.messageId,
+        type: params.type,
+        status: AssistanceTicketStatus.OPEN,
+      },
+    });
+  }
+
+  private async createOrUpdatePurchaseOrderRecord(params: {
+    tenantId: string;
+    conversationId: string;
+    quotationId?: string | null;
+    subject: string;
+    body: string;
+    confidence: number;
+    messageId: string;
+  }) {
+    const poNumber = this.extractPoNumber(params.subject, params.body);
+    const existing = await this.prisma.assistancePurchaseOrder.findFirst({
+      where: {
+        tenant_id: params.tenantId,
+        conversation_id: params.conversationId,
+        ...(poNumber ? { po_number: poNumber } : {}),
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    const status =
+      params.confidence >= 0.95
+        ? PurchaseOrderStatus.APPROVED
+        : PurchaseOrderStatus.REVIEW_PENDING;
+
+    const extractedData = {
+      message_id: params.messageId,
+      subject: params.subject,
+      body_preview: params.body.slice(0, 500),
+      detected_at: new Date().toISOString(),
+    } as Prisma.InputJsonValue;
+
+    if (existing) {
+      return this.prisma.assistancePurchaseOrder.update({
+        where: { id: existing.id },
+        data: {
+          quotation_id: params.quotationId || existing.quotation_id,
+          confidence: params.confidence,
+          status,
+          po_number: poNumber || existing.po_number,
+          extracted_data: extractedData,
+        },
+      });
+    }
+
+    return this.prisma.assistancePurchaseOrder.create({
+      data: {
+        tenant_id: params.tenantId,
+        conversation_id: params.conversationId,
+        quotation_id: params.quotationId || undefined,
+        po_number: poNumber || undefined,
+        extracted_data: extractedData,
+        confidence: params.confidence,
+        status,
+      },
+    });
   }
 
   private isRateLimitError(error: unknown): boolean {
@@ -1368,6 +1665,9 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
     options: {
       status?: 'pending' | 'parsed' | 'failed';
       isProcessed?: boolean;
+      classification?: MessageClassification;
+      classificationConfidence?: number;
+      followupType?: FollowupType | null;
     } = {},
   ) {
     const existing = await this.prisma.message.findFirst({
@@ -1398,6 +1698,15 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
               ? false
               : true,
         raw_payload: mergedPayload,
+        ...(options.classification
+          ? { classification: options.classification }
+          : {}),
+        ...(typeof options.classificationConfidence === 'number'
+          ? { classification_confidence: options.classificationConfidence }
+          : {}),
+        ...(options.followupType !== undefined
+          ? { followup_type: options.followupType }
+          : {}),
         updated_at: new Date(),
       },
     });
@@ -1490,6 +1799,9 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       unresolved: 0,
       llm_errors: 0,
       skipped: 0,
+      followups: 0,
+      po_detected: 0,
+      unknown: 0,
     };
 
     try {
@@ -1908,7 +2220,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
         }
 
         try {
-          await this.rfqsService.createFromEmail(message.tenant_id, {
+          const createdRfq = await this.rfqsService.createFromEmail(message.tenant_id, {
             client_email: message.sender_email,
             message_id: message.id,
             parsing_source: parsingSource,
@@ -1928,6 +2240,9 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
           });
 
           summary.created_rfqs += 1;
+
+          // Auto-create and send quotation (non-blocking)
+          void this.autoCreateAndSendQuotation(createdRfq.id, message.tenant_id);
         } catch (error: unknown) {
           if (error instanceof BadRequestException) {
             summary.unresolved += 1;
@@ -1985,6 +2300,9 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       unresolved: 0,
       llm_errors: 0,
       skipped: 0,
+      followups: 0,
+      po_detected: 0,
+      unknown: 0,
     };
 
     const maxAutoRetries = Math.max(
@@ -2352,6 +2670,349 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
           body: fullBody,
         };
 
+        // Attempt to resolve thread/conversation by headers, references, quote numbers or subject similarity
+        try {
+          const resolverResult = await this.threadResolver.resolveConversation(
+            entry.message as Record<string, any>,
+            entry.payload,
+          );
+          if (
+            resolverResult.conversationId &&
+            resolverResult.conversationId !== entry.message.conversation_id
+          ) {
+            // Re-link message to resolved conversation
+            try {
+              await this.prisma.message.update({
+                where: { id: entry.message.id },
+                data: { conversation_id: resolverResult.conversationId },
+              });
+            } catch (e) {
+              this.logger.warn(
+                `Failed to update message.conversation_id for ${entry.message.id}: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            }
+
+            try {
+              await this.prisma.conversation.update({
+                where: { id: resolverResult.conversationId },
+                data: { last_message_at: new Date() },
+              });
+            } catch (e) {
+              this.logger.debug(
+                `Failed to update conversation.last_message_at for ${resolverResult.conversationId}: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            }
+
+            entry.message.conversation_id = resolverResult.conversationId;
+
+            await this.updateMessageProcessing(
+              entry.message.id,
+              {
+                thread_resolver: {
+                  matched_by: resolverResult.matchedBy || 'resolver',
+                  reason: resolverResult.reason || '',
+                },
+              },
+              { status: 'pending', isProcessed: false },
+            );
+          }
+        } catch (err) {
+          this.logger.warn(
+            `Thread resolver error for message ${entry.message.id}: ${this.errorToMessage(err)}`,
+          );
+        }
+
+        const primaryIntent = this.classifyPrimaryIntent(
+          candidate.subject,
+          candidate.body,
+          entry.payload,
+          entry.message.conversation?.quotation_id,
+        );
+
+        if (primaryIntent.classification === MessageClassification.FOLLOWUP) {
+          const followupType =
+            primaryIntent.followupType || FollowupType.GENERAL;
+
+          await this.createAssistanceTicketForFollowup({
+            tenantId: entry.message.tenant_id,
+            conversationId: entry.message.conversation_id,
+            messageId: entry.message.id,
+            type: followupType,
+          });
+
+          await this.prisma.conversation.update({
+            where: { id: entry.message.conversation_id },
+            data: {
+              current_stage: ConversationStage.MANUAL_ASSISTANCE,
+            },
+          });
+
+          summary.followups += 1;
+          await this.updateMessageProcessing(
+            candidate.id,
+            {
+              parsing_source: 'backend_intent_router',
+              parsing_confidence: 'medium',
+              parsing_error: primaryIntent.reason,
+              parsed_items: [],
+              auto_rfq_created: false,
+              pipeline_stage: 'followup_ticket_created',
+            },
+            {
+              status: 'parsed',
+              classification: MessageClassification.FOLLOWUP,
+              classificationConfidence: primaryIntent.confidence,
+              followupType,
+            },
+          );
+          continue;
+        }
+
+        if (primaryIntent.classification === MessageClassification.PO) {
+          const poRecord = await this.createOrUpdatePurchaseOrderRecord({
+            tenantId: entry.message.tenant_id,
+            conversationId: entry.message.conversation_id,
+            quotationId: entry.message.conversation?.quotation_id,
+            subject: candidate.subject,
+            body: candidate.body,
+            confidence: primaryIntent.confidence,
+            messageId: entry.message.id,
+          });
+
+          // Compute detailed PO match confidence
+          const match = await this.poMatcher.scorePurchaseOrder({
+            tenantId: entry.message.tenant_id,
+            conversationId: entry.message.conversation_id,
+            messageBody: candidate.body,
+            messageSubject: candidate.subject,
+            poRecordId: poRecord.id,
+            quotationId: entry.message.conversation?.quotation_id,
+          });
+
+          const percent = Number(match?.percent || 0);
+
+          // Decide status thresholds
+          let newStatus = poRecord.status;
+          if (percent >= 95) newStatus = PurchaseOrderStatus.APPROVED;
+          else if (percent >= 70)
+            newStatus = PurchaseOrderStatus.REVIEW_PENDING;
+          else newStatus = PurchaseOrderStatus.DETECTED;
+
+          await this.prisma.assistancePurchaseOrder.update({
+            where: { id: poRecord.id },
+            data: { confidence: percent, status: newStatus },
+          });
+
+          // If high confidence and quotation present, auto-generate invoice
+          if (percent >= 95 && entry.message.conversation?.quotation_id) {
+            const invoice = await this.ensureInvoiceForQuotation(
+              entry.message.tenant_id,
+              entry.message.conversation.quotation_id,
+              entry.message.conversation_id,
+            );
+
+            // Attempt to send invoice email immediately using conversation's email account
+            if (invoice && entry.message.conversation?.email_account_id) {
+              const to = [String(entry.message.sender_email || '')].filter(
+                Boolean,
+              );
+
+              // Fetch full invoice with items and client details
+              const fullInvoice = await this.prisma.invoice.findUnique({
+                where: { id: invoice.id },
+                include: {
+                  quotation: {
+                    include: {
+                      client: true,
+                      items: true,
+                    },
+                  },
+                },
+              });
+
+              // Get company name
+              const tenant = await this.prisma.tenant.findUnique({
+                where: { id: entry.message.tenant_id },
+                select: { company_name: true },
+              });
+
+              // Get email template
+              const template = await this.emailTemplatesService.findByType(
+                entry.message.tenant_id,
+                EmailTemplateType.INVOICE_EMAIL,
+              );
+
+              // Build item details from quotation items
+              const itemDetails =
+                fullInvoice?.quotation?.items
+                  ?.map((item, index) => {
+                    return `${index + 1}. ${item.product_name} - Qty: ${item.quantity} ${item.unit} @ INR ${item.unit_price}/unit = INR ${item.total}`;
+                  })
+                  .join('\n') || '';
+
+              // Determine payment status
+              const paidAmount = fullInvoice?.paid_amount || 0;
+              const totalAmount = fullInvoice?.total || 0;
+              let paymentStatus = '';
+              if (paidAmount >= totalAmount) {
+                paymentStatus = 'Status: PAID';
+              } else if (paidAmount > 0) {
+                paymentStatus = `Status: PARTIALLY PAID (INR ${paidAmount} of INR ${totalAmount})`;
+              } else {
+                paymentStatus = 'Status: PENDING PAYMENT';
+              }
+
+              // Template variables
+              const variables = {
+                client_name: fullInvoice?.quotation?.client?.name || 'Customer',
+                company_name: tenant?.company_name || 'Quotebot',
+                invoice_number: fullInvoice?.number || '',
+                invoice_date: fullInvoice?.date || '',
+                due_date: fullInvoice?.due_date || '',
+                currency: fullInvoice?.currency || 'INR',
+                total_amount: Number(totalAmount).toLocaleString('en-IN', {
+                  maximumFractionDigits: 2,
+                }),
+                payment_status: paymentStatus,
+                item_details: itemDetails,
+              };
+
+              // Substitute variables in template
+              const emailSubject =
+                this.emailTemplatesService.substituteVariables(
+                  template.subject_template,
+                  variables,
+                );
+              const emailBody = this.emailTemplatesService.substituteVariables(
+                template.body_template,
+                variables,
+              );
+
+              try {
+                await this.emailService.sendNow(entry.message.tenant_id, {
+                  email_account_id: entry.message.conversation.email_account_id,
+                  to,
+                  subject: emailSubject,
+                  body: emailBody,
+                });
+
+                // Store sent email details
+                await this.prisma.invoice.update({
+                  where: { id: invoice.id },
+                  data: {
+                    sent_email_subject: emailSubject,
+                    sent_email_body: emailBody,
+                    sent_at: new Date(),
+                  },
+                });
+              } catch (err) {
+                this.logger.warn(
+                  `Immediate send of invoice ${invoice.id} failed: ${this.errorToMessage(err)}; queued as outboundEmail instead.`,
+                );
+                try {
+                  await this.emailService.createOutboundEmail(
+                    entry.message.tenant_id,
+                    {
+                      email_account_id:
+                        entry.message.conversation.email_account_id,
+                      to,
+                      subject: emailSubject,
+                      body: emailBody,
+                    },
+                  );
+
+                  // Store sent email details even for queued emails
+                  await this.prisma.invoice.update({
+                    where: { id: invoice.id },
+                    data: {
+                      sent_email_subject: emailSubject,
+                      sent_email_body: emailBody,
+                      sent_at: new Date(),
+                    },
+                  });
+                } catch (e) {
+                  this.logger.warn(
+                    `Failed to queue outbound email for invoice ${invoice.id}: ${this.errorToMessage(e)}`,
+                  );
+                }
+              }
+            }
+
+            await this.prisma.assistancePurchaseOrder.update({
+              where: { id: poRecord.id },
+              data: {
+                invoice_id: invoice?.id,
+                status: invoice
+                  ? PurchaseOrderStatus.INVOICE_GENERATED
+                  : PurchaseOrderStatus.APPROVED,
+              },
+            });
+
+            await this.prisma.conversation.update({
+              where: { id: entry.message.conversation_id },
+              data: {
+                current_stage: invoice
+                  ? ConversationStage.INVOICE_SENT
+                  : ConversationStage.PO_VERIFIED,
+              },
+            });
+          } else if (newStatus === PurchaseOrderStatus.REVIEW_PENDING) {
+            await this.prisma.conversation.update({
+              where: { id: entry.message.conversation_id },
+              data: { current_stage: ConversationStage.PO_RECEIVED },
+            });
+          } else {
+            await this.prisma.conversation.update({
+              where: { id: entry.message.conversation_id },
+              data: { current_stage: ConversationStage.PO_RECEIVED },
+            });
+          }
+
+          summary.po_detected += 1;
+          await this.updateMessageProcessing(
+            candidate.id,
+            {
+              parsing_source: 'backend_intent_router',
+              parsing_confidence: 'medium',
+              parsing_error: primaryIntent.reason,
+              parsed_items: [],
+              auto_rfq_created: false,
+              pipeline_stage: 'po_detected',
+              po_match_percent: percent,
+              po_match_components: match?.components || {},
+            },
+            {
+              status: 'parsed',
+              classification: MessageClassification.PO,
+              classificationConfidence: primaryIntent.confidence,
+              followupType: null,
+            },
+          );
+          continue;
+        }
+
+        if (primaryIntent.classification === MessageClassification.UNKNOWN) {
+          summary.unknown += 1;
+          await this.updateMessageProcessing(
+            candidate.id,
+            {
+              parsing_source: 'backend_intent_router',
+              parsing_confidence: 'low',
+              parsing_error: primaryIntent.reason,
+              parsed_items: [],
+              auto_rfq_created: false,
+              pipeline_stage: 'classified_unknown',
+            },
+            {
+              status: 'parsed',
+              classification: MessageClassification.UNKNOWN,
+              classificationConfidence: primaryIntent.confidence,
+              followupType: null,
+            },
+          );
+          continue;
+        }
+
         const regexDecision = this.classifyRfqByRegex(
           candidate.subject,
           candidate.body,
@@ -2370,7 +3031,11 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
               pipeline_stage: 'classified_non_rfq_regex',
               rfq_pipeline_last_error_kind: 'regex_non_rfq',
             },
-            { status: 'parsed' },
+            {
+              status: 'parsed',
+              classification: MessageClassification.UNKNOWN,
+              classificationConfidence: 0.8,
+            },
           );
           continue;
         }
@@ -2396,6 +3061,8 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
             {
               status: 'pending',
               isProcessed: false,
+              classification: MessageClassification.RFQ,
+              classificationConfidence: 0.88,
             },
           );
           continue;
@@ -2733,7 +3400,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
             continue;
           }
 
-          await this.rfqsService.createFromEmail(tenantId, {
+          const createdRfq = await this.rfqsService.createFromEmail(tenantId, {
             client_email: clientEmail,
             message_id: candidate.id,
             items: matchedItems,
@@ -2760,6 +3427,11 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
           );
 
           summary.created_rfqs += 1;
+
+          // Auto-create and send quotation (non-blocking)
+          if (createdRfq.id && tenantId) {
+            void this.autoCreateAndSendQuotation(createdRfq.id, tenantId);
+          }
         } catch (error: unknown) {
           const message = this.errorToMessage(error);
           if (error instanceof BadRequestException) {
@@ -2836,8 +3508,13 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       const totalDurationMs = Date.now() - runStartedAt;
       this.logger.log(
         `[RFQ_TIMING] run_complete scanned=${summary.scanned} processed=${
-          summary.created_rfqs + summary.non_rfq + summary.unresolved
-        } created_rfqs=${summary.created_rfqs} non_rfq=${summary.non_rfq} unresolved=${summary.unresolved} llm_errors=${summary.llm_errors} skipped=${summary.skipped} took=${totalDurationMs}ms avg_per_scanned=${Math.round(
+          summary.created_rfqs +
+          summary.non_rfq +
+          summary.unresolved +
+          summary.followups +
+          summary.po_detected +
+          summary.unknown
+        } created_rfqs=${summary.created_rfqs} non_rfq=${summary.non_rfq} unresolved=${summary.unresolved} followups=${summary.followups} po_detected=${summary.po_detected} unknown=${summary.unknown} llm_errors=${summary.llm_errors} skipped=${summary.skipped} took=${totalDurationMs}ms avg_per_scanned=${Math.round(
           totalDurationMs / Math.max(summary.scanned, 1),
         )}ms`,
       );
@@ -2848,6 +3525,128 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       };
     } finally {
       this.isRunning = false;
+    }
+  }
+
+  /**
+   * Automatically creates and sends a quotation for a newly created RFQ
+   * This runs asynchronously after RFQ creation to avoid blocking the pipeline
+   */
+  private async autoCreateAndSendQuotation(
+    rfqId: string,
+    tenantId: string,
+  ): Promise<void> {
+    try {
+      const autoQuoteEnabled = process.env.AUTO_SEND_QUOTATION !== 'false';
+
+      if (!autoQuoteEnabled) {
+        return;
+      }
+
+      // Fetch the RFQ with all details
+      const rfq = await this.prisma.rFQ.findUnique({
+        where: { id: rfqId },
+        include: {
+          client: true,
+          items: {
+            include: {
+              product: true,
+            },
+          },
+        },
+      });
+
+      if (!rfq || !rfq.client) {
+        this.logger.warn(
+          `Cannot auto-create quotation for RFQ ${rfqId}: RFQ or client not found`,
+        );
+        return;
+      }
+
+      // Check if quotation already exists for this RFQ
+      if (rfq.quotation_id) {
+        this.logger.debug(
+          `Quotation already exists for RFQ ${rfqId}, skipping auto-create`,
+        );
+        return;
+      }
+
+      // Prepare quotation items from RFQ items
+      const quotationItems = rfq.items.map((item) => ({
+        product_id: item.product_id,
+        product_name:
+          item.product?.name || item.product_name || 'Unknown Product',
+        quantity: Number(item.quantity),
+        unit: item.unit || 'unit',
+        unit_price: Number(item.product?.price || 0),
+        tax_percent: Number(item.product?.gst_percent || 18),
+        notes: item.notes || undefined,
+      }));
+
+      if (quotationItems.length === 0) {
+        this.logger.warn(
+          `Cannot auto-create quotation for RFQ ${rfqId}: No items found`,
+        );
+        return;
+      }
+
+      // Create the quotation
+      this.logger.log(`🔄 Auto-creating quotation for RFQ ${rfq.number}...`);
+      const quotation = await this.quotationsService.create(tenantId, {
+        client_id: rfq.client_id,
+        date: new Date().toISOString().split('T')[0],
+        valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split('T')[0],
+        status: 'draft',
+        items: quotationItems,
+      });
+
+      // Link quotation to RFQ
+      await this.prisma.rFQ.update({
+        where: { id: rfqId },
+        data: {
+          quotation_id: quotation.id,
+          status: 'quoted',
+        },
+      });
+
+      this.logger.log(
+        `✓ Created quotation ${quotation.number} for RFQ ${rfq.number}`,
+      );
+
+      // Auto-send quotation if client has email
+      if (rfq.client.email && rfq.client.email.includes('@')) {
+        this.logger.log(
+          `📧 Auto-sending quotation ${quotation.number} to ${rfq.client.email}...`,
+        );
+
+        try {
+          await this.quotationsService.sendByEmail(quotation.id, tenantId, {
+            to: [rfq.client.email],
+            message:
+              'Thank you for your inquiry. Please find our quotation attached.',
+          });
+
+          this.logger.log(
+            `✓ Quotation ${quotation.number} sent successfully to ${rfq.client.email}`,
+          );
+        } catch (sendError) {
+          this.logger.error(
+            `Failed to auto-send quotation ${quotation.number}: ${sendError instanceof Error ? sendError.message : String(sendError)}`,
+          );
+          // Don't throw - quotation was created successfully, just sending failed
+        }
+      } else {
+        this.logger.warn(
+          `Cannot auto-send quotation ${quotation.number}: Client ${rfq.client.name} has no valid email`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Auto-quotation failed for RFQ ${rfqId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      // Don't throw - this is a background operation
     }
   }
 }

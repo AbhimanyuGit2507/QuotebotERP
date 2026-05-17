@@ -15,6 +15,9 @@ export declare class EmailRfqController {
         unresolved: number;
         llm_errors: number;
         skipped: number;
+        followups: number;
+        po_detected: number;
+        unknown: number;
         started: boolean;
         reason?: undefined;
     }>;

@@ -9,28 +9,29 @@ import { Request } from 'express';
 
 /**
  * Internal API Key Authentication Guard
- * Validates X-Internal-Key header against N8N_SECRET env variable
+ * Validates X-Internal-Key header against INTERNAL_API_KEY env variable
  *
- * Used to protect /api/internal/* endpoints from n8n and other internal services
+ * Used to protect /api/internal/* endpoints from internal automation scripts
  *
  * Setup:
- * 1. Set N8N_SECRET env variable in .env
+ * 1. Set INTERNAL_API_KEY env variable in .env
  * 2. Apply guard: @UseGuards(InternalKeyAuthGuard)
  * 3. Optionally extract tenant_id from header or query
  *
- * n8n calls endpoint with:
- *   X-Internal-Key: N8N_SECRET
+ * Internal scripts call endpoint with:
+ *   X-Internal-Key: INTERNAL_API_KEY
  *   X-Tenant-ID: tenant_id_here (optional for tenant-agnostic endpoints)
  */
 @Injectable()
 export class InternalKeyAuthGuard implements CanActivate {
   private readonly logger = new Logger(InternalKeyAuthGuard.name);
-  private readonly internalKey = process.env.N8N_SECRET || 'UNSET_N8N_SECRET';
+  private readonly internalKey =
+    process.env.INTERNAL_API_KEY || 'UNSET_INTERNAL_API_KEY';
 
   canActivate(context: ExecutionContext): boolean {
-    if (this.internalKey === 'UNSET_N8N_SECRET') {
+    if (this.internalKey === 'UNSET_INTERNAL_API_KEY') {
       this.logger.error(
-        'N8N_SECRET is not configured. Internal endpoints are disabled until it is set.',
+        'INTERNAL_API_KEY is not configured. Internal endpoints are disabled until it is set.',
       );
       throw new UnauthorizedException(
         'Internal integration key is not configured',

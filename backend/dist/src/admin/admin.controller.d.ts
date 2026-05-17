@@ -127,6 +127,7 @@ export declare class AdminController {
             tenant_id: string;
             status: string;
             body: string;
+            sent_at: Date | null;
             email_account_id: string;
             provider: string | null;
             subject: string;
@@ -134,7 +135,6 @@ export declare class AdminController {
             attempts: number;
             to: import("@prisma/client/runtime/client").JsonValue;
             cc: import("@prisma/client/runtime/client").JsonValue | null;
-            sent_at: Date | null;
         }[];
     }>;
     llms(user: AuthenticatedUser): Promise<{

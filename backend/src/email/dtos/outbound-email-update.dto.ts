@@ -2,7 +2,7 @@ import { IsString, IsOptional, IsInt } from 'class-validator';
 
 /**
  * Outbound Email Status Update DTO
- * n8n calls PATCH /api/internal/email/outbound/:id with this payload
+ * Internal scripts call PATCH /api/internal/email/outbound/:id with this payload
  * After sending via Gmail/SES, report success/failure back to backend
  */
 export class OutboundEmailUpdateDto {
@@ -28,7 +28,7 @@ export class OutboundEmailUpdateDto {
   last_error?: string;
 
   /**
-   * Increment attempt counter (n8n tracks this for retries)
+   * Increment attempt counter (tracked for retries)
    */
   @IsOptional()
   @IsInt()

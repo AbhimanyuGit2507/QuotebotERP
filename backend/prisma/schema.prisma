@@ -9,6 +9,67 @@ datasource db {
   provider = "postgresql"
 }
 
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageClassification {
+  RFQ
+  FOLLOWUP
+  PO
+  UNKNOWN
+}
+
+enum FollowupType {
+  TECHNICAL
+  NEGOTIATION
+  DELIVERY
+  GENERAL
+}
+
+enum AssistanceTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum PurchaseOrderStatus {
+  DETECTED
+  MATCHED
+  REVIEW_PENDING
+  APPROVED
+  INVOICE_GENERATED
+  INVOICE_SENT
+  PAYMENT_PENDING
+  PAID
+  COMPLETED
+  CANCELLED
+  CLOSED
+}
+
+enum ConversationStage {
+  NEW_RFQ
+  QUOTE_GENERATED
+  QUOTE_SENT
+  FOLLOWUP_PENDING
+  MANUAL_ASSISTANCE
+  PO_RECEIVED
+  PO_VERIFIED
+  INVOICE_SENT
+  PAYMENT_PENDING
+  PAID
+  CLOSED
+}
+
+enum EmailTemplateType {
+  QUOTATION_EMAIL
+  INVOICE_EMAIL
+  PO_EMAIL
+  INVOICE_PDF_HEADER
+  INVOICE_PDF_FOOTER
+}
+
 // ============================================
 // TENANCY & USERS
 // ============================================
@@ -44,6 +105,9 @@ model Tenant {
   settings_notifications SettingsNotifications?
   automation_rules AutomationRule[]
   integration_mappings IntegrationMapping[]
+  purchase_orders AssistancePurchaseOrder[]
+  assistance_tickets AssistanceTicket[]
+  email_templates EmailTemplate[]
 
   @@index([company_name])
 }
@@ -75,6 +139,8 @@ model User {
   audit_logs      AuditLog[]
   messages        Message[]
   email_accounts  EmailAccount[]
+  assigned_assistance_tickets AssistanceTicket[] @relation("AssistanceTicketAssignee")
+  assigned_conversations Conversation[] @relation("ConversationAssignee")
 
   @@unique([tenant_id, email])
   @@index([tenant_id])
@@ -181,6 +247,7 @@ model RFQ {
   display_name    String?
   search_tokens   Json?
   quotation_id    String?   @unique
+  conversation_id String?
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
 
@@ -188,12 +255,14 @@ model RFQ {
   client          Client    @relation(fields: [client_id], references: [id])
   items           RFQItem[]
   quotation       Quotation? @relation(fields: [quotation_id], references: [id])
+  conversation    Conversation? @relation(fields: [conversation_id], references: [id], onDelete: SetNull)
 
   @@unique([tenant_id, number])
   @@index([tenant_id])
   @@index([client_id])
   @@index([status])
   @@index([channel])
+  @@index([conversation_id])
 }
 
 model RFQItem {
@@ -230,6 +299,10 @@ model Quotation {
   total           Float     @default(0)
   status          String    @default("draft")
   terms_conditions String?
+  conversation_id  String?
+  sent_email_subject String?
+  sent_email_body String?
+  sent_at         DateTime?
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
 
@@ -239,11 +312,14 @@ model Quotation {
   versions        QuotationVersion[]
   rfq             RFQ?
   invoices        Invoice[]
+  conversation    Conversation? @relation(fields: [conversation_id], references: [id], onDelete: SetNull)
+  purchase_orders AssistancePurchaseOrder[]
 
   @@unique([tenant_id, number])
   @@index([tenant_id])
   @@index([client_id])
   @@index([status])
+  @@index([conversation_id])
 }
 
 model QuotationItem {
@@ -355,10 +431,14 @@ model Conversation {
   id              String    @id @default(cuid())
   tenant_id       String
   client_id       String
+  customer_email  String?
+  customer_name   String?
   email_account_id String?   // linked EmailAccount if from email provider
   subject         String
   channel         String    // email, whatsapp
   status          String    @default("open") // open, closed, archived
+  current_stage   ConversationStage @default(NEW_RFQ)
+  assigned_operator_id String?
   thread_id       String?   // email thread ID for grouping
   rfq_id          String?   // linked RFQ if applicable
   quotation_id    String?   // linked Quotation if applicable
@@ -370,7 +450,13 @@ model Conversation {
   tenant          Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   client          Client        @relation(fields: [client_id], references: [id], onDelete: Cascade)
   email_account   EmailAccount? @relation(fields: [email_account_id], references: [id], onDelete: SetNull)
+  assigned_operator User? @relation("ConversationAssignee", fields: [assigned_operator_id], references: [id], onDelete: SetNull)
   messages        Message[]
+  rfqs            RFQ[]
+  quotations      Quotation[]
+  purchase_orders AssistancePurchaseOrder[]
+  invoices        Invoice[]
+  assistance_tickets AssistanceTicket[]
 
   @@index([tenant_id])
   @@index([client_id])
@@ -378,6 +464,8 @@ model Conversation {
   @@index([channel])
   @@index([thread_id])
   @@index([status])
+  @@index([current_stage])
+  @@index([assigned_operator_id])
   @@index([created_at])
 }
 
@@ -390,19 +478,28 @@ model Message {
   sender_email        String    // Email of sender
   body                String    // Message content (plaintext or HTML)
   channel             String    // email, whatsapp
+  recipients          String?
   is_read             Boolean   @default(false)
   
   // Email-specific fields
   external_id         String?   // Gmail message ID, SES ID, etc (for dedup)
+  message_id_header   String?
+  in_reply_to         String?
+  references_header   String?
   email_account_id    String?   // EmailAccount this came from
   provider            String?   // gmail, ses, smtp, forward
   thread_id           String?   // Email thread ID for grouping
   raw_payload         Json?     // Full email headers/metadata from provider
+  attachments_json    Json?
   
   // Processing state
   is_processed        Boolean   @default(false)
   processing_status   String    @default("pending") // pending | parsed | failed
   direction           String    @default("inbound") // inbound | outbound
+  workflow_direction  MessageDirection @default(INBOUND)
+  classification      MessageClassification @default(UNKNOWN)
+  classification_confidence Float?
+  followup_type       FollowupType?
   
   created_at          DateTime  @default(now())
   updated_at          DateTime  @default(now()) @updatedAt
@@ -411,6 +508,7 @@ model Message {
   conversation        Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
   sender              User?        @relation(fields: [sender_id], references: [id], onDelete: SetNull)
   email_account       EmailAccount? @relation(fields: [email_account_id], references: [id], onDelete: SetNull)
+  assistance_tickets  AssistanceTicket[]
 
   // DB-level dedup for provider webhooks/retries
   @@unique([email_account_id, external_id])
@@ -423,7 +521,64 @@ model Message {
   @@index([is_processed])
   @@index([processing_status])
   @@index([direction])
+  @@index([workflow_direction])
+  @@index([classification])
+  @@index([followup_type])
+  @@index([message_id_header])
+  @@index([in_reply_to])
+  @@index([references_header])
   @@index([created_at])
+}
+
+model AssistancePurchaseOrder {
+  id               String    @id @default(cuid())
+  tenant_id        String
+  conversation_id  String
+  quotation_id     String?
+  invoice_id       String?
+  po_number        String?
+  extracted_data   Json?
+  confidence       Float?
+  status           PurchaseOrderStatus @default(DETECTED)
+  sent_email_subject String?
+  sent_email_body String?
+  sent_at         DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  tenant           Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  conversation     Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  quotation        Quotation? @relation(fields: [quotation_id], references: [id], onDelete: SetNull)
+  invoice          Invoice? @relation(fields: [invoice_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([conversation_id])
+  @@index([quotation_id])
+  @@index([invoice_id])
+  @@index([status])
+}
+
+model AssistanceTicket {
+  id               String    @id @default(cuid())
+  tenant_id        String
+  conversation_id  String
+  message_id       String
+  type             FollowupType
+  status           AssistanceTicketStatus @default(OPEN)
+  assigned_to_id   String?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  tenant           Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  conversation     Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  message          Message   @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  assigned_to      User?     @relation("AssistanceTicketAssignee", fields: [assigned_to_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([conversation_id])
+  @@index([message_id])
+  @@index([status])
+  @@index([assigned_to_id])
 }
 
 // ============================================
@@ -566,6 +721,24 @@ model SettingsTemplate {
   @@index([tenant_id])
 }
 
+model EmailTemplate {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  template_type   EmailTemplateType
+  subject_template String
+  body_template   String    @db.Text
+  variables_help  Json?     // JSON object describing available variables
+  is_active       Boolean   @default(true)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  tenant          Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, template_type])
+  @@index([tenant_id])
+  @@index([template_type])
+}
+
 model AutomationRule {
   id              String    @id @default(cuid())
   tenant_id       String
@@ -589,6 +762,7 @@ model Invoice {
   id              String    @id @default(cuid())
   tenant_id       String
   quotation_id    String?
+  conversation_id String?
   number          String
   display_name    String?
   search_tokens   Json?
@@ -600,16 +774,22 @@ model Invoice {
   total           Float     @default(0)
   status          String    @default("open") // open | paid | partial | cancelled
   paid_amount     Float     @default(0)
+  sent_email_subject String?
+  sent_email_body String?
+  sent_at         DateTime?
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
 
   tenant          Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   quotation       Quotation? @relation(fields: [quotation_id], references: [id])
+  conversation    Conversation? @relation(fields: [conversation_id], references: [id], onDelete: SetNull)
   payments        Payment[]
   exports         AccountingExport[]
+  purchase_orders AssistancePurchaseOrder[]
 
   @@index([tenant_id])
   @@index([quotation_id])
+  @@index([conversation_id])
   @@index([status])
   @@unique([tenant_id, number])
 }

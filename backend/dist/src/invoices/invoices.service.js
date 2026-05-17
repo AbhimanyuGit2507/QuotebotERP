@@ -101,6 +101,11 @@ let InvoicesService = class InvoicesService {
     async recordPayment(tenantId, invoiceId, payload) {
         const invoice = await this.prisma.invoice.findFirst({
             where: { id: invoiceId, tenant_id: tenantId },
+            include: {
+                quotation: {
+                    select: { conversation_id: true },
+                },
+            },
         });
         if (!invoice)
             throw new common_1.NotFoundException('Invoice not found');
@@ -122,7 +127,62 @@ let InvoicesService = class InvoicesService {
             where: { id: invoiceId },
             data: { paid_amount: paid, status },
         });
+        if (status === 'paid' && invoice.quotation?.conversation_id) {
+            await this.prisma.conversation.update({
+                where: { id: invoice.quotation.conversation_id },
+                data: {
+                    current_stage: 'PAID',
+                    updated_at: new Date(),
+                },
+            });
+        }
         return payment;
+    }
+    async getRelatedQuotation(tenantId, invoiceId) {
+        const invoice = await this.prisma.invoice.findFirst({
+            where: { id: invoiceId, tenant_id: tenantId },
+            include: {
+                quotation: {
+                    include: {
+                        client: true,
+                        items: true,
+                    },
+                },
+            },
+        });
+        if (!invoice) {
+            throw new common_1.NotFoundException('Invoice not found');
+        }
+        return invoice.quotation;
+    }
+    async getRelatedPurchaseOrders(tenantId, invoiceId) {
+        const invoice = await this.prisma.invoice.findFirst({
+            where: { id: invoiceId, tenant_id: tenantId },
+        });
+        if (!invoice) {
+            throw new common_1.NotFoundException('Invoice not found');
+        }
+        return this.prisma.assistancePurchaseOrder.findMany({
+            where: {
+                invoice_id: invoiceId,
+                tenant_id: tenantId,
+            },
+            include: {
+                conversation: {
+                    select: {
+                        id: true,
+                        customer_name: true,
+                    },
+                },
+                quotation: {
+                    select: {
+                        id: true,
+                        number: true,
+                    },
+                },
+            },
+            orderBy: { created_at: 'desc' },
+        });
     }
 };
 exports.InvoicesService = InvoicesService;

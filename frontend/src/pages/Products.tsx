@@ -5,7 +5,7 @@ import { apiRequest } from '../services/api';
 import { useApp, Product } from '../context/AppContext';
 
 const Products: React.FC = () => {
-  const { products, categories, addProduct, updateProduct, deleteProduct, showConfirmModal, downloadProductsCsv, addQuote, refreshData, showToast } = useApp();
+  const { products, categories, addProduct, updateProduct, deleteProduct, showConfirmModal, downloadProductsCsv, addQuote, refreshData } = useApp();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   

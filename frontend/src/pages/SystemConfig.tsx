@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { EmailIntegrations } from '../components/EmailIntegrations';
 import { DataImport } from '../components/DataImport';
 import IntegrationImport from '../components/IntegrationImport';
+import EmailTemplatesContent from '../components/EmailTemplatesContent';
 import { apiRequest } from '../services/api';
 
 type ConfigTab =
@@ -12,6 +13,7 @@ type ConfigTab =
   | 'communication'
   | 'whatsapp'
   | 'notifications'
+  | 'email-templates'
   | 'integrations'
   | 'billing';
 
@@ -20,6 +22,7 @@ const tabs: { id: ConfigTab; label: string; icon: string }[] = [
   { id: 'communication', label: 'Email', icon: 'mail' },
   { id: 'whatsapp', label: 'WhatsApp', icon: 'chat' },
   { id: 'notifications', label: 'Notifications', icon: 'notifications' },
+  { id: 'email-templates', label: 'Email Templates', icon: 'mail_outline' },
   { id: 'integrations', label: 'Integrations', icon: 'hub' },
   { id: 'billing', label: 'Billing', icon: 'credit_card' },
 ];
@@ -572,6 +575,8 @@ const SystemConfig: React.FC = () => {
         return <EmailIntegrations onSuccess={refreshData} />;
       case 'whatsapp':
         return renderStaticContent('WhatsApp Configuration', 'WhatsApp business profile and auto-reply settings.');
+      case 'email-templates':
+        return <EmailTemplatesContent />;
       case 'integrations':
         return renderIntegrationsContent();
       case 'billing':

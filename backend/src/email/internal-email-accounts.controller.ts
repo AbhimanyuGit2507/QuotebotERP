@@ -18,7 +18,7 @@ export class InternalEmailAccountsController {
 
   /**
    * GET /api/internal/email-accounts
-   * Returns active accounts with provider token metadata for n8n polling.
+   * Returns active accounts with provider token metadata for automation scripts.
    */
   @Get('email-accounts')
   async getEmailAccounts(@Req() req: Request) {

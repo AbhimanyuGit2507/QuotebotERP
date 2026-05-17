@@ -18,7 +18,7 @@ import { InternalKeyAuthGuard } from '../common/guards/internal-key-auth.guard';
 
 /**
  * Internal Email Controller
- * Used by n8n and external systems to exchange email data
+ * Used by internal automation scripts to exchange email data
  * All endpoints protected by X-Internal-Key header
  */
 @Controller('internal/email')
@@ -29,7 +29,7 @@ export class EmailController {
   /**
    * POST /api/internal/email/inbound
    *
-   * n8n pushes inbound emails here
+   * Internal scripts push inbound emails here
    * Called after fetching from Gmail, SES, or SMTP
    *
    * Request body: InboundEmailDto (provider, sender, subject, body, raw_payload)
@@ -73,8 +73,8 @@ export class EmailController {
   /**
    * GET /api/internal/email/outbound?status=pending
    *
-   * n8n pulls pending outbound emails from here
-   * Sends them via Gmail/SES, then reports status back via PATCH
+   * Internal scripts pull pending outbound emails from here
+   * (Future: worker will send via Gmail/SES and report status back via PATCH)
    *
    * Query params:
    * - status: 'pending' | 'sent' | 'failed' (default: 'pending')
@@ -114,7 +114,7 @@ export class EmailController {
   /**
    * PATCH /api/internal/email/outbound/:id
    *
-   * n8n reports outcome of sending via Gmail/SES
+   * Report outcome of sending via Gmail/SES
    *
    * Request body: { status: 'sent' | 'failed', provider, last_error?, attempts? }
    * Response: Updated OutboundEmail record

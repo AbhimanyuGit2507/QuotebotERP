@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Manual Gmail Sync Script
- * Bypasses n8n cron issues by syncing Gmail emails directly
+ * Syncs Gmail emails directly to backend via internal API
  * 
  * Usage:
  *   node scripts/sync-gmail.js
@@ -19,8 +19,8 @@ const computedDefaultMax =
 
 const config = {
   apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:3001/api',
-  internalKey: process.env.N8N_SECRET || 'dev-internal-key',
-  tenantId: process.env.N8N_TENANT_ID || 'cmmvzc6z60003bze8i4uhs03l',
+  internalKey: process.env.INTERNAL_API_KEY || 'dev-internal-key',
+  tenantId: process.env.SYNC_TENANT_ID || 'cmmvzc6z60003bze8i4uhs03l',
   daysBack: defaultDaysBack,
   maxMessagesPerDay: defaultMaxPerDay,
   maxMessagesPerAccount: Number.parseInt(

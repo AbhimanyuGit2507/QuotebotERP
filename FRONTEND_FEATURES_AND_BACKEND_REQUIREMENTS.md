@@ -516,7 +516,7 @@ GET /api/inbox/:id/attachments
 POST /api/inbox/:id/reply
 ```
 
-#### **Internal Email Integration Endpoints (n8n):**
+#### **Internal Email Integration Endpoints (Automation Scripts):**
 ```
 POST /api/internal/email/inbound
      (X-Internal-Key header required)

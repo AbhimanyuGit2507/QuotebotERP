@@ -144,6 +144,10 @@ export declare class ClientsService {
         tax: number;
         total: number;
         terms_conditions: string | null;
+        conversation_id: string | null;
+        sent_email_subject: string | null;
+        sent_email_body: string | null;
+        sent_at: Date | null;
     })[]>;
     updateTier(id: string, tenantId: string, tier: string): Promise<{
         name: string;

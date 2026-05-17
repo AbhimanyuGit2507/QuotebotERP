@@ -70,6 +70,13 @@ const Inbox: React.FC = () => {
     subject: '',
     body: '',
   });
+  const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'sender-asc' | 'sender-desc'>('date-desc');
+  const [classificationFilter, setClassificationFilter] = useState<string>('all');
+  const [showInlineReply, setShowInlineReply] = useState(false);
+  const [inlineReply, setInlineReply] = useState('');
+  const [sendingInlineReply, setSendingInlineReply] = useState(false);
+  const [threadMessages, setThreadMessages] = useState<InboxMessage[]>([]);
+  const [loadingThread, setLoadingThread] = useState(false);
   const hasAutoReloadedAfterSync = useRef(false);
   const lastSelectedIndexRef = useRef<number | null>(null);
   const syncFailureNotified = useRef(false);
@@ -172,16 +179,42 @@ const Inbox: React.FC = () => {
     }
   }, [id, selectedId, navigate]);
 
-  // Filter messages
+  // Filter and sort messages
   const filteredMessages = useMemo(() => {
-    return inboxMessages.filter(msg => {
+    let filtered = inboxMessages.filter(msg => {
       const matchesSearch = msg.sender.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            msg.subject.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesChannel = channelFilter === 'all' || msg.channel === channelFilter;
       const matchesStatus = statusFilter === 'all' || msg.status === statusFilter;
-      return matchesSearch && matchesChannel && matchesStatus;
+      
+      // Classification filter
+      let matchesClassification = true;
+      if (classificationFilter !== 'all') {
+        const msgClassification = (msg as any).classification || 'unknown';
+        matchesClassification = msgClassification.toLowerCase() === classificationFilter.toLowerCase();
+      }
+      
+      return matchesSearch && matchesChannel && matchesStatus && matchesClassification;
     });
-  }, [inboxMessages, searchQuery, channelFilter, statusFilter]);
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'date-asc':
+          return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+        case 'date-desc':
+          return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+        case 'sender-asc':
+          return a.sender.localeCompare(b.sender);
+        case 'sender-desc':
+          return b.sender.localeCompare(a.sender);
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [inboxMessages, searchQuery, channelFilter, statusFilter, classificationFilter, sortBy]);
 
   const selectedMessage = inboxMessages.find(m => m.id === selectedId);
   const selectedMessageCount = selectedMessageIds.size;
@@ -321,6 +354,15 @@ const Inbox: React.FC = () => {
       'regex',
       'rfq_detected',
     ].includes(source);
+  };
+
+  const isFollowupMessage = (msg: InboxMessage) => {
+    const classification = (msg as any).classification || '';
+    return classification.toLowerCase() === 'followup';
+  };
+
+  const requiresManualAssistance = (msg: InboxMessage) => {
+    return isFollowupMessage(msg) && msg.status !== 'duplicate';
   };
 
   const extractItemsFromRawText = (text: string) => {
@@ -960,6 +1002,51 @@ const Inbox: React.FC = () => {
     setComposeForm({ to: [], cc: [], subject: '', body: '' });
   };
 
+  const handleSendInlineReply = async () => {
+    if (!selectedMessage || !inlineReply.trim()) {
+      showToast('Reply message is required.', 'warning');
+      return;
+    }
+
+    try {
+      setSendingInlineReply(true);
+      await sendEmail({
+        to: selectedMessage.from ? [selectedMessage.from] : [],
+        subject: `Re: ${selectedMessage.subject || ''}`,
+        body: inlineReply,
+      });
+      showToast('Reply sent successfully!', 'success');
+      setInlineReply('');
+      setShowInlineReply(false);
+      await refreshData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not send reply';
+      showToast(message, 'error');
+    } finally {
+      setSendingInlineReply(false);
+    }
+  };
+
+  const loadThreadMessages = useCallback(async (messageId: string) => {
+    try {
+      setLoadingThread(true);
+      // Fetch conversation messages for this message
+      const response = await apiRequest<any>(`/inbox/messages/${messageId}/thread`);
+      setThreadMessages(response.messages || []);
+    } catch (error) {
+      console.error('Failed to load thread:', error);
+      setThreadMessages([]);
+    } finally {
+      setLoadingThread(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedMessage) {
+      void loadThreadMessages(selectedMessage.id);
+    }
+  }, [selectedMessage, loadThreadMessages]);
+
   const unreadCount = inboxMessages.filter(m => !m.isRead).length;
   const failedCount = inboxMessages.filter(m => m.status === 'failed').length;
   const parsingStatusMeta = selectedMessage
@@ -1097,9 +1184,9 @@ const Inbox: React.FC = () => {
               data-search="inbox"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <select 
-              className="flex-1 text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white"
+              className="text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white"
               value={channelFilter}
               onChange={(e) => setChannelFilter(e.target.value)}
             >
@@ -1108,7 +1195,7 @@ const Inbox: React.FC = () => {
               <option value="whatsapp">WhatsApp</option>
             </select>
             <select 
-              className="flex-1 text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white"
+              className="text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -1120,12 +1207,39 @@ const Inbox: React.FC = () => {
               <option value="duplicate">Archived</option>
             </select>
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <select 
+              className="text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white"
+              value={classificationFilter}
+              onChange={(e) => setClassificationFilter(e.target.value)}
+            >
+              <option value="all">All Types</option>
+              <option value="rfq">RFQ</option>
+              <option value="followup">Followup</option>
+              <option value="po">Purchase Order</option>
+              <option value="unknown">Unknown</option>
+            </select>
+            <select 
+              className="text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+            >
+              <option value="date-desc">Newest First</option>
+              <option value="date-asc">Oldest First</option>
+              <option value="sender-asc">Sender A-Z</option>
+              <option value="sender-desc">Sender Z-A</option>
+            </select>
+          </div>
         </div>
 
         {/* Stats Bar */}
-        <div className="px-3 py-2 bg-slate-50 border-b border-[var(--erp-border)] flex gap-4 text-[11px]">
+        <div className="px-3 py-2 bg-slate-50 border-b border-[var(--erp-border)] flex gap-3 text-[11px] flex-wrap">
           <span className="text-blue-600 font-medium">
             {inboxMessages.filter(m => m.status === 'new').length} New
+          </span>
+          <span className="text-amber-600 font-medium flex items-center gap-1">
+            <span className="material-symbols-outlined !text-[14px]">support_agent</span>
+            {inboxMessages.filter(m => isFollowupMessage(m)).length} Followup
           </span>
           <span className="text-amber-600 font-medium">
             {inboxMessages.filter(m => m.status === 'needs_review').length} Review
@@ -1143,14 +1257,20 @@ const Inbox: React.FC = () => {
           className="flex-1 overflow-y-auto select-none"
           onClick={handleListContainerClick}
         >
-          {filteredMessages.map((msg, index) => (
+          {filteredMessages.map((msg, index) => {
+            const isFollowup = isFollowupMessage(msg);
+            const needsAssistance = requiresManualAssistance(msg);
+            
+            return (
             <div 
               key={msg.id}
               onClick={(event) => handleRowClick(event, msg, index)}
               className={`p-3 border-b border-[var(--erp-border)] cursor-pointer transition-colors ${
                 selectedId === msg.id || selectedMessageIds.has(msg.id)
                   ? 'bg-blue-50 border-l-[3px] !border-l-[var(--erp-accent)]'
-                  : 'border-l-[3px] border-l-transparent hover:bg-slate-50'
+                  : needsAssistance
+                    ? 'bg-amber-50/50 border-l-[3px] border-l-amber-400 hover:bg-amber-50'
+                    : 'border-l-[3px] border-l-transparent hover:bg-slate-50'
               } ${!msg.isRead && selectedId !== msg.id ? 'bg-blue-50/30' : ''}`}
             >
               <div className="flex items-start gap-2">
@@ -1180,7 +1300,13 @@ const Inbox: React.FC = () => {
                   {msg.relativeTime ? (
                     <p className="text-[10px] text-[var(--erp-text-muted)] mb-1">{msg.relativeTime}</p>
                   ) : null}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {isFollowup && (
+                      <span className="text-[10px] text-amber-700 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded font-semibold flex items-center gap-0.5">
+                        <span className="material-symbols-outlined !text-[12px]">support_agent</span>
+                        FOLLOWUP
+                      </span>
+                    )}
                     {msg.extractedItems > 0 && (
                       <span className="text-[10px] text-[var(--erp-text-muted)]">{msg.extractedItems} items</span>
                     )}
@@ -1203,7 +1329,8 @@ const Inbox: React.FC = () => {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
           {filteredMessages.length === 0 && (
             <div className="p-4 text-center text-sm text-slate-400">
               <span className="material-symbols-outlined text-3xl mb-2">inbox</span>
@@ -1231,7 +1358,7 @@ const Inbox: React.FC = () => {
                   <p className="text-[12px] text-[var(--erp-text-muted)]">{selectedMessage.subject}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {selectedMessage.status === 'new' && !isMessageNotRfq(selectedMessage) && (
                   <button 
                     onClick={() => handleConvertToRFQ(selectedMessage)}
@@ -1240,6 +1367,12 @@ const Inbox: React.FC = () => {
                     <span className="material-symbols-outlined !text-[16px]">add</span> Create RFQ
                   </button>
                 )}
+                <button 
+                  onClick={() => setShowInlineReply(!showInlineReply)}
+                  className="flex items-center gap-1 px-3 py-1.5 border border-blue-300 bg-blue-50 text-blue-700 rounded text-[12px] font-medium hover:bg-blue-100"
+                >
+                  <span className="material-symbols-outlined !text-[16px]">reply</span> Reply
+                </button>
                 <button 
                   onClick={() => handleMarkNeedsReview(selectedMessage)}
                   className="flex items-center gap-1 px-3 py-1.5 border border-amber-300 bg-amber-50 text-amber-700 rounded text-[12px] font-medium hover:bg-amber-100"
@@ -1287,6 +1420,95 @@ const Inbox: React.FC = () => {
                 </button>
               ))}
             </div>
+
+            {/* Inline Reply Section */}
+            {showInlineReply && selectedMessage && (
+              <div className="border-b border-[var(--erp-border)] bg-blue-50/30 p-4 shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-[12px] font-bold text-[var(--erp-text)] uppercase tracking-wider">
+                    Quick Reply
+                  </h4>
+                  <button
+                    onClick={() => setShowInlineReply(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <span className="material-symbols-outlined !text-[18px]">close</span>
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-[11px] text-[var(--erp-text-muted)] space-y-1">
+                    <div><strong>To:</strong> {selectedMessage.from || selectedMessage.sender}</div>
+                    <div><strong>Subject:</strong> Re: {selectedMessage.subject}</div>
+                  </div>
+                  <textarea
+                    value={inlineReply}
+                    onChange={(e) => setInlineReply(e.target.value)}
+                    placeholder="Type your reply..."
+                    className="w-full h-32 border border-[var(--erp-border)] rounded px-3 py-2 text-sm focus:ring-1 focus:ring-[var(--erp-accent)] resize-none"
+                    disabled={sendingInlineReply}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => {
+                        setShowInlineReply(false);
+                        setInlineReply('');
+                      }}
+                      disabled={sendingInlineReply}
+                      className="px-3 py-1.5 border border-[var(--erp-border)] rounded text-[12px] font-medium hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSendInlineReply}
+                      disabled={sendingInlineReply || !inlineReply.trim()}
+                      className="btn btn-primary btn-sm"
+                    >
+                      {sendingInlineReply ? 'Sending...' : 'Send Reply'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Email Thread Display */}
+            {threadMessages.length > 1 && (
+              <div className="border-b border-[var(--erp-border)] bg-slate-50 p-4 shrink-0">
+                <h4 className="text-[12px] font-bold text-[var(--erp-text)] uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span className="material-symbols-outlined !text-[16px]">forum</span>
+                  Email Thread ({threadMessages.length} messages)
+                </h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {loadingThread ? (
+                    <div className="text-center py-4 text-sm text-slate-400">
+                      <span className="material-symbols-outlined animate-spin">refresh</span>
+                      <p>Loading thread...</p>
+                    </div>
+                  ) : (
+                    threadMessages.map((threadMsg, idx) => (
+                      <div 
+                        key={threadMsg.id}
+                        className={`p-2 rounded border text-[11px] ${
+                          threadMsg.id === selectedMessage?.id
+                            ? 'border-blue-300 bg-blue-50'
+                            : 'border-slate-200 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold text-[var(--erp-text)]">{threadMsg.sender}</span>
+                          <span className="text-[10px] text-[var(--erp-text-muted)]">{threadMsg.timestamp}</span>
+                        </div>
+                        <p className="text-[var(--erp-text-muted)] line-clamp-2">{threadMsg.preview || threadMsg.subject}</p>
+                        {threadMsg.id === selectedMessage?.id && (
+                          <span className="inline-block mt-1 text-[9px] bg-blue-600 text-white px-1.5 py-0.5 rounded">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Tab Content */}
             <div className="flex-1 overflow-y-auto p-5">

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
@@ -22,11 +23,16 @@ import { AccountingIntegrationsModule } from './integrations/accounting-integrat
 import { ImportsModule } from './imports/imports.module';
 import { ZohoModule } from './integrations/zoho/zoho.module';
 import { OdooModule } from './integrations/odoo/odoo.module';
+import { ConversationsModule } from './conversations/conversations.module';
+import { AssistanceModule } from './assistance/assistance.module';
+import { OrdersModule } from './orders/orders.module';
+import { EmailTemplatesModule } from './email-templates/email-templates.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     CommonModule,
     AuthModule,
     ProductsModule,
@@ -50,6 +56,10 @@ import { AppService } from './app.service';
     ZohoModule,
     OdooModule,
     ImportsModule,
+    ConversationsModule,
+    AssistanceModule,
+    OrdersModule,
+    EmailTemplatesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -6,6 +6,9 @@ type PaymentDelegate = PrismaClient['payment'];
 type AccountingIntegrationDelegate = PrismaClient['accountingIntegration'];
 type AccountingExportDelegate = PrismaClient['accountingExport'];
 type IntegrationMappingDelegate = PrismaClient['integrationMapping'];
+type AssistanceTicketDelegate = PrismaClient['assistanceTicket'];
+type AssistancePurchaseOrderDelegate = PrismaClient['assistancePurchaseOrder'];
+type EmailTemplateDelegate = PrismaClient['emailTemplate'];
 export declare class PrismaService implements OnModuleInit, OnModuleDestroy {
     private prismaClient;
     get user(): Prisma.UserDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
@@ -37,6 +40,9 @@ export declare class PrismaService implements OnModuleInit, OnModuleDestroy {
     get accountingIntegration(): AccountingIntegrationDelegate;
     get accountingExport(): AccountingExportDelegate;
     get integrationMapping(): IntegrationMappingDelegate;
+    get assistanceTicket(): AssistanceTicketDelegate;
+    get assistancePurchaseOrder(): AssistancePurchaseOrderDelegate;
+    get emailTemplate(): EmailTemplateDelegate;
     get db(): PrismaClient;
     $transaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T>;
     onModuleInit(): Promise<void>;

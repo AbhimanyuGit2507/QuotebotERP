@@ -122,6 +122,19 @@ export class QuotationsController {
     return this.quotationsService.sendByEmail(id, user.tenant_id, body);
   }
 
+  @Get(':id/purchase-orders')
+  getPurchaseOrders(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.quotationsService.getRelatedPurchaseOrders(id, user.tenant_id);
+  }
+
+  @Get(':id/invoices')
+  getInvoices(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quotationsService.getRelatedInvoices(id, user.tenant_id);
+  }
+
   @Delete(':id')
   remove(
     @Param('id') id: string,

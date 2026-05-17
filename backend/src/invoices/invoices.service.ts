@@ -115,6 +115,11 @@ export class InvoicesService {
   ) {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id: invoiceId, tenant_id: tenantId },
+      include: {
+        quotation: {
+          select: { conversation_id: true },
+        },
+      },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
 
@@ -139,7 +144,70 @@ export class InvoicesService {
       data: { paid_amount: paid, status },
     });
 
+    // Update conversation stage to PAID if full payment received
+    if (status === 'paid' && invoice.quotation?.conversation_id) {
+      await this.prisma.conversation.update({
+        where: { id: invoice.quotation.conversation_id },
+        data: {
+          current_stage: 'PAID',
+          updated_at: new Date(),
+        },
+      });
+    }
+
     return payment;
+  }
+
+  async getRelatedQuotation(tenantId: string, invoiceId: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, tenant_id: tenantId },
+      include: {
+        quotation: {
+          include: {
+            client: true,
+            items: true,
+          },
+        },
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Invoice not found');
+    }
+
+    return invoice.quotation;
+  }
+
+  async getRelatedPurchaseOrders(tenantId: string, invoiceId: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, tenant_id: tenantId },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException('Invoice not found');
+    }
+
+    return this.prisma.assistancePurchaseOrder.findMany({
+      where: {
+        invoice_id: invoiceId,
+        tenant_id: tenantId,
+      },
+      include: {
+        conversation: {
+          select: {
+            id: true,
+            customer_name: true,
+          },
+        },
+        quotation: {
+          select: {
+            id: true,
+            number: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
   }
 }
 

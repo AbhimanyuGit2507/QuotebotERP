@@ -9,11 +9,12 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Injectable()
 export class InternalOrJwtAuthGuard implements CanActivate {
-  private readonly internalKey = process.env.N8N_SECRET || 'UNSET_N8N_SECRET';
+  private readonly internalKey =
+    process.env.INTERNAL_API_KEY || 'UNSET_INTERNAL_API_KEY';
   private readonly jwtAuthGuard = new JwtAuthGuard();
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    if (this.internalKey === 'UNSET_N8N_SECRET') {
+    if (this.internalKey === 'UNSET_INTERNAL_API_KEY') {
       const canActivate = await this.jwtAuthGuard.canActivate(context);
       return Boolean(canActivate);
     }
@@ -34,9 +35,9 @@ export class InternalOrJwtAuthGuard implements CanActivate {
 
       // Populate request.user for @CurrentUser() compatibility.
       request.user = {
-        id: 'internal-n8n',
-        email: 'internal@n8n.local',
-        name: 'Internal n8n Worker',
+        id: 'internal-automation',
+        email: 'internal@automation.local',
+        name: 'Internal Automation Script',
         role: 'system',
         permissions: ['*'],
         tenant_id: tenantId,

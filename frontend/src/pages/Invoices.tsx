@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import PageLayout from '../components/common/PageLayout';
 import { apiRequest } from '../services/api';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 
 type Payment = {
   id: string;
@@ -29,6 +30,9 @@ type Invoice = {
   quotation?: { id: string; number?: string } | null;
   payments: Payment[];
   search_tokens?: string[];
+  sent_email_subject?: string | null;
+  sent_email_body?: string | null;
+  sent_at?: string | null;
 };
 
 const formatMoney = (amount: number, currency: string) =>
@@ -40,6 +44,7 @@ const formatMoney = (amount: number, currency: string) =>
 
 const Invoices: React.FC = () => {
   const { showToast, companySettings, quotes, clients, addClient } = useApp();
+  const { authFetch } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -69,6 +74,9 @@ const Invoices: React.FC = () => {
     pan: '',
     tier: 'new',
   });
+  const [relatedQuotation, setRelatedQuotation] = useState<any>(null);
+  const [relatedPOs, setRelatedPOs] = useState<any[]>([]);
+  const [loadingRelated, setLoadingRelated] = useState(false);
 
   const selectedId = useMemo(() => {
     if (!id || !invoices.some((inv) => inv.id === id)) {
@@ -96,6 +104,38 @@ const Invoices: React.FC = () => {
       navigate(`/invoices/${selectedId}`, { replace: true });
     }
   }, [id, selectedId, navigate]);
+
+  // Fetch related entities when invoice is selected
+  useEffect(() => {
+    if (selectedId) {
+      fetchRelatedEntities(selectedId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  const fetchRelatedEntities = async (invoiceId: string) => {
+    setLoadingRelated(true);
+    try {
+      const [quotationResponse, posResponse] = await Promise.all([
+        authFetch(`/invoices/${invoiceId}/quotation`),
+        authFetch(`/invoices/${invoiceId}/purchase-orders`),
+      ]);
+      
+      if (quotationResponse.ok) {
+        const quotation = await quotationResponse.json();
+        setRelatedQuotation(quotation);
+      }
+      
+      if (posResponse.ok) {
+        const pos = await posResponse.json();
+        setRelatedPOs(pos);
+      }
+    } catch (error) {
+      console.error('Error fetching related entities:', error);
+    } finally {
+      setLoadingRelated(false);
+    }
+  };
 
   const loadInvoices = useCallback(async () => {
     try {
@@ -426,7 +466,7 @@ const Invoices: React.FC = () => {
                 </div>
               </div>
 
-              <div>
+              <div className="mb-6">
                 <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest border-b border-[var(--erp-border)] pb-1 mb-3">Payments</h3>
                 <div className="overflow-hidden rounded border border-[var(--erp-border)]">
                   <table className="w-full text-[12px]">
@@ -460,6 +500,117 @@ const Invoices: React.FC = () => {
                       )}
                     </tbody>
                   </table>
+                </div>
+              </div>
+
+              {/* Sent Email Details */}
+              {(selectedInvoice as any).sent_email_subject && (
+                <div className="mb-6">
+                  <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest border-b border-[var(--erp-border)] pb-1 mb-3">
+                    Sent Email Details
+                  </h3>
+                  <div className="bg-slate-50 rounded-lg p-4 space-y-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 uppercase">Subject:</label>
+                      <p className="text-[13px] text-slate-800 mt-1">{(selectedInvoice as any).sent_email_subject}</p>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 uppercase">Sent At:</label>
+                      <p className="text-[13px] text-slate-800 mt-1">
+                        {(selectedInvoice as any).sent_at ? new Date((selectedInvoice as any).sent_at).toLocaleString() : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-600 uppercase">Email Body:</label>
+                      <div className="mt-2 bg-white border border-slate-200 rounded p-3 text-[12px] text-slate-700 whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
+                        {(selectedInvoice as any).sent_email_body || 'No email body available'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Related Entities */}
+              <div>
+                <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest border-b border-[var(--erp-border)] pb-1 mb-3">
+                  Related Quotation & Purchase Orders
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Quotation */}
+                  <div className="bg-slate-50 rounded-lg p-4">
+                    <h4 className="text-[12px] font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                      <span className="material-symbols-outlined !text-[16px]">receipt_long</span>
+                      Quotation
+                    </h4>
+                    {loadingRelated ? (
+                      <p className="text-[11px] text-slate-500">Loading...</p>
+                    ) : relatedQuotation ? (
+                      <Link
+                        to={`/quotations/${relatedQuotation.id}`}
+                        className="block bg-white border border-slate-200 rounded p-3 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[12px] font-medium text-blue-600">
+                            {relatedQuotation.number}
+                          </span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                            relatedQuotation.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                            relatedQuotation.status === 'sent' ? 'bg-blue-100 text-blue-700' :
+                            'bg-slate-100 text-slate-700'
+                          }`}>
+                            {relatedQuotation.status?.toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          Client: {relatedQuotation.client?.name || 'N/A'}
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                          Items: {relatedQuotation.items?.length || 0}
+                        </p>
+                      </Link>
+                    ) : (
+                      <p className="text-[11px] text-slate-500">No quotation linked</p>
+                    )}
+                  </div>
+
+                  {/* Purchase Orders */}
+                  <div className="bg-slate-50 rounded-lg p-4">
+                    <h4 className="text-[12px] font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                      <span className="material-symbols-outlined !text-[16px]">shopping_cart</span>
+                      Purchase Orders
+                    </h4>
+                    {loadingRelated ? (
+                      <p className="text-[11px] text-slate-500">Loading...</p>
+                    ) : relatedPOs.length > 0 ? (
+                      <div className="space-y-2">
+                        {relatedPOs.map((po) => (
+                          <Link
+                            key={po.id}
+                            to={`/orders/${po.id}`}
+                            className="block bg-white border border-slate-200 rounded p-2 hover:border-green-400 hover:bg-green-50 transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-[12px] font-medium text-green-600">
+                                {po.po_number || `PO-${po.id.slice(0, 8)}`}
+                              </span>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                po.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                                po.status === 'APPROVED' ? 'bg-blue-100 text-blue-700' :
+                                'bg-amber-100 text-amber-700'
+                              }`}>
+                                {po.status}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-1">
+                              Confidence: {po.confidence ? `${po.confidence}%` : 'N/A'}
+                            </p>
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-500">No purchase orders yet</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -59,6 +59,10 @@ export declare class ClientsController {
         tax: number;
         total: number;
         terms_conditions: string | null;
+        conversation_id: string | null;
+        sent_email_subject: string | null;
+        sent_email_body: string | null;
+        sent_at: Date | null;
     })[]>;
     updateTier(id: string, user: AuthenticatedUser, body: UpdateClientTierDto): Promise<{
         name: string;
