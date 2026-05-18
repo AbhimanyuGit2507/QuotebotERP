@@ -11,7 +11,14 @@ import {
   Req,
   BadRequestException,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiParam,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AccountingService } from './accounting.service';
@@ -22,6 +29,7 @@ import { CreateJournalEntryDto } from './dtos/create-journal-entry.dto';
 type AuthRequest = Request & { user?: { id?: string; tenant_id?: string } };
 
 @ApiTags('Accounting')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('accounting')
 export class AccountingController {
@@ -36,16 +44,25 @@ export class AccountingController {
   /* ─── Chart of Accounts ─── */
 
   @Get('chart-of-accounts')
+  @ApiOperation({ summary: 'Get the chart of accounts (hierarchical)' })
+  @ApiResponse({ status: 200, description: 'Hierarchical chart of accounts' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async listAccounts(@Req() req: AuthRequest) {
     return this.accountingService.getChartOfAccounts(this.getTenantId(req));
   }
 
   @Get('chart-of-accounts/all')
+  @ApiOperation({ summary: 'Get all accounts (flat list)' })
+  @ApiResponse({ status: 200, description: 'Flat list of all accounts' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async listAllAccounts(@Req() req: AuthRequest) {
     return this.accountingService.getAllAccounts(this.getTenantId(req));
   }
 
   @Post('chart-of-accounts')
+  @ApiOperation({ summary: 'Create a new account in the chart of accounts' })
+  @ApiResponse({ status: 201, description: 'Account created successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async createAccount(
     @Req() req: AuthRequest,
     @Body() dto: CreateAccountDto,
@@ -54,6 +71,10 @@ export class AccountingController {
   }
 
   @Put('chart-of-accounts/:id')
+  @ApiOperation({ summary: 'Update an account in the chart of accounts' })
+  @ApiParam({ name: 'id', description: 'Account ID' })
+  @ApiResponse({ status: 200, description: 'Account updated successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async updateAccount(
     @Req() req: AuthRequest,
     @Param('id') id: string,
@@ -63,11 +84,18 @@ export class AccountingController {
   }
 
   @Delete('chart-of-accounts/:id')
+  @ApiOperation({ summary: 'Delete an account from the chart of accounts' })
+  @ApiParam({ name: 'id', description: 'Account ID' })
+  @ApiResponse({ status: 200, description: 'Account deleted successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async deleteAccount(@Req() req: AuthRequest, @Param('id') id: string) {
     return this.accountingService.deleteAccount(this.getTenantId(req), id);
   }
 
   @Post('chart-of-accounts/seed')
+  @ApiOperation({ summary: 'Seed default chart of accounts for the tenant' })
+  @ApiResponse({ status: 201, description: 'Default accounts seeded successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async seedAccounts(@Req() req: AuthRequest) {
     return this.accountingService.seedDefaultAccounts(this.getTenantId(req));
   }
@@ -75,6 +103,14 @@ export class AccountingController {
   /* ─── Journal Entries ─── */
 
   @Get('journal-entries')
+  @ApiOperation({ summary: 'List journal entries with filtering and pagination' })
+  @ApiResponse({ status: 200, description: 'Paginated list of journal entries' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number' })
+  @ApiQuery({ name: 'pageSize', required: false, description: 'Items per page' })
+  @ApiQuery({ name: 'startDate', required: false, description: 'Start date filter (ISO 8601)' })
+  @ApiQuery({ name: 'endDate', required: false, description: 'End date filter (ISO 8601)' })
+  @ApiQuery({ name: 'accountId', required: false, description: 'Filter by account ID' })
   async listJournalEntries(
     @Req() req: AuthRequest,
     @Query('page') page?: string,
@@ -93,6 +129,9 @@ export class AccountingController {
   }
 
   @Post('journal-entries')
+  @ApiOperation({ summary: 'Create a new journal entry' })
+  @ApiResponse({ status: 201, description: 'Journal entry created successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async createJournalEntry(
     @Req() req: AuthRequest,
     @Body() dto: CreateJournalEntryDto,
@@ -107,6 +146,10 @@ export class AccountingController {
   /* ─── Reports ─── */
 
   @Get('trial-balance')
+  @ApiOperation({ summary: 'Get trial balance report' })
+  @ApiResponse({ status: 200, description: 'Trial balance data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiQuery({ name: 'asOfDate', required: false, description: 'As-of date (ISO 8601)' })
   async getTrialBalance(
     @Req() req: AuthRequest,
     @Query('asOfDate') asOfDate?: string,
@@ -118,6 +161,11 @@ export class AccountingController {
   }
 
   @Get('profit-and-loss')
+  @ApiOperation({ summary: 'Get profit and loss report' })
+  @ApiResponse({ status: 200, description: 'Profit and loss data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiQuery({ name: 'startDate', required: false, description: 'Period start date (ISO 8601)' })
+  @ApiQuery({ name: 'endDate', required: false, description: 'Period end date (ISO 8601)' })
   async getProfitAndLoss(
     @Req() req: AuthRequest,
     @Query('startDate') startDate?: string,
@@ -131,6 +179,10 @@ export class AccountingController {
   }
 
   @Get('balance-sheet')
+  @ApiOperation({ summary: 'Get balance sheet report' })
+  @ApiResponse({ status: 200, description: 'Balance sheet data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiQuery({ name: 'asOfDate', required: false, description: 'As-of date (ISO 8601)' })
   async getBalanceSheet(
     @Req() req: AuthRequest,
     @Query('asOfDate') asOfDate?: string,
