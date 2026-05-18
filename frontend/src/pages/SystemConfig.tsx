@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import PageLayout from '../components/common/PageLayout';
+import { PromptModal } from '../components/common/Modals';
 import { CompanySettings, useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { EmailIntegrations } from '../components/EmailIntegrations';
@@ -106,6 +107,7 @@ const SystemConfig: React.FC = () => {
   }>({});
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importProvider, setImportProvider] = useState<'zoho' | 'odoo'>('zoho');
+  const [showOdooModal, setShowOdooModal] = useState(false);
 
   const [companyForm, setCompanyForm] = useState<CompanyProfileForm>(() =>
     buildCompanyProfileForm(user?.company_name || 'Quotebot', companySettings),
@@ -453,10 +455,13 @@ const SystemConfig: React.FC = () => {
     }
   };
 
-  const handleTestOdoo = async () => {
+  const handleTestOdoo = () => {
+    setShowOdooModal(true);
+  };
+
+  const executeTestOdoo = async (url: string) => {
+    if (!url) return;
     try {
-      const url = window.prompt('Enter Odoo JSON-RPC endpoint (e.g. https://odoo.example.com/jsonrpc)');
-      if (!url) return;
       const resp = await apiRequest('/integrations/odoo/test-connection', {
         method: 'POST',
         body: JSON.stringify({ url }),
@@ -642,6 +647,22 @@ const SystemConfig: React.FC = () => {
         isOpen={importModalOpen}
         onClose={() => setImportModalOpen(false)}
         showToast={(message: string, type?: string) => showToast(message, (type as any) || 'info')}
+      />
+      {/* Odoo JSON-RPC Endpoint Modal */}
+      <PromptModal
+        isOpen={showOdooModal}
+        onClose={() => setShowOdooModal(false)}
+        onConfirm={(url) => {
+          const trimmed = url.trim();
+          if (trimmed) {
+            void executeTestOdoo(trimmed);
+          }
+          setShowOdooModal(false);
+        }}
+        title="Test Odoo Connection"
+        fieldLabel="Odoo JSON-RPC Endpoint"
+        placeholder="https://odoo.example.com/jsonrpc"
+        confirmLabel="Test"
       />
     </>
   );

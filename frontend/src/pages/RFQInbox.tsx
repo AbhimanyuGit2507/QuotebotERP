@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import PageLayout from '../components/common/PageLayout';
+import { PromptModal } from '../components/common/Modals';
 import { useApp, RFQ, RFQLineItem } from '../context/AppContext';
 import { apiRequest, retryInboxMessageByRfq } from '../services/api';
 
@@ -24,6 +25,8 @@ const RFQInbox: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRFQ, setEditingRFQ] = useState<RFQ | null>(null);
   const [sendingEmailType, setSendingEmailType] = useState<'reply' | 'forward' | null>(null);
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [forwardTargetRfq, setForwardTargetRfq] = useState<RFQ | null>(null);
 
   useEffect(() => {
     if (!selectedId && id) {
@@ -244,19 +247,12 @@ const RFQInbox: React.FC = () => {
     }
   };
 
-  const handleForwardRFQ = async (rfq: RFQ) => {
-    const recipientInput = window.prompt('Enter recipient email for forwarding this RFQ summary:');
-    const recipient = recipientInput?.trim() || '';
+  const handleForwardRFQ = (rfq: RFQ) => {
+    setForwardTargetRfq(rfq);
+    setShowForwardModal(true);
+  };
 
-    if (!recipient) {
-      return;
-    }
-
-    if (!/^\S+@\S+\.\S+$/.test(recipient)) {
-      showToast('Please enter a valid recipient email address.', 'warning');
-      return;
-    }
-
+  const executeForwardRFQ = async (rfq: RFQ, recipient: string) => {
     const subject = `FWD: ${rfq.number} (${rfq.client})`;
     const body = `RFQ: ${rfq.number}\nClient: ${rfq.client}\nChannel: ${rfq.channel}\nPriority: ${rfq.priority}\nItems: ${rfq.items}\nValue: ${rfq.value}\nDue: ${rfq.dueDate || 'N/A'}\n\nNotes:\n${rfq.notes || '-'}`;
 
@@ -716,6 +712,28 @@ const RFQInbox: React.FC = () => {
           }}
         />
       )}
+      {/* Forward RFQ Email Modal */}
+      <PromptModal
+        isOpen={showForwardModal}
+        onClose={() => { setShowForwardModal(false); setForwardTargetRfq(null); }}
+        onConfirm={(recipient) => {
+          const trimmed = recipient.trim();
+          if (!trimmed) return;
+          if (!/^\S+@\S+\.\S+$/.test(trimmed)) {
+            showToast('Please enter a valid recipient email address.', 'warning');
+            return;
+          }
+          if (forwardTargetRfq) {
+            void executeForwardRFQ(forwardTargetRfq, trimmed);
+          }
+          setShowForwardModal(false);
+          setForwardTargetRfq(null);
+        }}
+        title="Forward RFQ"
+        fieldLabel="Recipient Email"
+        placeholder="Enter recipient email..."
+        confirmLabel="Forward"
+      />
     </PageLayout>
   );
 };
