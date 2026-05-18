@@ -714,10 +714,17 @@ let RfqsService = RfqsService_1 = class RfqsService {
         if (linkedQuotationId && options?.forceDeleteLinkedQuotation) {
             await this.prisma.quotationItem.deleteMany({ where: { quotation_id: linkedQuotationId } });
             await this.prisma.quotationVersion.deleteMany({ where: { quotation_id: linkedQuotationId } });
+            await this.prisma.invoice.deleteMany({ where: { quotation_id: linkedQuotationId } });
+            await this.prisma.assistancePurchaseOrder.deleteMany({ where: { quotation_id: linkedQuotationId } });
             await this.prisma.quotation.delete({ where: { id: linkedQuotationId } }).catch(() => { });
         }
         await this.prisma.rFQItem.deleteMany({ where: { rfq_id: id } });
-        await this.prisma.rFQ.delete({ where: { id } });
+        try {
+            await this.prisma.rFQ.delete({ where: { id } });
+        }
+        catch {
+            await this.prisma.rFQ.update({ where: { id }, data: { deleted_at: new Date() } });
+        }
         return { message: 'RFQ permanently deleted' };
     }
     async updateStatus(id, tenantId, status) {

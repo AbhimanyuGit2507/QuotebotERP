@@ -8,6 +8,7 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -19,6 +20,7 @@ import { UpdateTemplateDto } from './dtos/update-template.dto';
 import { CreateAutomationRuleDto } from './dtos/create-automation-rule.dto';
 import { UpdateAutomationRuleDto } from './dtos/update-automation-rule.dto';
 
+@ApiTags('Settings')
 @UseGuards(JwtAuthGuard)
 @Controller('settings')
 export class SettingsController {

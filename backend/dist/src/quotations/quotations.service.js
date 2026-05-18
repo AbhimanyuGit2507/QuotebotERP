@@ -159,6 +159,14 @@ let QuotationsService = class QuotationsService {
         });
         const itemNames = items.map((i) => i.product_name || '');
         const { display, tokens } = this.buildDisplayAndTokens('QT', client?.name || '', itemNames);
+        let approvalStatus = 'not_required';
+        const companySettings = await this.prisma.settingsCompany.findUnique({
+            where: { tenant_id: tenantId },
+        });
+        if (companySettings?.quotation_approval_threshold &&
+            totals.total > Number(companySettings.quotation_approval_threshold)) {
+            approvalStatus = 'pending';
+        }
         const quotation = await this.prisma.quotation.create({
             data: {
                 tenant_id: tenantId,
@@ -171,6 +179,7 @@ let QuotationsService = class QuotationsService {
                     ? new Date(body.valid_until)
                     : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                 status: body.status ?? 'draft',
+                approval_status: approvalStatus,
                 terms_conditions: body.terms_conditions,
                 subtotal: totals.subtotal,
                 tax: totals.tax,
@@ -311,8 +320,44 @@ let QuotationsService = class QuotationsService {
         }
         await this.prisma.quotationItem.deleteMany({ where: { quotation_id: id } });
         await this.prisma.quotationVersion.deleteMany({ where: { quotation_id: id } });
-        await this.prisma.quotation.delete({ where: { id } });
+        await this.prisma.invoice.deleteMany({ where: { quotation_id: id } });
+        await this.prisma.assistancePurchaseOrder.deleteMany({ where: { quotation_id: id } });
+        try {
+            await this.prisma.quotation.delete({ where: { id } });
+        }
+        catch {
+            await this.prisma.quotation.update({ where: { id }, data: { deleted_at: new Date() } });
+        }
         return { message: 'Quotation permanently deleted' };
+    }
+    async approve(id, tenantId, userId) {
+        const quotation = await this.findOne(id, tenantId);
+        if (quotation.approval_status !== 'pending') {
+            throw new common_1.BadRequestException(`Quotation is not pending approval (current status: ${quotation.approval_status})`);
+        }
+        return this.prisma.quotation.update({
+            where: { id },
+            data: {
+                approval_status: 'approved',
+                approved_by: userId,
+                approved_at: new Date(),
+            },
+            include: { client: true, items: true, rfq: true },
+        });
+    }
+    async reject(id, tenantId, userId, reason) {
+        const quotation = await this.findOne(id, tenantId);
+        if (quotation.approval_status !== 'pending') {
+            throw new common_1.BadRequestException(`Quotation is not pending approval (current status: ${quotation.approval_status})`);
+        }
+        return this.prisma.quotation.update({
+            where: { id },
+            data: {
+                approval_status: 'rejected',
+                rejection_reason: reason,
+            },
+            include: { client: true, items: true, rfq: true },
+        });
     }
     async duplicate(id, tenantId) {
         const quotation = await this.findOne(id, tenantId);
@@ -336,6 +381,9 @@ let QuotationsService = class QuotationsService {
     }
     async sendByEmail(id, tenantId, body) {
         const quotation = await this.findOne(id, tenantId);
+        if (quotation.approval_status === 'pending') {
+            throw new common_1.BadRequestException('Quotation is pending approval and cannot be sent');
+        }
         const recipients = (body.to || []).filter((email) => typeof email === 'string' && email.trim().length > 0);
         if (recipients.length === 0 && quotation.client.email) {
             recipients.push(quotation.client.email);

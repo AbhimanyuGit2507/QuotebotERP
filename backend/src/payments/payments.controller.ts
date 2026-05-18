@@ -7,12 +7,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import { RecordPaymentDto } from './dtos/record-payment.dto';
 
+@ApiTags('Payments')
 @UseGuards(JwtAuthGuard)
 @Controller('payments')
 export class PaymentsController {

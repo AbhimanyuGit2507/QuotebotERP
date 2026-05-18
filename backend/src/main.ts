@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, BadRequestException, Logger } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -82,6 +83,17 @@ async function bootstrap() {
       },
     }),
   );
+
+  // Swagger / OpenAPI documentation
+  const config = new DocumentBuilder()
+    .setTitle('QuotebotERP API')
+    .setDescription('API documentation for QuotebotERP - AI-Powered ERP for Modern Businesses')
+    .setVersion('1.0')
+    .addCookieAuth('qb_access_token')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/swagger', app, document);
 
   const port = process.env.PORT || process.env.API_PORT || 3001;
   await app.listen(port);

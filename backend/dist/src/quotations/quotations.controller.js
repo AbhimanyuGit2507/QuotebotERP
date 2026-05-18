@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.QuotationsController = void 0;
 const common_1 = require("@nestjs/common");
+const swagger_1 = require("@nestjs/swagger");
 const quotations_service_1 = require("./quotations.service");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 const current_user_decorator_1 = require("../common/decorators/current-user.decorator");
@@ -75,6 +76,12 @@ let QuotationsController = class QuotationsController {
     }
     getInvoices(id, user) {
         return this.quotationsService.getRelatedInvoices(id, user.tenant_id);
+    }
+    approve(id, user) {
+        return this.quotationsService.approve(id, user.tenant_id, user.id);
+    }
+    reject(id, reason, user) {
+        return this.quotationsService.reject(id, user.tenant_id, user.id, reason);
     }
     remove(id, user, force, forceDelete) {
         const forceFlag = Boolean(force === 'true' || force === '1');
@@ -187,6 +194,25 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], QuotationsController.prototype, "getInvoices", null);
 __decorate([
+    (0, common_1.Post)(':id/approve'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], QuotationsController.prototype, "approve", null);
+__decorate([
+    (0, common_1.Post)(':id/reject'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)('reason')),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", void 0)
+], QuotationsController.prototype, "reject", null);
+__decorate([
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
@@ -197,6 +223,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], QuotationsController.prototype, "remove", null);
 exports.QuotationsController = QuotationsController = __decorate([
+    (0, swagger_1.ApiTags)('Quotations'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('quotations'),
     __metadata("design:paramtypes", [quotations_service_1.QuotationsService])

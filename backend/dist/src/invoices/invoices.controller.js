@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InvoicesController = void 0;
 const common_1 = require("@nestjs/common");
+const swagger_1 = require("@nestjs/swagger");
 const invoices_service_1 = require("./invoices.service");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 const common_2 = require("@nestjs/common");
@@ -122,6 +123,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], InvoicesController.prototype, "recordPayment", null);
 exports.InvoicesController = InvoicesController = __decorate([
+    (0, swagger_1.ApiTags)('Invoices'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('invoices'),
     __metadata("design:paramtypes", [invoices_service_1.InvoicesService])

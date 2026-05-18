@@ -21,6 +21,24 @@ let AuditService = class AuditService {
     async findAll(tenantId, params = {}) {
         const { skip, take, page, pageSize } = (0, pagination_util_1.parsePaginationParams)(params);
         const where = { tenant_id: tenantId };
+        if (params.entityType) {
+            where.entity_type = params.entityType;
+        }
+        if (params.action) {
+            where.action = params.action;
+        }
+        if (params.userId) {
+            where.user_id = params.userId;
+        }
+        if (params.dateFrom || params.dateTo) {
+            where.created_at = {};
+            if (params.dateFrom) {
+                where.created_at.gte = new Date(params.dateFrom);
+            }
+            if (params.dateTo) {
+                where.created_at.lte = new Date(params.dateTo);
+            }
+        }
         const [data, total] = await Promise.all([
             this.prisma.auditLog.findMany({
                 where,

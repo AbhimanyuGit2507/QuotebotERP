@@ -1,9 +1,16 @@
 import { PrismaService } from '../prisma.service';
 import { PaginationParams, PaginatedResult } from '../common/utils/pagination.util';
+export interface AuditFilterParams extends PaginationParams {
+    entityType?: string;
+    action?: string;
+    userId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+}
 export declare class AuditService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    findAll(tenantId: string, params?: PaginationParams): Promise<PaginatedResult<any>>;
+    findAll(tenantId: string, params?: AuditFilterParams): Promise<PaginatedResult<any>>;
     findByEntity(tenantId: string, entityType: string, entityId: string): Promise<({
         user: {
             name: string;

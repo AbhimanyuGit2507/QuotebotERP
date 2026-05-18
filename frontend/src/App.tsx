@@ -20,6 +20,8 @@ import Landing from './pages/Landing';
 import AdminConsole from './pages/AdminConsole';
 import Invoices from './pages/Invoices';
 import EmailTemplates from './pages/EmailTemplates';
+import AuditLog from './pages/AuditLog';
+import Payments from './pages/Payments';
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const { isAuthenticated, isInitializing } = useAuth();
@@ -95,6 +97,8 @@ const AppRoutes = () => {
       <Route path="/client-ledger/:id?" element={<ProtectedRoute><ClientLedger /></ProtectedRoute>} />
       <Route path="/system-config" element={<ProtectedRoute><SystemConfig /></ProtectedRoute>} />
       <Route path="/email-templates" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
+      <Route path="/audit-log" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
+      <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
     </Routes>
   );
 };

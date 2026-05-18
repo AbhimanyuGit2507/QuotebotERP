@@ -213,6 +213,19 @@ export class QuotationsService {
       client?.name || '',
       itemNames,
     );
+
+    // Determine approval status based on threshold
+    let approvalStatus = 'not_required';
+    const companySettings = await this.prisma.settingsCompany.findUnique({
+      where: { tenant_id: tenantId },
+    });
+    if (
+      companySettings?.quotation_approval_threshold &&
+      totals.total > Number(companySettings.quotation_approval_threshold)
+    ) {
+      approvalStatus = 'pending';
+    }
+
     const quotation = await this.prisma.quotation.create({
       data: {
         tenant_id: tenantId,
@@ -226,6 +239,7 @@ export class QuotationsService {
             ? new Date(body.valid_until)
             : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: body.status ?? 'draft',
+        approval_status: approvalStatus,
         terms_conditions: body.terms_conditions,
         subtotal: totals.subtotal,
         tax: totals.tax,
@@ -408,11 +422,58 @@ export class QuotationsService {
       await this.prisma.rFQ.deleteMany({ where: { quotation_id: id } });
     }
 
-    // Hard-delete items first, then quotation
+    // Hard-delete related records first, then quotation
     await this.prisma.quotationItem.deleteMany({ where: { quotation_id: id } });
     await this.prisma.quotationVersion.deleteMany({ where: { quotation_id: id } });
-    await this.prisma.quotation.delete({ where: { id } });
+    // Delete linked invoices and purchase orders to avoid FK violations
+    await this.prisma.invoice.deleteMany({ where: { quotation_id: id } });
+    await this.prisma.assistancePurchaseOrder.deleteMany({ where: { quotation_id: id } });
+    try {
+      await this.prisma.quotation.delete({ where: { id } });
+    } catch {
+      // Fall back to soft-delete if hard delete fails due to remaining FK constraints
+      await this.prisma.quotation.update({ where: { id }, data: { deleted_at: new Date() } });
+    }
     return { message: 'Quotation permanently deleted' };
+  }
+
+  async approve(id: string, tenantId: string, userId: string) {
+    const quotation = await this.findOne(id, tenantId);
+
+    if (quotation.approval_status !== 'pending') {
+      throw new BadRequestException(
+        `Quotation is not pending approval (current status: ${quotation.approval_status})`,
+      );
+    }
+
+    return this.prisma.quotation.update({
+      where: { id },
+      data: {
+        approval_status: 'approved',
+        approved_by: userId,
+        approved_at: new Date(),
+      },
+      include: { client: true, items: true, rfq: true },
+    });
+  }
+
+  async reject(id: string, tenantId: string, userId: string, reason: string) {
+    const quotation = await this.findOne(id, tenantId);
+
+    if (quotation.approval_status !== 'pending') {
+      throw new BadRequestException(
+        `Quotation is not pending approval (current status: ${quotation.approval_status})`,
+      );
+    }
+
+    return this.prisma.quotation.update({
+      where: { id },
+      data: {
+        approval_status: 'rejected',
+        rejection_reason: reason,
+      },
+      include: { client: true, items: true, rfq: true },
+    });
   }
 
   async duplicate(id: string, tenantId: string) {
@@ -447,6 +508,12 @@ export class QuotationsService {
     },
   ) {
     const quotation = await this.findOne(id, tenantId);
+
+    if (quotation.approval_status === 'pending') {
+      throw new BadRequestException(
+        'Quotation is pending approval and cannot be sent',
+      );
+    }
 
     const recipients = (body.to || []).filter(
       (email) => typeof email === 'string' && email.trim().length > 0,

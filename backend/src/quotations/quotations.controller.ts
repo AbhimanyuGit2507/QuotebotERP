@@ -11,6 +11,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { QuotationsService } from './quotations.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -21,6 +22,7 @@ import { CreateQuotationDto } from './dtos/create-quotation.dto';
 import { UpdateQuotationDto } from './dtos/update-quotation.dto';
 import { SendQuotationEmailDto } from './dtos/send-quotation-email.dto';
 
+@ApiTags('Quotations')
 @UseGuards(JwtAuthGuard)
 @Controller('quotations')
 export class QuotationsController {
@@ -144,6 +146,22 @@ export class QuotationsController {
   @Get(':id/invoices')
   getInvoices(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.quotationsService.getRelatedInvoices(id, user.tenant_id);
+  }
+
+  @Post(':id/approve')
+  @UseGuards(JwtAuthGuard)
+  approve(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quotationsService.approve(id, user.tenant_id, user.id);
+  }
+
+  @Post(':id/reject')
+  @UseGuards(JwtAuthGuard)
+  reject(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.quotationsService.reject(id, user.tenant_id, user.id, reason);
   }
 
   @Delete(':id')

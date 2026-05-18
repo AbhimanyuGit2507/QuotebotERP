@@ -10,6 +10,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { RfqsService } from './rfqs.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -22,6 +23,7 @@ import { UpdateRfqStatusDto } from './dtos/update-rfq-status.dto';
 import { CreateRfqFromEmailDto } from './dtos/create-rfq-from-email.dto';
 import { SendRfqEmailDto } from './dtos/send-rfq-email.dto';
 
+@ApiTags('RFQs')
 @UseGuards(JwtAuthGuard)
 @Controller('rfqs')
 export class RfqsController {

@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { InvoicesService } from './invoices.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -15,6 +16,7 @@ import { BadRequestException } from '@nestjs/common';
 
 type AuthRequest = Request & { user?: { tenant_id?: string } };
 
+@ApiTags('Invoices')
 @UseGuards(JwtAuthGuard)
 @Controller('invoices')
 export class InvoicesController {

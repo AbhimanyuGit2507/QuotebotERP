@@ -3,7 +3,7 @@ import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.
 export declare class AuditController {
     private readonly auditService;
     constructor(auditService: AuditService);
-    findAll(user: AuthenticatedUser, page?: string, pageSize?: string): Promise<import("../common/utils/pagination.util").PaginatedResult<any>>;
+    findAll(user: AuthenticatedUser, page?: string, pageSize?: string, entityType?: string, action?: string, userId?: string, dateFrom?: string, dateTo?: string): Promise<import("../common/utils/pagination.util").PaginatedResult<any>>;
     findByEntity(entityType: string, entityId: string, user: AuthenticatedUser): Promise<({
         user: {
             name: string;
