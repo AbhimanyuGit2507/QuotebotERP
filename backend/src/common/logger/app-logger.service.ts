@@ -2,7 +2,12 @@ import { ConsoleLogger, Injectable, Scope } from '@nestjs/common';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class AppLoggerService extends ConsoleLogger {
-  private formatLogEntry(level: string, message: any, context?: string, trace?: string) {
+  private formatLogEntry(
+    level: string,
+    message: any,
+    context?: string,
+    trace?: string,
+  ) {
     const entry: Record<string, any> = {
       timestamp: new Date().toISOString(),
       level,
@@ -15,7 +20,9 @@ export class AppLoggerService extends ConsoleLogger {
 
   log(message: any, context?: string) {
     if (process.env.NODE_ENV === 'production') {
-      process.stdout.write(this.formatLogEntry('info', message, context) + '\n');
+      process.stdout.write(
+        this.formatLogEntry('info', message, context) + '\n',
+      );
     } else {
       super.log(message, context);
     }
@@ -23,7 +30,9 @@ export class AppLoggerService extends ConsoleLogger {
 
   error(message: any, trace?: string, context?: string) {
     if (process.env.NODE_ENV === 'production') {
-      process.stderr.write(this.formatLogEntry('error', message, context, trace) + '\n');
+      process.stderr.write(
+        this.formatLogEntry('error', message, context, trace) + '\n',
+      );
     } else {
       super.error(message, trace, context);
     }
@@ -31,7 +40,9 @@ export class AppLoggerService extends ConsoleLogger {
 
   warn(message: any, context?: string) {
     if (process.env.NODE_ENV === 'production') {
-      process.stdout.write(this.formatLogEntry('warn', message, context) + '\n');
+      process.stdout.write(
+        this.formatLogEntry('warn', message, context) + '\n',
+      );
     } else {
       super.warn(message, context);
     }

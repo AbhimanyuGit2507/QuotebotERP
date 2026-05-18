@@ -55,8 +55,9 @@ export class ProductsService {
         where,
         include: { category: true },
         orderBy: {
-          [params.sortBy && PRODUCT_SORTABLE_FIELDS.has(params.sortBy) ? params.sortBy : 'created_at']:
-            params.sortOrder || 'desc',
+          [params.sortBy && PRODUCT_SORTABLE_FIELDS.has(params.sortBy)
+            ? params.sortBy
+            : 'created_at']: params.sortOrder || 'desc',
         },
         skip,
         take,

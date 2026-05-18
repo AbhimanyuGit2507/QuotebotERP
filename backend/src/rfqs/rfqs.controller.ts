@@ -144,7 +144,9 @@ export class RfqsController {
     const forceFlag = Boolean(force === 'true' || force === '1');
     if (forceDelete === 'true') {
       if (user.role !== 'admin') {
-        throw new ForbiddenException('Only admin users can permanently delete records');
+        throw new ForbiddenException(
+          'Only admin users can permanently delete records',
+        );
       }
       return this.rfqsService.forceDelete(id, user.tenant_id, {
         forceDeleteLinkedQuotation: forceFlag,

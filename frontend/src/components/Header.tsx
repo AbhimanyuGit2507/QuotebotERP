@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import logo from '../assets/logo.png';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import Calendar from './Calendar';
 
 interface SearchResult {
   id: string;
@@ -112,11 +113,14 @@ const Header: React.FC = () => {
   const notificationsRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  const currentDate = new Date().toLocaleDateString('en-IN', {
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [showCalendar, setShowCalendar] = useState(false);
+  const currentDate = selectedDate.toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   });
+  const calendarRef = useRef<HTMLDivElement | null>(null);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -275,6 +279,25 @@ const Header: React.FC = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Close calendar when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!showCalendar) return;
+    const handleDocClick = (e: MouseEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
+        setShowCalendar(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowCalendar(false);
+    };
+    document.addEventListener('mousedown', handleDocClick);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleDocClick);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [showCalendar]);
+
   useEffect(() => {
     setCompanyDisplayName(companySettings.displayName || user?.company_name || 'Quotebot');
   }, [companySettings.displayName, user?.company_name]);
@@ -289,6 +312,34 @@ const Header: React.FC = () => {
   const unresolvedQuotesCount = quotes.filter(quote => quote.status === 'sent' || quote.status === 'draft').length;
   const unreadInboxCount = inboxMessages.filter(msg => !msg.isRead).length;
   const lowStockCount = products.filter(p => p.stock && p.stock <= 10).length;
+
+  // Today's stats for Inbox (orders, inquiries, followups)
+  const todayKey = currentDate; // formatted date string used above
+  const todaysOrdersCount = inboxMessages.filter((m) => {
+    try {
+      const d = new Date(m.timestamp).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      return d === todayKey && (m.classification === 'PO' || (m.parsedItems || []).some(p => p.status === 'matched'));
+    } catch {
+      return false;
+    }
+  }).length;
+  const todaysInquiriesCount = inboxMessages.filter((m) => {
+    try {
+      const d = new Date(m.timestamp).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      const isRfq = m.classification === 'RFQ' || Boolean(m.rfqId) || (m.extractedItems || 0) > 0 || (m.parsedItems || []).length > 0;
+      return d === todayKey && isRfq;
+    } catch {
+      return false;
+    }
+  }).length;
+  const todaysFollowupsCount = inboxMessages.filter((m) => {
+    try {
+      const d = new Date(m.timestamp).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      return d === todayKey && m.classification === 'FOLLOWUP';
+    } catch {
+      return false;
+    }
+  }).length;
 
   const quickActions = [
     {
@@ -573,17 +624,35 @@ const Header: React.FC = () => {
             )}
           </div>
 
-          {/* Date & Live indicator - hidden on small mobile */}
-          <div className="hidden sm:flex items-center gap-1.5 bg-[var(--erp-surface-strong)] px-2.5 py-1 rounded text-[12px] mx-1">
-            <span className="material-symbols-outlined !text-[16px] text-[var(--erp-text-muted)]">calendar_today</span>
-            <span className="font-medium text-[var(--erp-text)]">{currentDate}</span>
+          {/* Date & calendar picker - hidden on small mobile */}
+          <div className="relative hidden sm:flex items-center mx-1">
+            <button
+              onClick={() => setShowCalendar(!showCalendar)}
+              className="flex items-center gap-1.5 bg-[var(--erp-surface-strong)] px-2.5 py-1 rounded text-[12px]"
+              aria-label="Select date"
+            >
+              <span className="material-symbols-outlined !text-[16px] text-[var(--erp-text-muted)]">calendar_today</span>
+              <span className="font-medium text-[var(--erp-text)]">{currentDate}</span>
+            </button>
+            {showCalendar && (
+              <div className="absolute right-0 top-full mt-2 z-50" ref={calendarRef}>
+                <Calendar
+                  selectedDate={selectedDate}
+                  onSelect={(d) => {
+                    setSelectedDate(d);
+                    setShowCalendar(false);
+                  }}
+                  onClose={() => setShowCalendar(false)}
+                />
+              </div>
+            )}
           </div>
 
           <div className="hidden lg:flex items-center gap-1.5 bg-[rgba(0,167,225,0.12)] border border-[rgba(0,167,225,0.35)] px-2.5 py-1 rounded text-[11px] mx-1">
             <span className="material-symbols-outlined !text-[14px] text-[var(--erp-accent-strong)]">monitoring</span>
-            <span className="font-semibold text-[var(--erp-accent)]">Live</span>
+            <span className="font-semibold text-[var(--erp-accent)]">Today</span>
             <span className="text-[var(--erp-accent-strong)]">•</span>
-            <span className="text-[var(--erp-accent)]">{rfqs.length} RFQs · {quotes.length} Quotes</span>
+            <span className="text-[var(--erp-accent)]">{todaysOrdersCount} Orders · {todaysInquiriesCount} Inquiries · {todaysFollowupsCount} Followups</span>
           </div>
 
           <Link

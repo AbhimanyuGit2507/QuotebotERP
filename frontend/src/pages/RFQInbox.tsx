@@ -435,7 +435,7 @@ const RFQInbox: React.FC = () => {
                     <span className={`material-symbols-outlined !text-[14px] ${getPriorityColor(rfq.priority)}`}>
                       {rfq.priority === 'high' ? 'priority_high' : rfq.priority === 'medium' ? 'remove' : 'arrow_downward'}
                     </span>
-                    <p className="text-[12px] font-bold text-[var(--erp-accent)]">{rfq.number}</p>
+                    <p className="text-[12px] font-bold text-[var(--erp-accent)]">{rfq.display_name || rfq.number}</p>
                   </div>
                   <p className="text-[12px] font-medium text-[var(--erp-text)] truncate mt-0.5">{rfq.client}</p>
                 </div>
@@ -473,7 +473,7 @@ const RFQInbox: React.FC = () => {
           <>
             <div className="h-14 border-b border-[var(--erp-border)] flex items-center justify-between px-5 shrink-0 bg-slate-50">
               <div className="flex items-center gap-4">
-                <h1 className="text-lg font-bold text-[var(--erp-accent)]">{selectedRFQ.number}</h1>
+                <h1 className="text-lg font-bold text-[var(--erp-accent)]">{selectedRFQ.display_name || selectedRFQ.number}</h1>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getStatusBadge(selectedRFQ.status)}`}>
                   {selectedRFQ.status.toUpperCase()}
                 </span>

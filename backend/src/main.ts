@@ -87,7 +87,9 @@ async function bootstrap() {
   // Swagger / OpenAPI documentation
   const config = new DocumentBuilder()
     .setTitle('QuotebotERP API')
-    .setDescription('API documentation for QuotebotERP - AI-Powered ERP for Modern Businesses')
+    .setDescription(
+      'API documentation for QuotebotERP - AI-Powered ERP for Modern Businesses',
+    )
     .setVersion('1.0')
     .addCookieAuth('qb_access_token')
     .addBearerAuth()
@@ -108,6 +110,9 @@ async function bootstrap() {
 
 bootstrap().catch((err) => {
   const errorLogger = new Logger('Bootstrap');
-  errorLogger.error('❌ Failed to start server:', err instanceof Error ? err.stack : String(err));
+  errorLogger.error(
+    '❌ Failed to start server:',
+    err instanceof Error ? err.stack : String(err),
+  );
   process.exit(1);
 });

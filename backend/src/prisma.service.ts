@@ -1,5 +1,10 @@
 import 'dotenv/config';
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
@@ -191,7 +196,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
       await this.prismaClient.$disconnect();
       this.logger.log('✅ Prisma disconnected from database');
     } catch (err) {
-      this.logger.warn(`Prisma disconnect error: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.warn(
+        `Prisma disconnect error: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
 
     // Ensure the underlying pg Pool is closed to avoid open handles
@@ -205,7 +212,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
         this.logger.log('✅ Postgres pool ended');
       }
     } catch (err) {
-      this.logger.warn(`Postgres pool end error: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.warn(
+        `Postgres pool end error: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 }

@@ -19,6 +19,7 @@ type OrderStatus =
 
 interface Order {
   id: string;
+  display_name?: string;
   po_number?: string;
   status: OrderStatus;
   confidence?: number;
@@ -285,6 +286,31 @@ const Orders: React.FC = () => {
     });
   };
 
+  const formatShortDate = (dateString?: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return '';
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yy = String(date.getFullYear()).slice(-2);
+    return `${dd}/${mm}/${yy}`;
+  };
+
+  const buildOrderDisplayName = (order: Order) => {
+    if (order.display_name) {
+      return order.display_name;
+    }
+    const date = formatShortDate(order.created_at);
+    const client = order.conversation?.client?.name || 'Unknown Client';
+    const items = (order.quotation?.items || [])
+      .map((item) => item.product_name)
+      .filter(Boolean)
+      .slice(0, 5);
+    const suffix = items.length ? ` - ${items.join(', ')}` : '';
+    const datePart = date ? ` - ${date}` : '';
+    return `PO${datePart} - ${client}${suffix}`;
+  };
+
   if (loading) {
     return (
       <PageLayout>
@@ -372,7 +398,7 @@ const Orders: React.FC = () => {
               >
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <span className="text-[12px] font-semibold text-[var(--erp-text)]">
-                    PO: {order.po_number || order.id.slice(0, 8)}
+                    {buildOrderDisplayName(order)}
                   </span>
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 border rounded ${getStatusColor(order.status)}`}>
                     {getStatusLabel(order.status)}
@@ -413,7 +439,7 @@ const Orders: React.FC = () => {
               <div className="h-14 border-b border-[var(--erp-border)] flex items-center justify-between px-5 shrink-0 bg-slate-50">
                 <div>
                   <h1 className="text-base font-bold text-[var(--erp-text)]">
-                    PO: {selectedOrder.po_number || selectedOrder.id.slice(0, 8)}
+                    {buildOrderDisplayName(selectedOrder)}
                   </h1>
                   <p className="text-[12px] text-[var(--erp-text-muted)]">
                     {selectedOrder.conversation?.client?.name || 'Unknown Client'}

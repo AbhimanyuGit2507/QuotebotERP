@@ -61,10 +61,13 @@ export class QuotationsService {
 
   private buildDisplayAndTokens(
     prefix: string,
+    dateValue: Date | string | null | undefined,
     clientName: string,
     itemNames: string[],
   ) {
-    const date = this.formatShortDate();
+    const date = this.formatShortDate(
+      dateValue ? new Date(dateValue) : new Date(),
+    );
     const clientShort = (clientName || '')
       .split(/\s+/)
       .slice(0, 3)
@@ -219,8 +222,6 @@ export class QuotationsService {
       items?: QuotationItemInput[];
     },
   ) {
-    await this.ensureClientHasRfq(tenantId, body.client_id);
-
     const number = this.generateNumber();
     const items = body.items ?? [];
     const totals = this.computeTotals(items);
@@ -231,6 +232,7 @@ export class QuotationsService {
     const itemNames = items.map((i) => i.product_name || '');
     const { display, tokens } = this.buildDisplayAndTokens(
       'QT',
+      body.date ? new Date(body.date) : new Date(),
       client?.name || '',
       itemNames,
     );
@@ -312,10 +314,6 @@ export class QuotationsService {
   ) {
     await this.findOne(id, tenantId);
 
-    if (body.client_id) {
-      await this.ensureClientHasRfq(tenantId, body.client_id);
-    }
-
     if (body.items) {
       await this.prisma.quotationItem.deleteMany({
         where: { quotation_id: id },
@@ -380,6 +378,7 @@ export class QuotationsService {
       const itemNames = refreshed.items.map((i) => i.product_name);
       const { display, tokens } = this.buildDisplayAndTokens(
         'QT',
+        refreshed.date,
         refreshed.client?.name || '',
         itemNames,
       );
@@ -544,11 +543,12 @@ export class QuotationsService {
       cc?: string[];
       email_account_id?: string;
       message?: string;
+      allow_pending_approval?: boolean;
     },
   ) {
     const quotation = await this.findOne(id, tenantId);
 
-    if (quotation.approval_status === 'pending') {
+    if (quotation.approval_status === 'pending' && !body.allow_pending_approval) {
       throw new BadRequestException(
         'Quotation is pending approval and cannot be sent',
       );
@@ -739,10 +739,27 @@ export class QuotationsService {
       template.body_template,
       variables,
     );
-    if (unmatchedSummary.length > 0 && !/unmatched items/i.test(emailBody)) {
-      emailBody = `${emailBody}\n\nUnmatched items from source email:\n${unmatchedSummary
-        .map((name) => `- ${name}`)
-        .join('\n')}`;
+    const availabilityNotes = availabilityWarnings
+      ? availabilityWarnings
+          .split('\n')
+          .map((line) => line.replace(/^\d+\.\s*/, '').trim())
+          .filter(Boolean)
+      : [];
+    const professionalAvailability = availabilityNotes.length
+      ? `Availability update:\n${availabilityNotes.map((line) => `- ${line}`).join('\n')}`
+      : '';
+    const professionalExclusion = unmatchedSummary.length > 0
+      ? `Items not quoted:\n${unmatchedSummary
+          .map((name) => `- ${name}`)
+          .join('\n')}\n\nThese items were excluded because they are not in the current catalog or are unavailable. The quotation totals reflect only the items listed above.`
+      : '';
+
+    const extraSections = [professionalAvailability, professionalExclusion]
+      .filter((section) => section.length > 0)
+      .join('\n\n');
+
+    if (extraSections && !/availability update|items not quoted/i.test(emailBody)) {
+      emailBody = `${emailBody}\n\n${extraSections}`;
     }
 
     if (emailAccount.provider === 'gmail') {
@@ -1018,6 +1035,31 @@ export class QuotationsService {
       const tableLeft = 50;
       const tableWidth = 495;
 
+      const availabilityLabels = {
+        out_of_stock: 'OUT OF STOCK',
+        not_available: 'NOT AVAILABLE',
+        insufficient_stock: 'INSUFFICIENT',
+        low_stock: 'LIMITED',
+        available: 'AVAILABLE',
+      } as const;
+
+      const unmatchedItems = quotation.items
+        .map((item) => {
+          if (!item.notes) {
+            return [];
+          }
+          const match = item.notes.match(/unmatched\/ignored from source email:\s*(.+)$/i);
+          if (!match?.[1]) {
+            return [];
+          }
+          return match[1]
+            .split(',')
+            .map((name) => name.trim())
+            .filter(Boolean);
+        })
+        .flat();
+      const unmatchedSummary = Array.from(new Set(unmatchedItems));
+
       // Table header
       doc
         .rect(tableLeft, tableTop, tableWidth, 25)
@@ -1028,20 +1070,24 @@ export class QuotationsService {
         .fontSize(9)
         .fillColor('white')
         .font('Helvetica-Bold')
-        .text('Item', tableLeft + 5, tableTop + 8, { width: 200 })
-        .text('Qty', tableLeft + 210, tableTop + 8, {
+        .text('Item', tableLeft + 5, tableTop + 8, { width: 170 })
+        .text('Qty', tableLeft + 180, tableTop + 8, {
           width: 50,
           align: 'center',
         })
-        .text('Unit Price', tableLeft + 270, tableTop + 8, {
+        .text('Status', tableLeft + 230, tableTop + 8, {
+          width: 70,
+          align: 'center',
+        })
+        .text('Unit Price', tableLeft + 310, tableTop + 8, {
           width: 70,
           align: 'right',
         })
-        .text('Tax %', tableLeft + 350, tableTop + 8, {
+        .text('Tax %', tableLeft + 390, tableTop + 8, {
           width: 50,
           align: 'right',
         })
-        .text('Total', tableLeft + 410, tableTop + 8, {
+        .text('Total', tableLeft + 440, tableTop + 8, {
           width: 80,
           align: 'right',
         });
@@ -1059,29 +1105,36 @@ export class QuotationsService {
             .fill();
         }
 
+        const availabilityKey = (item.availability || 'available') as keyof typeof availabilityLabels;
+        const availabilityLabel = availabilityLabels[availabilityKey] || 'AVAILABLE';
+
         doc
           .fontSize(9)
           .fillColor(darkGray)
           .text(item.product_name, tableLeft + 5, rowTop, {
-            width: 200,
+            width: 170,
             lineBreak: false,
             ellipsis: true,
           })
           .text(
             `${Number(item.quantity)} ${item.unit}`,
-            tableLeft + 210,
+            tableLeft + 180,
             rowTop,
             { width: 50, align: 'center' },
           )
+          .text(availabilityLabel, tableLeft + 230, rowTop, {
+            width: 70,
+            align: 'center',
+          })
           .text(
             Number(item.unit_price).toLocaleString('en-IN', {
               maximumFractionDigits: 2,
             }),
-            tableLeft + 270,
+            tableLeft + 310,
             rowTop,
             { width: 70, align: 'right' },
           )
-          .text(`${Number(item.tax_percent)}%`, tableLeft + 350, rowTop, {
+          .text(`${Number(item.tax_percent)}%`, tableLeft + 390, rowTop, {
             width: 50,
             align: 'right',
           })
@@ -1089,7 +1142,7 @@ export class QuotationsService {
             Number(item.total).toLocaleString('en-IN', {
               maximumFractionDigits: 2,
             }),
-            tableLeft + 410,
+            tableLeft + 440,
             rowTop,
             { width: 80, align: 'right' },
           );
@@ -1151,9 +1204,58 @@ export class QuotationsService {
           { width: 90, align: 'right' },
         );
 
+      const availabilityNotes = quotation.items
+        .filter((item) => {
+          const status = item.availability || 'available';
+          return status !== 'available' && status !== 'not_specified' && status !== 'in_stock';
+        })
+        .map((item) => {
+          const status = item.availability || 'available';
+          const availableQty = Number(item.available_quantity || 0);
+          const requestedQty = Number(item.quantity);
+          if (status === 'out_of_stock') {
+            return `Out of stock: ${item.product_name} (requested ${requestedQty} ${item.unit})`;
+          }
+          if (status === 'not_available') {
+            return `Not available: ${item.product_name} (requested ${requestedQty} ${item.unit})`;
+          }
+          if (status === 'low_stock') {
+            return `Limited availability: ${item.product_name} (only ${availableQty} ${item.unit} available, requested ${requestedQty})`;
+          }
+          if (status === 'insufficient_stock') {
+            return `Insufficient stock: ${item.product_name} (available ${availableQty}/${requestedQty} ${item.unit})`;
+          }
+          return `Availability update: ${item.product_name} (${status})`;
+        });
+
+      if (availabilityNotes.length > 0 || unmatchedSummary.length > 0) {
+        doc.moveDown(3);
+        doc
+          .fontSize(10)
+          .fillColor(darkGray)
+          .font('Helvetica-Bold')
+          .text('Availability & Exclusions', 50);
+        doc.fontSize(9).font('Helvetica').fillColor(lightGray);
+        if (availabilityNotes.length > 0) {
+          doc.text(`- ${availabilityNotes.join('\n- ')}`, 50, doc.y + 5, {
+            width: 495,
+            align: 'left',
+          });
+        }
+        if (unmatchedSummary.length > 0) {
+          doc.moveDown(0.5);
+          doc.text(
+            `Items not quoted (excluded): ${unmatchedSummary.join(', ')}`,
+            50,
+            doc.y + 2,
+            { width: 495, align: 'left' },
+          );
+        }
+      }
+
       // Terms & Conditions
       if (quotation.terms_conditions) {
-        doc.moveDown(3);
+        doc.moveDown(2);
         doc
           .fontSize(10)
           .fillColor(darkGray)

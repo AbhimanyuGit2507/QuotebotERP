@@ -68,7 +68,11 @@ export class PoMatcherService {
       // customer match: compare client email domain if available
       if (quotation?.client_id) {
         const client = await this.prisma.client.findFirst({
-          where: { tenant_id: tenantId, id: quotation.client_id, deleted_at: null },
+          where: {
+            tenant_id: tenantId,
+            id: quotation.client_id,
+            deleted_at: null,
+          },
           select: { email: true },
         });
         if (client?.email) {
@@ -144,7 +148,11 @@ export class PoMatcherService {
       });
       if (quotation?.client_id) {
         const client = await this.prisma.client.findFirst({
-          where: { tenant_id: tenantId, id: quotation.client_id, deleted_at: null },
+          where: {
+            tenant_id: tenantId,
+            id: quotation.client_id,
+            deleted_at: null,
+          },
           select: { email: true },
         });
         if (client?.email) {

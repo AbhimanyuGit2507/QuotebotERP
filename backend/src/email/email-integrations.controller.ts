@@ -96,7 +96,9 @@ export class EmailIntegrationsController {
     const userId = req.user?.id;
     const tenantId = req.user?.tenant_id;
 
-    this.logger.log(`OAuth authorize request received userId=${userId} tenantId=${tenantId}`);
+    this.logger.log(
+      `OAuth authorize request received userId=${userId} tenantId=${tenantId}`,
+    );
 
     if (!userId || !tenantId) {
       return res.status(400).json({
@@ -113,7 +115,9 @@ export class EmailIntegrationsController {
       // Get OAuth authorization URL
       const authUrl = this.emailService.initiateGoogleOAuth(state);
 
-      this.logger.log(`OAuth generated authorization URL successfully userId=${userId} tenantId=${tenantId}`);
+      this.logger.log(
+        `OAuth generated authorization URL successfully userId=${userId} tenantId=${tenantId}`,
+      );
 
       // Return redirect URL
       return res.json({
@@ -121,7 +125,9 @@ export class EmailIntegrationsController {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'OAuth error';
-      this.logger.error(`OAuth authorize request failed userId=${userId} tenantId=${tenantId} error=${message}`);
+      this.logger.error(
+        `OAuth authorize request failed userId=${userId} tenantId=${tenantId} error=${message}`,
+      );
       return res.status(500).json({ error: message });
     }
   }
@@ -140,7 +146,9 @@ export class EmailIntegrationsController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    this.logger.log(`OAuth callback received hasCode=${Boolean(code)} hasState=${Boolean(state)}`);
+    this.logger.log(
+      `OAuth callback received hasCode=${Boolean(code)} hasState=${Boolean(state)}`,
+    );
 
     if (!code || !state) {
       return res.status(400).json({
@@ -169,18 +177,24 @@ export class EmailIntegrationsController {
         userId,
       );
 
-      this.logger.log(`OAuth callback completed and account linked userId=${userId} tenantId=${tenantId} email=${emailAccount.email_address}`);
+      this.logger.log(
+        `OAuth callback completed and account linked userId=${userId} tenantId=${tenantId} email=${emailAccount.email_address}`,
+      );
 
       try {
         const syncResult =
           this.emailService.triggerImmediateGmailSync(tenantId);
-        this.logger.log(`OAuth immediate sync trigger result tenantId=${tenantId} started=${syncResult.started} reason=${syncResult.reason}`);
+        this.logger.log(
+          `OAuth immediate sync trigger result tenantId=${tenantId} started=${syncResult.started} reason=${syncResult.reason}`,
+        );
       } catch (syncError) {
         const syncMessage =
           syncError instanceof Error
             ? syncError.message
             : 'Unknown sync trigger error';
-        this.logger.error(`OAuth failed to trigger immediate sync tenantId=${tenantId} error=${syncMessage}`);
+        this.logger.error(
+          `OAuth failed to trigger immediate sync tenantId=${tenantId} error=${syncMessage}`,
+        );
       }
 
       // Redirect to frontend with success message

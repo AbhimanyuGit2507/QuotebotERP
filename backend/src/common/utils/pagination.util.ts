@@ -16,7 +16,12 @@ export interface PaginatedResult<T> {
   };
 }
 
-export function parsePaginationParams(query: PaginationParams): { skip: number; take: number; page: number; pageSize: number } {
+export function parsePaginationParams(query: PaginationParams): {
+  skip: number;
+  take: number;
+  page: number;
+  pageSize: number;
+} {
   const page = Math.max(1, Number(query?.page) || 1);
   const pageSize = Math.min(1000, Math.max(1, Number(query?.pageSize) || 20));
   return { skip: (page - 1) * pageSize, take: pageSize, page, pageSize };

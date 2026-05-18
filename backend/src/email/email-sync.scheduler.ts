@@ -6,8 +6,10 @@ import { PrismaService } from '../prisma.service';
 @Injectable()
 export class EmailSyncScheduler {
   private readonly logger = new Logger(EmailSyncScheduler.name);
+  // In development, automatic sync is disabled by default. Enable by setting
+  // AUTO_EMAIL_SYNC_ENABLED=true in the environment.
   private readonly AUTO_SYNC_ENABLED =
-    process.env.AUTO_EMAIL_SYNC_ENABLED !== 'false';
+    process.env.AUTO_EMAIL_SYNC_ENABLED === 'true';
 
   constructor(
     private emailService: EmailService,
@@ -16,8 +18,8 @@ export class EmailSyncScheduler {
     if (this.AUTO_SYNC_ENABLED) {
       this.logger.log('✓ Automatic email sync enabled (every 10 seconds)');
     } else {
-      this.logger.warn(
-        '✗ Automatic email sync disabled via AUTO_EMAIL_SYNC_ENABLED=false',
+      this.logger.log(
+        'Automatic email sync is disabled (set AUTO_EMAIL_SYNC_ENABLED=true to enable)',
       );
     }
   }

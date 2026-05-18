@@ -20,11 +20,7 @@ const EXCLUDED_PATHS = [
 /**
  * Path prefixes that are exempt from the CSRF check.
  */
-const EXCLUDED_PREFIXES = [
-  '/swagger',
-  '/api-docs',
-  '/docs',
-];
+const EXCLUDED_PREFIXES = ['/swagger', '/api-docs', '/docs'];
 
 @Injectable()
 export class CsrfMiddleware implements NestMiddleware {

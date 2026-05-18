@@ -772,6 +772,74 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  private formatShortDate(d: Date = new Date()) {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${dd}/${mm}/${yy}`;
+  }
+
+  private buildDisplayAndTokens(
+    prefix: string,
+    dateValue: Date | string | null | undefined,
+    clientName: string,
+    itemNames: string[],
+  ) {
+    const date = this.formatShortDate(
+      dateValue ? new Date(dateValue) : new Date(),
+    );
+    const clientShort = (clientName || '')
+      .split(/\s+/)
+      .slice(0, 3)
+      .join(' ')
+      .slice(0, 30);
+    const items = (itemNames || [])
+      .slice(0, 5)
+      .map((s) => String(s || '').trim())
+      .filter(Boolean);
+    const display = `${prefix} - ${date} - ${clientShort}${items.length ? ' - ' + items.join(', ') : ''}`;
+    const tokens = [date, clientShort, ...items];
+    return { display, tokens };
+  }
+
+  private async buildPurchaseOrderDisplay(params: {
+    tenantId: string;
+    conversationId: string;
+    quotationId?: string | null;
+    createdAt: Date;
+  }) {
+    const conversation = await this.prisma.conversation.findFirst({
+      where: {
+        id: params.conversationId,
+        tenant_id: params.tenantId,
+      },
+      select: {
+        client: { select: { name: true } },
+      },
+    });
+
+    const quotation = params.quotationId
+      ? await this.prisma.quotation.findFirst({
+          where: {
+            id: params.quotationId,
+            tenant_id: params.tenantId,
+            deleted_at: null,
+          },
+          include: { items: true },
+        })
+      : null;
+
+    const itemNames = quotation?.items.map((item) => item.product_name || '') || [];
+    const { display, tokens } = this.buildDisplayAndTokens(
+      'ORD',
+      params.createdAt,
+      conversation?.client?.name || 'Unknown Client',
+      itemNames,
+    );
+
+    return { display, tokens };
+  }
+
   private async createOrUpdatePurchaseOrderRecord(params: {
     tenantId: string;
     conversationId: string;
@@ -805,6 +873,14 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       detected_at: new Date().toISOString(),
     } as Prisma.InputJsonValue;
 
+    const createdAt = existing?.created_at || new Date();
+    const { display, tokens } = await this.buildPurchaseOrderDisplay({
+      tenantId: params.tenantId,
+      conversationId: params.conversationId,
+      quotationId: params.quotationId || existing?.quotation_id,
+      createdAt,
+    });
+
     if (existing) {
       return this.prisma.assistancePurchaseOrder.update({
         where: { id: existing.id },
@@ -814,6 +890,8 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
           status,
           po_number: poNumber || existing.po_number,
           extracted_data: extractedData,
+          display_name: display,
+          search_tokens: tokens as unknown as Prisma.InputJsonValue,
         },
       });
     }
@@ -827,6 +905,8 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
         extracted_data: extractedData,
         confidence: params.confidence,
         status,
+        display_name: display,
+        search_tokens: tokens as unknown as Prisma.InputJsonValue,
       },
     });
   }
@@ -2865,12 +2945,14 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
               }
 
               // Format dates for template
-              const invoiceDateStr = fullInvoice?.date instanceof Date
-                ? fullInvoice.date.toISOString().split('T')[0]
-                : String(fullInvoice?.date || '');
-              const dueDateStr = fullInvoice?.due_date instanceof Date
-                ? fullInvoice.due_date.toISOString().split('T')[0]
-                : String(fullInvoice?.due_date || '');
+              const invoiceDateStr =
+                fullInvoice?.date instanceof Date
+                  ? fullInvoice.date.toISOString().split('T')[0]
+                  : String(fullInvoice?.date || '');
+              const dueDateStr =
+                fullInvoice?.due_date instanceof Date
+                  ? fullInvoice.due_date.toISOString().split('T')[0]
+                  : String(fullInvoice?.due_date || '');
 
               // Template variables
               const variables = {
@@ -3634,6 +3716,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
         try {
           await this.quotationsService.sendByEmail(quotation.id, tenantId, {
             to: [rfq.client.email],
+            allow_pending_approval: true,
             message:
               'Thank you for your inquiry. Please find our quotation attached.',
           });

@@ -159,6 +159,20 @@ const Quotations: React.FC = () => {
     navigate(`/quotations/${quoteId}`);
   };
   const selectedClient = clients.find((client) => client.id === selectedQuote?.clientId);
+  const customerAddress = [
+    selectedClient?.address,
+    selectedClient?.city,
+    selectedClient?.state,
+  ]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join(', ') || '-';
+  const customerContact = (() => {
+    const email = selectedClient?.email?.trim();
+    const phone = selectedClient?.phone?.trim();
+    if (email && phone) return `${email} / ${phone}`;
+    return email || phone || '-';
+  })();
 
   const handleDelete = (quote: Quote) => {
     const linkedRfqForQuote = rfqs.find((rfq) => rfq.quotationId === quote.id);
@@ -562,11 +576,11 @@ const Quotations: React.FC = () => {
                     </div>
                     <div className="flex">
                       <span className="w-28 text-[var(--erp-text-muted)]">Address:</span>
-                      <span className="text-[var(--erp-text)]">123 Business Street, City</span>
+                      <span className="text-[var(--erp-text)]">{customerAddress}</span>
                     </div>
                     <div className="flex">
                       <span className="w-28 text-[var(--erp-text-muted)]">Contact:</span>
-                      <span className="text-[var(--erp-text)]">contact@{selectedQuote.client.toLowerCase().replace(/\s/g, '')}.com</span>
+                      <span className="text-[var(--erp-text)]">{customerContact}</span>
                     </div>
                   </div>
                 </div>

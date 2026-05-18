@@ -555,6 +555,8 @@ model AssistancePurchaseOrder {
   quotation_id     String?
   invoice_id       String?
   po_number        String?
+  display_name     String?
+  search_tokens    Json?
   extracted_data   Json?
   confidence       Float?
   status           PurchaseOrderStatus @default(DETECTED)

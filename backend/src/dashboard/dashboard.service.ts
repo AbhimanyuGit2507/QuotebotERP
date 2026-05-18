@@ -16,8 +16,12 @@ export class DashboardService {
       openInvoices,
       paidInvoices,
     ] = await Promise.all([
-      this.prisma.rFQ.count({ where: { tenant_id: tenantId, deleted_at: null } }),
-      this.prisma.quotation.count({ where: { tenant_id: tenantId, deleted_at: null } }),
+      this.prisma.rFQ.count({
+        where: { tenant_id: tenantId, deleted_at: null },
+      }),
+      this.prisma.quotation.count({
+        where: { tenant_id: tenantId, deleted_at: null },
+      }),
       this.prisma.quotation.count({
         where: { tenant_id: tenantId, status: 'accepted', deleted_at: null },
       }),
@@ -27,7 +31,9 @@ export class DashboardService {
       this.prisma.product.count({
         where: { tenant_id: tenantId, status: 'active', deleted_at: null },
       }),
-      this.prisma.client.count({ where: { tenant_id: tenantId, deleted_at: null } }),
+      this.prisma.client.count({
+        where: { tenant_id: tenantId, deleted_at: null },
+      }),
       this.prisma.invoice.count({
         where: { tenant_id: tenantId, status: 'open', deleted_at: null },
       }),

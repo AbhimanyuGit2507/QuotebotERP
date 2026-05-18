@@ -45,15 +45,25 @@ export class AdminService {
       timingMessages,
     ] = await Promise.all([
       this.prisma.user.count({ where: { tenant_id: tenantId } }),
-      this.prisma.rFQ.count({ where: { tenant_id: tenantId, deleted_at: null } }),
-      this.prisma.quotation.count({ where: { tenant_id: tenantId, deleted_at: null } }),
-      this.prisma.client.count({ where: { tenant_id: tenantId, deleted_at: null } }),
-      this.prisma.product.count({ where: { tenant_id: tenantId, deleted_at: null } }),
+      this.prisma.rFQ.count({
+        where: { tenant_id: tenantId, deleted_at: null },
+      }),
+      this.prisma.quotation.count({
+        where: { tenant_id: tenantId, deleted_at: null },
+      }),
+      this.prisma.client.count({
+        where: { tenant_id: tenantId, deleted_at: null },
+      }),
+      this.prisma.product.count({
+        where: { tenant_id: tenantId, deleted_at: null },
+      }),
       this.prisma.parseRun.count({ where: { tenant_id: tenantId } }),
       this.prisma.outboundEmail.count({ where: { tenant_id: tenantId } }),
       this.prisma.activity.count({ where: { tenant_id: tenantId } }),
       this.prisma.auditLog.count({ where: { tenant_id: tenantId } }),
-      this.prisma.invoice.count({ where: { tenant_id: tenantId, deleted_at: null } }),
+      this.prisma.invoice.count({
+        where: { tenant_id: tenantId, deleted_at: null },
+      }),
       this.prisma.invoice.count({
         where: { tenant_id: tenantId, status: 'open', deleted_at: null },
       }),

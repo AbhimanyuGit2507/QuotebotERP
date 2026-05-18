@@ -173,7 +173,9 @@ export class QuotationsController {
     const forceFlag = Boolean(force === 'true' || force === '1');
     if (forceDelete === 'true') {
       if (user.role !== 'admin') {
-        throw new ForbiddenException('Only admin users can permanently delete records');
+        throw new ForbiddenException(
+          'Only admin users can permanently delete records',
+        );
       }
       return this.quotationsService.forceDelete(id, user.tenant_id, {
         forceDeleteLinkedRfq: forceFlag,

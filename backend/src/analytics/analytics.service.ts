@@ -62,8 +62,10 @@ export class AnalyticsService {
         0,
       ),
       averageValue:
-        quotations.reduce((sum, quotation) => sum + Number(quotation.total), 0) /
-        (quotations.length || 1),
+        quotations.reduce(
+          (sum, quotation) => sum + Number(quotation.total),
+          0,
+        ) / (quotations.length || 1),
     };
   }
 

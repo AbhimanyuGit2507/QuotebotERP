@@ -28,10 +28,7 @@ export class TaxController {
   }
 
   @Get(':id')
-  findOne(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.taxService.findOne(id, user.tenant_id);
   }
 
@@ -53,10 +50,7 @@ export class TaxController {
   }
 
   @Delete(':id')
-  remove(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.taxService.remove(id, user.tenant_id);
   }
 

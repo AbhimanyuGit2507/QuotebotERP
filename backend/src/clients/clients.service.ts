@@ -57,8 +57,9 @@ export class ClientsService {
       this.prisma.client.findMany({
         where,
         orderBy: {
-          [params.sortBy && CLIENT_SORTABLE_FIELDS.has(params.sortBy) ? params.sortBy : 'created_at']:
-            params.sortOrder || 'desc',
+          [params.sortBy && CLIENT_SORTABLE_FIELDS.has(params.sortBy)
+            ? params.sortBy
+            : 'created_at']: params.sortOrder || 'desc',
         },
         skip,
         take,

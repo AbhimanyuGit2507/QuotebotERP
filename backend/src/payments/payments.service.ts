@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import {
   PaginationParams,
@@ -159,7 +163,8 @@ export class PaymentsService {
     };
 
     for (const invoice of invoices) {
-      const amountDue = Number(invoice.total || 0) - Number(invoice.paid_amount || 0);
+      const amountDue =
+        Number(invoice.total || 0) - Number(invoice.paid_amount || 0);
       const referenceDate = invoice.due_date || invoice.date;
       const diffMs = now.getTime() - new Date(referenceDate).getTime();
       const daysOverdue = Math.floor(diffMs / (1000 * 60 * 60 * 24));

@@ -46,7 +46,11 @@ export class TaxService {
     });
   }
 
-  async update(id: string, tenantId: string, dto: Partial<CreateTaxProfileDto>) {
+  async update(
+    id: string,
+    tenantId: string,
+    dto: Partial<CreateTaxProfileDto>,
+  ) {
     const existing = await this.prisma.taxProfile.findFirst({
       where: { id, tenant_id: tenantId, deleted_at: null },
     });
@@ -125,7 +129,10 @@ export class TaxService {
     const companySettings = await this.prisma.settingsCompany.findUnique({
       where: { tenant_id: tenantId },
     });
-    const profileJson = companySettings?.profile_json as Record<string, unknown> | null;
+    const profileJson = companySettings?.profile_json as Record<
+      string,
+      unknown
+    > | null;
     const companyGstin =
       companySettings?.company_gstin ||
       (typeof profileJson?.gstin === 'string' ? profileJson.gstin : null);
@@ -143,7 +150,12 @@ export class TaxService {
     let sgst = 0;
     let igst = 0;
 
-    if (companyGstin && clientGst && companyGstin.length >= 2 && clientGst.length >= 2) {
+    if (
+      companyGstin &&
+      clientGst &&
+      companyGstin.length >= 2 &&
+      clientGst.length >= 2
+    ) {
       const companyState = companyGstin.substring(0, 2);
       const clientState = clientGst.substring(0, 2);
 

@@ -137,26 +137,61 @@ export class EmailService {
     );
   }
 
+  private isStaleRunningSyncStatus(
+    status: Record<string, unknown>,
+    statusFile: string,
+  ) {
+    if (status.status !== 'running') {
+      return false;
+    }
+
+    const startedAtValue = status.startedAt;
+    const startedAt =
+      typeof startedAtValue === 'string' ? new Date(startedAtValue) : null;
+    const startedAtMs =
+      startedAt && !Number.isNaN(startedAt.getTime())
+        ? startedAt.getTime()
+        : null;
+    const fileAgeMs = fs.existsSync(statusFile)
+      ? Date.now() - fs.statSync(statusFile).mtimeMs
+      : Number.POSITIVE_INFINITY;
+
+    const staleByStartedAt =
+      startedAtMs !== null && Date.now() - startedAtMs > 2 * 60 * 60 * 1000;
+    const staleByFileAge = fileAgeMs > 2 * 60 * 60 * 1000;
+
+    return staleByStartedAt || staleByFileAge;
+  }
+
+  private buildIdleSyncStatus() {
+    return {
+      status: 'idle',
+      phase: 'idle',
+      progressPercent: 0,
+      message: 'Idle',
+      startedAt: null,
+      endedAt: null,
+      lastRunAt: null,
+      accountsTotal: 0,
+      accountsProcessed: 0,
+      totalMessages: 0,
+      processedMessages: 0,
+      synced: 0,
+      duplicates: 0,
+      failed: 0,
+      currentAccountId: null,
+      error: null,
+      user_error: null,
+      technical_error: null,
+    };
+  }
+
   getGmailSyncStatus(tenantId: string) {
     const statusFile = this.getSyncStatusFilePath(tenantId);
 
     try {
       if (!fs.existsSync(statusFile)) {
-        return {
-          status: 'idle',
-          startedAt: null,
-          endedAt: null,
-          lastRunAt: null,
-          accountsTotal: 0,
-          accountsProcessed: 0,
-          totalMessages: 0,
-          processedMessages: 0,
-          synced: 0,
-          duplicates: 0,
-          failed: 0,
-          currentAccountId: null,
-          error: null,
-        };
+        return this.buildIdleSyncStatus();
       }
 
       const raw = fs.readFileSync(statusFile, 'utf8');
@@ -166,7 +201,19 @@ export class EmailService {
         throw new Error('Invalid sync status payload');
       }
 
-      return parsed as Record<string, unknown>;
+      const status = parsed as Record<string, unknown>;
+
+      if (this.isStaleRunningSyncStatus(status, statusFile)) {
+        this.logger.warn(
+          `Resetting stale Gmail sync status for tenant ${tenantId}`,
+        );
+        return {
+          ...this.buildIdleSyncStatus(),
+          message: 'Previous sync expired. Ready to start again.',
+        };
+      }
+
+      return status;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {
@@ -200,6 +247,7 @@ export class EmailService {
         phase: 'queued',
         progressPercent: 1,
         message: 'Sync queued',
+        pid: process.pid,
         tenantId,
         startedAt: new Date().toISOString(),
         endedAt: null,

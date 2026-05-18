@@ -320,13 +320,21 @@ export class InboxService {
     const [rfqs, quotations] = await Promise.all([
       rfqIds.length
         ? this.prisma.rFQ.findMany({
-            where: { id: { in: rfqIds }, tenant_id: tenantId, deleted_at: null },
+            where: {
+              id: { in: rfqIds },
+              tenant_id: tenantId,
+              deleted_at: null,
+            },
             include: { items: true },
           })
         : Promise.resolve([]),
       quotationIds.length
         ? this.prisma.quotation.findMany({
-            where: { id: { in: quotationIds }, tenant_id: tenantId, deleted_at: null },
+            where: {
+              id: { in: quotationIds },
+              tenant_id: tenantId,
+              deleted_at: null,
+            },
             include: { items: true },
           })
         : Promise.resolve([]),

@@ -135,10 +135,13 @@ export class RfqsService {
 
   private buildDisplayAndTokens(
     prefix: string,
+    dateValue: Date | string | null | undefined,
     clientName: string,
     itemNames: string[],
   ) {
-    const date = this.formatShortDate();
+    const date = this.formatShortDate(
+      dateValue ? new Date(dateValue) : new Date(),
+    );
     const clientShort = (clientName || '')
       .split(/\s+/)
       .slice(0, 3)
@@ -537,8 +540,9 @@ export class RfqsService {
         where,
         include: { client: true, items: true, quotation: true },
         orderBy: {
-          [query.sortBy && RFQ_SORTABLE_FIELDS.has(query.sortBy) ? query.sortBy : 'created_at']:
-            query.sortOrder || 'desc',
+          [query.sortBy && RFQ_SORTABLE_FIELDS.has(query.sortBy)
+            ? query.sortBy
+            : 'created_at']: query.sortOrder || 'desc',
         },
         skip,
         take: effectiveTake,
@@ -583,6 +587,7 @@ export class RfqsService {
     const itemNames = (body.items || []).map((it) => it.product_name || '');
     const { display, tokens } = this.buildDisplayAndTokens(
       'RFQ',
+      new Date(),
       client?.name || '',
       itemNames,
     );
@@ -921,7 +926,9 @@ export class RfqsService {
       });
     } catch (err) {
       // best-effort: continue even if message update fails
-      this.logger.warn(`Failed to update source message payload: ${(err as Error).message}`);
+      this.logger.warn(
+        `Failed to update source message payload: ${(err as Error).message}`,
+      );
     }
 
     await this.recordParseRun({
@@ -1019,11 +1026,16 @@ export class RfqsService {
         });
       } catch (err) {
         // proceed even if soft-deletion of quotation fails
-        this.logger.warn(`Failed to soft-delete linked quotation: ${(err as Error).message}`);
+        this.logger.warn(
+          `Failed to soft-delete linked quotation: ${(err as Error).message}`,
+        );
       }
     }
 
-    await this.prisma.rFQ.update({ where: { id }, data: { deleted_at: new Date() } });
+    await this.prisma.rFQ.update({
+      where: { id },
+      data: { deleted_at: new Date() },
+    });
     return { message: 'RFQ deleted successfully' };
   }
 
@@ -1041,18 +1053,31 @@ export class RfqsService {
 
     const linkedQuotationId = (rfq as any)?.quotation_id;
     if (linkedQuotationId && options?.forceDeleteLinkedQuotation) {
-      await this.prisma.quotationItem.deleteMany({ where: { quotation_id: linkedQuotationId } });
-      await this.prisma.quotationVersion.deleteMany({ where: { quotation_id: linkedQuotationId } });
-      await this.prisma.invoice.deleteMany({ where: { quotation_id: linkedQuotationId } });
-      await this.prisma.assistancePurchaseOrder.deleteMany({ where: { quotation_id: linkedQuotationId } });
-      await this.prisma.quotation.delete({ where: { id: linkedQuotationId } }).catch(() => {});
+      await this.prisma.quotationItem.deleteMany({
+        where: { quotation_id: linkedQuotationId },
+      });
+      await this.prisma.quotationVersion.deleteMany({
+        where: { quotation_id: linkedQuotationId },
+      });
+      await this.prisma.invoice.deleteMany({
+        where: { quotation_id: linkedQuotationId },
+      });
+      await this.prisma.assistancePurchaseOrder.deleteMany({
+        where: { quotation_id: linkedQuotationId },
+      });
+      await this.prisma.quotation
+        .delete({ where: { id: linkedQuotationId } })
+        .catch(() => {});
     }
 
     await this.prisma.rFQItem.deleteMany({ where: { rfq_id: id } });
     try {
       await this.prisma.rFQ.delete({ where: { id } });
     } catch {
-      await this.prisma.rFQ.update({ where: { id }, data: { deleted_at: new Date() } });
+      await this.prisma.rFQ.update({
+        where: { id },
+        data: { deleted_at: new Date() },
+      });
     }
     return { message: 'RFQ permanently deleted' };
   }
@@ -1239,11 +1264,13 @@ export class RfqsService {
 
     // Determine approval status based on configured threshold
     let approvalStatus = 'not_required';
-    const companySettings = await db.quotation.findFirst({
-      // We can't query settingsCompany directly via the db transaction client
-      // when it only has a subset of models. Use the full prisma client instead.
-      where: { id: 'nonexistent' }, // dummy query to satisfy type
-    }).catch(() => null);
+    const companySettings = await db.quotation
+      .findFirst({
+        // We can't query settingsCompany directly via the db transaction client
+        // when it only has a subset of models. Use the full prisma client instead.
+        where: { id: 'nonexistent' }, // dummy query to satisfy type
+      })
+      .catch(() => null);
     // Use main prisma instance for settings lookup (not part of the transaction subset)
     const settings = await this.prisma.settingsCompany.findUnique({
       where: { tenant_id: tenantId },
@@ -1262,11 +1289,13 @@ export class RfqsService {
         client_id: rfq.client_id,
         display_name: this.buildDisplayAndTokens(
           'QT',
+          new Date(),
           rfq.client?.name || '',
           rfq.items.map((i) => i.product_name),
         ).display,
         search_tokens: this.buildDisplayAndTokens(
           'QT',
+          new Date(),
           rfq.client?.name || '',
           rfq.items.map((i) => i.product_name),
         ).tokens as unknown as Prisma.InputJsonValue,

@@ -33,6 +33,7 @@ const Inbox: React.FC = () => {
   const { inboxMessages, updateInboxMessage, showToast, showConfirmModal, refreshData } = useApp();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const emailHtmlFrameRef = useRef<HTMLIFrameElement | null>(null);
   
   const selectedId = useMemo(() => {
     if (!id || !inboxMessages.some((m) => m.id === id)) {
@@ -43,7 +44,7 @@ const Inbox: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'raw' | 'parsed' | 'attachments'>('raw');
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
-  const [channelFilter, setChannelFilter] = useState<string>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'email' | 'whatsapp'>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [syncStatus, setSyncStatus] = useState<GmailSyncStatus | null>(null);
@@ -83,6 +84,138 @@ const Inbox: React.FC = () => {
   const hasAutoReloadedAfterSync = useRef(false);
   const lastSelectedIndexRef = useRef<number | null>(null);
   const syncFailureNotified = useRef(false);
+
+  const getMessageType = useCallback((message: InboxMessage) => {
+    const classification = (message.classification || 'UNKNOWN').toUpperCase();
+    if (classification === 'FOLLOWUP') {
+      return 'followup';
+    }
+
+    if (classification === 'PO') {
+      return 'po';
+    }
+
+    if (classification === 'RFQ') {
+      return isMessageNotRfq(message) ? 'other' : 'inquiries';
+    }
+
+    if (message.rfqId || message.quotationId || message.autoRfqCreated || message.autoQuotationCreated) {
+      return 'inquiries';
+    }
+
+    if (message.extractedItems > 0 || (message.parsedItems || []).length > 0) {
+      return 'inquiries';
+    }
+
+    return 'other';
+  }, []);
+
+  const isArchivedMessage = useCallback((message: InboxMessage) => message.status === 'duplicate', []);
+  const isNewMessage = useCallback((message: InboxMessage) => message.status === 'new', []);
+  const isNeedsReviewMessage = useCallback(
+    (message: InboxMessage) => message.status === 'needs_review' || message.status === 'failed',
+    [],
+  );
+
+  const unreadStatusBuckets = useMemo(() => {
+    return {
+      new: inboxMessages.filter((message) => !message.isRead && isNewMessage(message)).length,
+      needsReview: inboxMessages.filter((message) => !message.isRead && isNeedsReviewMessage(message)).length,
+      archived: inboxMessages.filter((message) => !message.isRead && isArchivedMessage(message)).length,
+    };
+  }, [inboxMessages, isArchivedMessage, isNeedsReviewMessage, isNewMessage]);
+
+  const unreadTypeCounts = useMemo(() => {
+    const counts = {
+      all: inboxMessages.filter((message) => !message.isRead).length,
+      inquiries: 0,
+      followup: 0,
+      orders: 0,
+      other: 0,
+    };
+
+    for (const message of inboxMessages) {
+      if (message.isRead) {
+        continue;
+      }
+
+      const type = getMessageType(message);
+      if (type === 'followup') {
+        counts.followup += 1;
+      } else if (type === 'po') {
+        counts.orders += 1;
+      } else if (type === 'inquiries') {
+        counts.inquiries += 1;
+      } else {
+        counts.other += 1;
+      }
+    }
+
+    return counts;
+  }, [getMessageType, inboxMessages]);
+
+  const activeStatusChip = statusFilter === 'all' ? 'all' : statusFilter;
+
+  const setStatusChip = useCallback((nextStatus: 'all' | 'new' | 'needs_review' | 'archived') => {
+    setStatusFilter((prev) => (prev === nextStatus ? 'all' : nextStatus));
+    setSelectedMessageIds(new Set());
+  }, []);
+
+  // Deselect status chips when Escape is pressed
+  useEffect(() => {
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setStatusFilter('all');
+        setSelectedMessageIds(new Set());
+      }
+    };
+
+    window.addEventListener('keydown', onKeydown);
+    return () => window.removeEventListener('keydown', onKeydown);
+  }, []);
+
+  const setTypeFilter = useCallback((nextType: string) => {
+    setClassificationFilter(nextType);
+    setSelectedMessageIds(new Set());
+  }, []);
+
+  const setSourceFilterAndReset = useCallback((nextSource: 'all' | 'email' | 'whatsapp') => {
+    setSourceFilter(nextSource);
+    setSelectedMessageIds(new Set());
+  }, []);
+
+  const isMessageVisibleByStatus = useCallback((message: InboxMessage) => {
+    if (statusFilter === 'all') {
+      return true;
+    }
+
+    if (statusFilter === 'new') {
+      return isNewMessage(message);
+    }
+
+    if (statusFilter === 'needs_review') {
+      return isNeedsReviewMessage(message);
+    }
+
+    if (statusFilter === 'archived') {
+      return isArchivedMessage(message);
+    }
+
+    return true;
+  }, [isArchivedMessage, isNeedsReviewMessage, isNewMessage, statusFilter]);
+
+  const isMessageTypeVisible = useCallback((message: InboxMessage) => {
+    if (classificationFilter === 'all') {
+      return true;
+    }
+
+    const type = getMessageType(message);
+    if (classificationFilter === 'orders') {
+      return type === 'po';
+    }
+
+    return type === classificationFilter;
+  }, [classificationFilter, getMessageType]);
 
   const loadSyncStatus = useCallback(async () => {
     try {
@@ -199,17 +332,12 @@ const Inbox: React.FC = () => {
     let filtered = inboxMessages.filter(msg => {
       const matchesSearch = msg.sender.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            msg.subject.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesChannel = channelFilter === 'all' || msg.channel === channelFilter;
-      const matchesStatus = statusFilter === 'all' || msg.status === statusFilter;
+      const matchesSource = sourceFilter === 'all' || msg.channel === sourceFilter;
+      const matchesStatus = isMessageVisibleByStatus(msg);
       
-      // Classification filter
-      let matchesClassification = true;
-      if (classificationFilter !== 'all') {
-        const msgClassification = (msg as any).classification || 'unknown';
-        matchesClassification = msgClassification.toLowerCase() === classificationFilter.toLowerCase();
-      }
+      const matchesClassification = isMessageTypeVisible(msg);
       
-      return matchesSearch && matchesChannel && matchesStatus && matchesClassification;
+      return matchesSearch && matchesSource && matchesStatus && matchesClassification;
     });
 
     // Apply sorting
@@ -229,7 +357,7 @@ const Inbox: React.FC = () => {
     });
 
     return filtered;
-  }, [inboxMessages, searchQuery, channelFilter, statusFilter, classificationFilter, sortBy]);
+  }, [inboxMessages, isMessageTypeVisible, isMessageVisibleByStatus, searchQuery, sortBy, sourceFilter]);
 
   const selectedMessage = inboxMessages.find(m => m.id === selectedId);
   const selectedMessageCount = selectedMessageIds.size;
@@ -1066,12 +1194,19 @@ const Inbox: React.FC = () => {
     }
   }, [selectedMessage, loadThreadMessages]);
 
-  const unreadCount = inboxMessages.filter(m => !m.isRead).length;
-  const failedCount = inboxMessages.filter(m => m.status === 'failed').length;
   const parsingStatusMeta = selectedMessage
     ? getParsingStatusMeta(selectedMessage)
     : null;
   const parsedItems = selectedMessage?.parsedItems || [];
+  const showExtractedItemsTab = Boolean(
+    selectedMessage && (
+      isMessageRfq(selectedMessage) ||
+      selectedMessage.classification === 'PO' ||
+      parsedItems.length > 0 ||
+      selectedMessage.extractedItems > 0
+    ),
+  );
+  const showAttachmentsTab = Boolean(selectedMessage?.attachments?.length);
   const sanitizedHtml = selectedMessage?.contentHtml
     ? DOMPurify.sanitize(selectedMessage.contentHtml, {
         USE_PROFILES: { html: true },
@@ -1110,6 +1245,63 @@ const Inbox: React.FC = () => {
     const percent = Math.round((processed / total) * 100);
     return Math.max(1, Math.min(99, percent));
   }, [syncStatus]);
+
+  useEffect(() => {
+    const iframe = emailHtmlFrameRef.current;
+    if (!iframe) return;
+
+    const resize = () => {
+      try {
+        const doc = iframe.contentDocument;
+        if (!doc) return;
+        const body = doc.body;
+        const html = doc.documentElement;
+        const height = Math.max(
+          body?.scrollHeight || 0,
+          body?.offsetHeight || 0,
+          html?.scrollHeight || 0,
+          html?.offsetHeight || 0,
+        );
+        iframe.style.height = `${Math.max(height, 180)}px`;
+      } catch {
+        iframe.style.height = '420px';
+      }
+    };
+
+    const timer = window.setTimeout(resize, 50);
+
+    const doc = iframe.contentDocument;
+    if (doc) {
+      const images = Array.from(doc.images || []);
+      images.forEach((image) => {
+        image.addEventListener('load', resize);
+        image.addEventListener('error', resize);
+      });
+
+      const cleanup = () => {
+        images.forEach((image) => {
+          image.removeEventListener('load', resize);
+          image.removeEventListener('error', resize);
+        });
+      };
+
+      return () => {
+        window.clearTimeout(timer);
+        cleanup();
+      };
+    }
+
+    return () => window.clearTimeout(timer);
+  }, [selectedMessage?.contentHtml, selectedMessage?.id]);
+
+  useEffect(() => {
+    if (activeTab === 'raw' || (activeTab === 'parsed' && showExtractedItemsTab) || (activeTab === 'attachments' && showAttachmentsTab)) {
+      return;
+    }
+
+    setActiveTab('raw');
+  }, [activeTab, showAttachmentsTab, showExtractedItemsTab]);
+
   const shouldShowSyncBanner =
     syncTriggering ||
     syncStatus?.status === 'running' ||
@@ -1149,6 +1341,15 @@ const Inbox: React.FC = () => {
         <div className="h-12 border-b border-[var(--erp-border)] bg-slate-50 flex items-center justify-between px-3 shrink-0">
           <h2 className="text-sm font-bold text-[var(--erp-text)] uppercase tracking-wider">Inbox</h2>
           <div className="flex items-center gap-2">
+            <select
+              className="text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white min-w-[8.5rem]"
+              value={sourceFilter}
+              onChange={(e) => setSourceFilterAndReset(e.target.value as 'all' | 'email' | 'whatsapp')}
+            >
+              <option value="all">All Mail</option>
+              <option value="email">Email</option>
+              <option value="whatsapp">WhatsApp</option>
+            </select>
             <button
               onClick={handleRetryFailedMessages}
               disabled={bulkRetrying}
@@ -1198,11 +1399,7 @@ const Inbox: React.FC = () => {
                   <span className="material-symbols-outlined !text-[16px] text-[var(--erp-text-muted)]">archive</span>
                 </button>
               </>
-            ) : (
-              <span className="text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
-                {unreadCount} new
-              </span>
-            )}
+            ) : null}
           </div>
         </div>
         
@@ -1219,43 +1416,20 @@ const Inbox: React.FC = () => {
               data-search="inbox"
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex gap-2 items-center">
             <select 
-              className="text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white"
-              value={channelFilter}
-              onChange={(e) => setChannelFilter(e.target.value)}
-            >
-              <option value="all">All Channels</option>
-              <option value="email">Email</option>
-              <option value="whatsapp">WhatsApp</option>
-            </select>
-            <select 
-              className="text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All Status</option>
-              <option value="new">New</option>
-              <option value="parsed">Parsed</option>
-              <option value="needs_review">Needs Review</option>
-              <option value="failed">Failed</option>
-              <option value="duplicate">Archived</option>
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <select 
-              className="text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white"
+              className="flex-1 text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white"
               value={classificationFilter}
-              onChange={(e) => setClassificationFilter(e.target.value)}
+              onChange={(e) => setTypeFilter(e.target.value)}
             >
-              <option value="all">All Types</option>
-              <option value="rfq">RFQ</option>
-              <option value="followup">Followup</option>
-              <option value="po">Purchase Order</option>
-              <option value="unknown">Unknown</option>
+              <option value="all">All Types ({unreadTypeCounts.all})</option>
+              <option value="inquiries">Inquiries ({unreadTypeCounts.inquiries})</option>
+              <option value="followup">Followups ({unreadTypeCounts.followup})</option>
+              <option value="orders">Orders ({unreadTypeCounts.orders})</option>
+              <option value="other">Other ({unreadTypeCounts.other})</option>
             </select>
             <select 
-              className="text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white"
+              className="w-48 text-[11px] border border-[var(--erp-border)] rounded px-2 py-1 bg-white"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
             >
@@ -1268,23 +1442,22 @@ const Inbox: React.FC = () => {
         </div>
 
         {/* Stats Bar */}
-        <div className="px-3 py-2 bg-slate-50 border-b border-[var(--erp-border)] flex gap-3 text-[11px] flex-wrap">
-          <span className="text-blue-600 font-medium">
-            {inboxMessages.filter(m => m.status === 'new').length} New
-          </span>
-          <span className="text-amber-600 font-medium flex items-center gap-1">
-            <span className="material-symbols-outlined !text-[14px]">support_agent</span>
-            {inboxMessages.filter(m => isFollowupMessage(m)).length} Followup
-          </span>
-          <span className="text-amber-600 font-medium">
-            {inboxMessages.filter(m => m.status === 'needs_review').length} Review
-          </span>
-          <span className="text-green-600 font-medium">
-            {inboxMessages.filter(m => m.status === 'parsed').length} Parsed
-          </span>
-          <span className="text-red-600 font-medium">
-            {failedCount} Failed
-          </span>
+        <div className="px-3 py-2 bg-slate-50 border-b border-[var(--erp-border)] flex gap-2 text-[11px] flex-wrap">
+          {[
+            { key: 'new', label: 'New', count: unreadStatusBuckets.new, className: 'bg-blue-100 text-blue-700 border-blue-200' },
+            { key: 'needs_review', label: 'Needs Review', count: unreadStatusBuckets.needsReview, className: 'bg-amber-100 text-amber-700 border-amber-200' },
+            { key: 'archived', label: 'Archived', count: unreadStatusBuckets.archived, className: 'bg-slate-100 text-slate-700 border-slate-200' },
+          ].map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => setStatusChip(chip.key as 'new' | 'needs_review' | 'archived')}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border font-semibold transition-colors ${chip.className} ${activeStatusChip === chip.key ? 'ring-2 ring-offset-1 ring-[var(--erp-accent)]' : 'hover:opacity-90'}`}
+            >
+              <span>{chip.label}</span>
+              <span className="px-1.5 py-0.5 rounded-full bg-white/60 text-current">{chip.count}</span>
+            </button>
+          ))}
         </div>
 
         {/* Message List */}
@@ -1373,7 +1546,7 @@ const Inbox: React.FC = () => {
             </div>
           )}
         </div>
-        <div className="p-2 border-t border-[var(--erp-border)] bg-slate-50 text-[11px] text-[var(--erp-text-muted)]">
+          <div className="p-2 border-t border-[var(--erp-border)] bg-slate-50 text-[11px] text-[var(--erp-text-muted)]">
           Showing {filteredMessages.length} of {inboxMessages.length} messages
         </div>
       </aside>
@@ -1438,8 +1611,8 @@ const Inbox: React.FC = () => {
             <div className="border-b border-[var(--erp-border)] flex shrink-0">
               {[
                 { id: 'raw', label: 'Raw Message', icon: 'article' },
-                { id: 'parsed', label: 'Extracted Data', icon: 'data_object' },
-                { id: 'attachments', label: 'Attachments', icon: 'attach_file' },
+                ...(showExtractedItemsTab ? [{ id: 'parsed', label: 'Extracted Data', icon: 'data_object' }] : []),
+                ...(showAttachmentsTab ? [{ id: 'attachments', label: 'Attachments', icon: 'attach_file' }] : []),
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -1619,10 +1792,40 @@ const Inbox: React.FC = () => {
                   <div>
                     <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest mb-2">Message Body</h3>
                     {sanitizedHtml ? (
-                      <div
-                        className="bg-slate-50 p-4 rounded border border-[var(--erp-border)] text-sm text-[var(--erp-text)] isolate relative z-0 pointer-events-auto"
-                        dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-                      />
+                      <div className="isolate relative overflow-hidden rounded border border-[var(--erp-border)] bg-white">
+                        <iframe
+                          ref={emailHtmlFrameRef}
+                          title="Email content"
+                          sandbox="allow-same-origin"
+                          className="block w-full bg-white"
+                          style={{ minHeight: '220px', width: '100%', border: 0 }}
+                          srcDoc={`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1" /><base target="_blank" /><style>
+                            html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; font-family: Inter, Arial, sans-serif; }
+                            body { padding: 16px; overflow-wrap: anywhere; }
+                            img { max-width: 100%; height: auto; display: block; }
+                            table { max-width: 100%; border-collapse: collapse; }
+                            td, th { max-width: 100%; }
+                            a { word-break: break-word; }
+                            * { box-sizing: border-box; }
+                          </style></head><body>${sanitizedHtml}</body></html>`}
+                          onLoad={() => {
+                            const iframe = emailHtmlFrameRef.current;
+                            if (!iframe) return;
+                            try {
+                              const doc = iframe.contentDocument;
+                              if (!doc) return;
+                              const height = Math.max(
+                                doc.body.scrollHeight,
+                                doc.documentElement.scrollHeight,
+                                220,
+                              );
+                              iframe.style.height = `${height + 16}px`;
+                            } catch {
+                              iframe.style.height = '420px';
+                            }
+                          }}
+                        />
+                      </div>
                     ) : (
                       <div className="bg-slate-50 p-4 rounded border border-[var(--erp-border)] text-sm text-[var(--erp-text)] whitespace-pre-wrap">
                         {selectedMessage.content || selectedMessage.preview || 'No message body available.'}
@@ -1632,7 +1835,7 @@ const Inbox: React.FC = () => {
                 </div>
               )}
 
-              {activeTab === 'parsed' && (
+              {activeTab === 'parsed' && showExtractedItemsTab && (
                 <div className="space-y-4">
                   {selectedMessage.parsingError ? (
                     <div
@@ -1862,7 +2065,7 @@ const Inbox: React.FC = () => {
                 </div>
               )}
 
-              {activeTab === 'attachments' && (
+              {activeTab === 'attachments' && showAttachmentsTab && (
                 <div className="space-y-4">
                   <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest mb-2">Attachments</h3>
                   {selectedMessage.attachments && selectedMessage.attachments.length > 0 ? (

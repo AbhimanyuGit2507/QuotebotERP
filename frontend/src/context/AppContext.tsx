@@ -1428,7 +1428,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             body: JSON.stringify({
               client_id: clientId,
               date: quote.date,
-              valid_until: quote.validUntil,
+              ...(quote.validUntil ? { valid_until: quote.validUntil } : {}),
               status: ['draft', 'sent', 'accepted', 'declined'].includes(quote.status)
                 ? quote.status
                 : 'draft',

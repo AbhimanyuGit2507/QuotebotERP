@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { PurchaseOrderStatus } from '@prisma/client';
+import { PurchaseOrderStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class OrdersService {
@@ -131,6 +131,34 @@ export class OrdersService {
         status: 'open',
       },
     });
+
+    try {
+      const clientName = order.conversation?.client?.name || '';
+      const itemNames = (order.quotation?.items || []).map(
+        (item) => item.product_name || '',
+      );
+      const date = invoice.date || new Date();
+      const dd = String(date.getDate()).padStart(2, '0');
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const yy = String(date.getFullYear()).slice(-2);
+      const dateShort = `${dd}/${mm}/${yy}`;
+      const clientShort = clientName
+        .split(/\s+/)
+        .slice(0, 3)
+        .join(' ')
+        .slice(0, 30);
+      const display = `INV - ${dateShort} - ${clientShort}${itemNames.length ? ' - ' + itemNames.slice(0, 5).join(', ') : ''}`;
+      const tokens = [dateShort, clientShort, ...itemNames.slice(0, 5)];
+      await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          display_name: display,
+          search_tokens: tokens as unknown as Prisma.InputJsonValue,
+        },
+      });
+    } catch {
+      // best effort
+    }
 
     // Update order with invoice_id and status
     await this.prisma.assistancePurchaseOrder.update({

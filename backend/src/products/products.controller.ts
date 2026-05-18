@@ -104,7 +104,9 @@ export class ProductsController {
   ) {
     if (forceDelete === 'true') {
       if (user.role !== 'admin') {
-        throw new ForbiddenException('Only admin users can permanently delete records');
+        throw new ForbiddenException(
+          'Only admin users can permanently delete records',
+        );
       }
       return this.productsService.forceDelete(id, user.tenant_id);
     }

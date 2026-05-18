@@ -45,7 +45,11 @@ export class InvoicesService {
     }
 
     const existingInvoice = await this.prisma.invoice.findFirst({
-      where: { tenant_id: tenantId, quotation_id: quotation.id, deleted_at: null },
+      where: {
+        tenant_id: tenantId,
+        quotation_id: quotation.id,
+        deleted_at: null,
+      },
       include: { payments: true, quotation: true },
     });
 
@@ -79,9 +83,10 @@ export class InvoicesService {
       const itemNames = (quotation.items || []).map(
         (it) => it.product_name || '',
       );
-      const dd = String(new Date().getDate()).padStart(2, '0');
-      const mm = String(new Date().getMonth() + 1).padStart(2, '0');
-      const yy = String(new Date().getFullYear()).slice(-2);
+      const displayDate = invoice.date || new Date();
+      const dd = String(displayDate.getDate()).padStart(2, '0');
+      const mm = String(displayDate.getMonth() + 1).padStart(2, '0');
+      const yy = String(displayDate.getFullYear()).slice(-2);
       const dateShort = `${dd}/${mm}/${yy}`;
       const clientShort = clientName
         .split(/\s+/)
@@ -130,8 +135,9 @@ export class InvoicesService {
         where,
         include: { payments: true, quotation: true },
         orderBy: {
-          [params.sortBy && INVOICE_SORTABLE_FIELDS.has(params.sortBy) ? params.sortBy : 'created_at']:
-            params.sortOrder || 'desc',
+          [params.sortBy && INVOICE_SORTABLE_FIELDS.has(params.sortBy)
+            ? params.sortBy
+            : 'created_at']: params.sortOrder || 'desc',
         },
         skip,
         take,

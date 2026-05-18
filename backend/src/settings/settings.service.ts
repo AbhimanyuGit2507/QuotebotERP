@@ -36,7 +36,7 @@ export class SettingsService {
 
     // Sync company_gstin from profile_json.gstin for the tax engine
     if (body.profile_json && typeof body.profile_json === 'object') {
-      const gstin = (body.profile_json as Record<string, unknown>).gstin;
+      const gstin = body.profile_json.gstin;
       if (typeof gstin === 'string') {
         (updateData as any).company_gstin = gstin || null;
       }
@@ -50,7 +50,9 @@ export class SettingsService {
         currency: body.currency ?? 'INR',
         logo_url: body.logo_url ?? null,
         profile_json: (body.profile_json ?? undefined) as Prisma.InputJsonValue,
-        ...(body.profile_json && typeof body.profile_json === 'object' && typeof (body.profile_json as any).gstin === 'string'
+        ...(body.profile_json &&
+        typeof body.profile_json === 'object' &&
+        typeof (body.profile_json as any).gstin === 'string'
           ? { company_gstin: (body.profile_json as any).gstin || null }
           : {}),
       },

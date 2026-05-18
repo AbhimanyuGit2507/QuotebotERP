@@ -101,7 +101,9 @@ export class AuthService {
     }
 
     if (!tenant.allow_public_registration) {
-      throw new BadRequestException('Public registration is disabled for this tenant');
+      throw new BadRequestException(
+        'Public registration is disabled for this tenant',
+      );
     }
 
     const userRole = await this.prisma.role.findUnique({
