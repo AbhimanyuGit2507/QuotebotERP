@@ -32,6 +32,13 @@ type AssistancePurchaseOrderDelegate = PrismaClient['assistancePurchaseOrder'];
 type EmailTemplateDelegate = PrismaClient['emailTemplate'];
 type ChartOfAccountDelegate = PrismaClient['chartOfAccount'];
 type JournalEntryDelegate = PrismaClient['journalEntry'];
+type SupplierDelegate = PrismaClient['supplier'];
+type PurchaseOrderOutboundDelegate = PrismaClient['purchaseOrderOutbound'];
+type PurchaseOrderOutboundItemDelegate = PrismaClient['purchaseOrderOutboundItem'];
+type GoodsReceiptNoteDelegate = PrismaClient['goodsReceiptNote'];
+type GoodsReceiptNoteItemDelegate = PrismaClient['goodsReceiptNoteItem'];
+type StockMovementDelegate = PrismaClient['stockMovement'];
+type ExchangeRateDelegate = PrismaClient['exchangeRate'];
 
 declare const globalThis: {
   prismaGlobal: PrismaClient;
@@ -184,6 +191,34 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 
   get journalEntry(): JournalEntryDelegate {
     return this.prismaClient.journalEntry;
+  }
+
+  get supplier(): SupplierDelegate {
+    return this.prismaClient.supplier;
+  }
+
+  get purchaseOrderOutbound(): PurchaseOrderOutboundDelegate {
+    return this.prismaClient.purchaseOrderOutbound;
+  }
+
+  get purchaseOrderOutboundItem(): PurchaseOrderOutboundItemDelegate {
+    return this.prismaClient.purchaseOrderOutboundItem;
+  }
+
+  get goodsReceiptNote(): GoodsReceiptNoteDelegate {
+    return this.prismaClient.goodsReceiptNote;
+  }
+
+  get goodsReceiptNoteItem(): GoodsReceiptNoteItemDelegate {
+    return this.prismaClient.goodsReceiptNoteItem;
+  }
+
+  get stockMovement(): StockMovementDelegate {
+    return this.prismaClient.stockMovement;
+  }
+
+  get exchangeRate(): ExchangeRateDelegate {
+    return this.prismaClient.exchangeRate;
   }
 
   get db(): PrismaClient {

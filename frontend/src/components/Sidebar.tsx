@@ -24,9 +24,12 @@ const Sidebar: React.FC = () => {
     { path: '/rfq-inbox', icon: 'assignment', label: 'RFQ Management' },
     { path: '/quotations', icon: 'receipt_long', label: 'Quotations' },
     { path: '/orders', icon: 'shopping_cart', label: 'Orders' },
+    { path: '/purchase-orders', icon: 'shopping_cart_checkout', label: 'Purchase Orders' },
     { path: '/invoices', icon: 'receipt', label: 'Invoices' },
-    { path: '/products', icon: 'package_2', label: 'Products / Inventory' },
+    { path: '/products', icon: 'package_2', label: 'Products' },
+    { path: '/inventory', icon: 'inventory_2', label: 'Inventory' },
     { path: '/client-ledger', icon: 'groups', label: 'Clients' },
+    { path: '/suppliers', icon: 'local_shipping', label: 'Suppliers' },
     { path: '/analytics', icon: 'monitoring', label: 'Analytics' },
   ];
 
