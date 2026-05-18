@@ -26,6 +26,8 @@ const Sidebar: React.FC = () => {
     { path: '/orders', icon: 'shopping_cart', label: 'Orders' },
     { path: '/purchase-orders', icon: 'shopping_cart_checkout', label: 'Purchase Orders' },
     { path: '/invoices', icon: 'receipt', label: 'Invoices' },
+    { path: '/accounting', icon: 'account_balance', label: 'Accounting' },
+    { path: '/payments', icon: 'currency_rupee', label: 'Payments' },
     { path: '/products', icon: 'package_2', label: 'Products' },
     { path: '/inventory', icon: 'inventory_2', label: 'Inventory' },
     { path: '/client-ledger', icon: 'groups', label: 'Clients' },
@@ -38,6 +40,7 @@ const Sidebar: React.FC = () => {
       ? [{ path: '/admin', icon: 'admin_panel_settings', label: 'Admin Console' }]
       : []),
     { path: '/user-permissions', icon: 'shield_person', label: 'Users & Roles' },
+    { path: '/audit-log', icon: 'history', label: 'Audit Log' },
     { path: '/system-config', icon: 'tune', label: 'Settings' },
   ];
 
