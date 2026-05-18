@@ -38,6 +38,8 @@ const conversations_module_1 = require("./conversations/conversations.module");
 const assistance_module_1 = require("./assistance/assistance.module");
 const orders_module_1 = require("./orders/orders.module");
 const email_templates_module_1 = require("./email-templates/email-templates.module");
+const tax_module_1 = require("./tax/tax.module");
+const payments_module_1 = require("./payments/payments.module");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 const csrf_middleware_1 = require("./common/middleware/csrf.middleware");
@@ -79,6 +81,8 @@ exports.AppModule = AppModule = __decorate([
             assistance_module_1.AssistanceModule,
             orders_module_1.OrdersModule,
             email_templates_module_1.EmailTemplatesModule,
+            tax_module_1.TaxModule,
+            payments_module_1.PaymentsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService, { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard }],

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
+type TaxProfileDelegate = PrismaClient['taxProfile'];
 type InvoiceDelegate = PrismaClient['invoice'];
 type PaymentDelegate = PrismaClient['payment'];
 type AccountingIntegrationDelegate = PrismaClient['accountingIntegration'];
@@ -36,6 +37,7 @@ export declare class PrismaService implements OnModuleInit, OnModuleDestroy {
     get automationRule(): Prisma.AutomationRuleDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
     get emailAccount(): Prisma.EmailAccountDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
     get outboundEmail(): Prisma.OutboundEmailDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
+    get taxProfile(): TaxProfileDelegate;
     get invoice(): InvoiceDelegate;
     get payment(): PaymentDelegate;
     get accountingIntegration(): AccountingIntegrationDelegate;

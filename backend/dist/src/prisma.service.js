@@ -98,6 +98,9 @@ let PrismaService = PrismaService_1 = class PrismaService {
     get outboundEmail() {
         return this.prismaClient.outboundEmail;
     }
+    get taxProfile() {
+        return this.prismaClient.taxProfile;
+    }
     get invoice() {
         return this.prismaClient.invoice;
     }

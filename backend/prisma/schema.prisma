@@ -109,6 +109,7 @@ model Tenant {
   purchase_orders AssistancePurchaseOrder[]
   assistance_tickets AssistanceTicket[]
   email_templates EmailTemplate[]
+  tax_profiles TaxProfile[]
 
   @@index([company_name])
 }
@@ -707,6 +708,7 @@ model SettingsCompany {
   logo_url        String?
   profile_json    Json?
   quotation_approval_threshold Decimal? @db.Decimal(12,2)
+  company_gstin   String?
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
 
@@ -770,6 +772,29 @@ model AutomationRule {
   tenant          Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 
   @@index([tenant_id])
+}
+
+// ============================================
+// TAX PROFILES
+// ============================================
+
+model TaxProfile {
+  id          String   @id @default(cuid())
+  tenant_id   String
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  name        String
+  type        String   // "GST", "VAT", "SALES_TAX"
+  rate        Decimal  @db.Decimal(5,2)
+  hsn_code    String?
+  is_default  Boolean  @default(false)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  deleted_at  DateTime?
+
+  @@index([tenant_id])
+  @@unique([tenant_id, name])
+  @@index([deleted_at])
 }
 
 // ============================================

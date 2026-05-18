@@ -16,6 +16,7 @@ const prismaClientSingleton = () => {
   return new PrismaClient({ adapter });
 };
 
+type TaxProfileDelegate = PrismaClient['taxProfile'];
 type InvoiceDelegate = PrismaClient['invoice'];
 type PaymentDelegate = PrismaClient['payment'];
 type AccountingIntegrationDelegate = PrismaClient['accountingIntegration'];
@@ -132,6 +133,10 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 
   get outboundEmail() {
     return this.prismaClient.outboundEmail;
+  }
+
+  get taxProfile(): TaxProfileDelegate {
+    return this.prismaClient.taxProfile;
   }
 
   get invoice(): InvoiceDelegate {

@@ -29,6 +29,8 @@ import { ConversationsModule } from './conversations/conversations.module';
 import { AssistanceModule } from './assistance/assistance.module';
 import { OrdersModule } from './orders/orders.module';
 import { EmailTemplatesModule } from './email-templates/email-templates.module';
+import { TaxModule } from './tax/tax.module';
+import { PaymentsModule } from './payments/payments.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware';
@@ -64,6 +66,8 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware';
     AssistanceModule,
     OrdersModule,
     EmailTemplatesModule,
+    TaxModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
