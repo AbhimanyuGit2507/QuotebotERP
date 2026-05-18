@@ -174,8 +174,9 @@ export class QuotationsService {
         where,
         include: { client: true, items: true, rfq: true },
         orderBy: {
-          [params.sortBy && QUOTATION_SORTABLE_FIELDS.has(params.sortBy) ? params.sortBy : 'created_at']:
-            params.sortOrder || 'desc',
+          [params.sortBy && QUOTATION_SORTABLE_FIELDS.has(params.sortBy)
+            ? params.sortBy
+            : 'created_at']: params.sortOrder || 'desc',
         },
         skip,
         take,
@@ -254,10 +255,9 @@ export class QuotationsService {
         search_tokens: tokens as unknown as Prisma.InputJsonValue,
         client_id: body.client_id,
         date: body.date ? new Date(body.date) : new Date(),
-        valid_until:
-          body.valid_until
-            ? new Date(body.valid_until)
-            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        valid_until: body.valid_until
+          ? new Date(body.valid_until)
+          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: body.status ?? 'draft',
         approval_status: approvalStatus,
         terms_conditions: body.terms_conditions,
@@ -329,7 +329,9 @@ export class QuotationsService {
       data: {
         ...(body.client_id ? { client_id: body.client_id } : {}),
         ...(body.date ? { date: new Date(body.date) } : {}),
-        ...(body.valid_until ? { valid_until: new Date(body.valid_until) } : {}),
+        ...(body.valid_until
+          ? { valid_until: new Date(body.valid_until) }
+          : {}),
         ...(body.status ? { status: body.status } : {}),
         ...(body.terms_conditions !== undefined
           ? { terms_conditions: body.terms_conditions }
@@ -416,13 +418,21 @@ export class QuotationsService {
 
     if (linkedRfq && options?.forceDeleteLinkedRfq) {
       try {
-        await this.prisma.rFQ.update({ where: { id: linkedRfq.id }, data: { deleted_at: new Date() } });
+        await this.prisma.rFQ.update({
+          where: { id: linkedRfq.id },
+          data: { deleted_at: new Date() },
+        });
       } catch (err) {
-        this.logger.warn(`Failed to soft-delete linked RFQ: ${(err as Error).message}`);
+        this.logger.warn(
+          `Failed to soft-delete linked RFQ: ${(err as Error).message}`,
+        );
       }
     }
 
-    await this.prisma.quotation.update({ where: { id }, data: { deleted_at: new Date() } });
+    await this.prisma.quotation.update({
+      where: { id },
+      data: { deleted_at: new Date() },
+    });
     return { message: 'Quotation deleted successfully' };
   }
 
@@ -444,15 +454,22 @@ export class QuotationsService {
 
     // Hard-delete related records first, then quotation
     await this.prisma.quotationItem.deleteMany({ where: { quotation_id: id } });
-    await this.prisma.quotationVersion.deleteMany({ where: { quotation_id: id } });
+    await this.prisma.quotationVersion.deleteMany({
+      where: { quotation_id: id },
+    });
     // Delete linked invoices and purchase orders to avoid FK violations
     await this.prisma.invoice.deleteMany({ where: { quotation_id: id } });
-    await this.prisma.assistancePurchaseOrder.deleteMany({ where: { quotation_id: id } });
+    await this.prisma.assistancePurchaseOrder.deleteMany({
+      where: { quotation_id: id },
+    });
     try {
       await this.prisma.quotation.delete({ where: { id } });
     } catch {
       // Fall back to soft-delete if hard delete fails due to remaining FK constraints
-      await this.prisma.quotation.update({ where: { id }, data: { deleted_at: new Date() } });
+      await this.prisma.quotation.update({
+        where: { id },
+        data: { deleted_at: new Date() },
+      });
     }
     return { message: 'Quotation permanently deleted' };
   }
@@ -614,20 +631,24 @@ export class QuotationsService {
         }
 
         return `${index + 1}. ${item.product_name} - Qty: ${Number(item.quantity)} ${item.unit} @ INR ${Number(item.unit_price)}/unit = INR ${Number(item.total)}${statusText}`;
-       })
-       .join('\n');
+      })
+      .join('\n');
 
     // Extract availability warnings (out of stock, limited availability, etc.)
     const availabilityWarnings = quotation.items
-      .filter(item => {
+      .filter((item) => {
         const status = item.availability || 'in_stock';
-        return status !== 'in_stock' && status !== 'available' && status !== 'not_specified';
+        return (
+          status !== 'in_stock' &&
+          status !== 'available' &&
+          status !== 'not_specified'
+        );
       })
       .map((item, index) => {
         const status = item.availability || 'in_stock';
         const availableQty = Number(item.available_quantity || 0);
         const requestedQty = Number(item.quantity);
-        
+
         let message = '';
         if (status === 'out_of_stock') {
           message = `❌ OUT OF STOCK: ${item.product_name} (Requested: ${requestedQty} ${item.unit})`;
@@ -640,7 +661,7 @@ export class QuotationsService {
         } else {
           message = `ℹ️  STATUS: ${item.product_name} - ${status}`;
         }
-        
+
         return `${index + 1}. ${message}`;
       })
       .join('\n');
@@ -654,47 +675,75 @@ export class QuotationsService {
       .join('\n');
 
     // Format amounts
-    const quotedSubtotal = Number(quotation.subtotal || 0).toLocaleString('en-IN', {
-      maximumFractionDigits: 2,
-    });
+    const quotedSubtotal = Number(quotation.subtotal || 0).toLocaleString(
+      'en-IN',
+      {
+        maximumFractionDigits: 2,
+      },
+    );
     const quotedTax = Number(quotation.tax || 0).toLocaleString('en-IN', {
       maximumFractionDigits: 2,
     });
 
-    // Format dates for template
-    const quotationDateStr = quotation.date instanceof Date
-      ? quotation.date.toISOString().split('T')[0]
-      : String(quotation.date);
-    const validUntilStr = quotation.valid_until instanceof Date
-      ? quotation.valid_until.toISOString().split('T')[0]
-      : String(quotation.valid_until || '');
+    const unmatchedItems = quotation.items
+      .map((item) => {
+        if (!item.notes) {
+          return [];
+        }
+        const match = item.notes.match(/unmatched\/ignored from source email:\s*(.+)$/i);
+        if (!match?.[1]) {
+          return [];
+        }
+        return match[1]
+          .split(',')
+          .map((name) => name.trim())
+          .filter(Boolean);
+      })
+      .flat();
+    const unmatchedSummary = Array.from(new Set(unmatchedItems));
 
-     // Template variables
-     const variables = {
-       client_name: quotation.client.name,
-       company_name: tenant?.company_name || 'Quotebot',
-       quotation_number: quotation.number,
-       quotation_date: quotationDateStr,
-       valid_until: validUntilStr,
-       currency: 'INR',
-       subtotal_amount: quotedSubtotal,
-       tax_amount: quotedTax,
-       total_amount: quotedTotal,
-       item_details: itemDetails,
-       availability_warnings: availabilityWarnings || '',
-       stock_warnings: stockWarnings || '',
-       custom_message: (body.message || '').trim(),
-     };
+    // Format dates for template
+    const quotationDateStr =
+      quotation.date instanceof Date
+        ? quotation.date.toISOString().split('T')[0]
+        : String(quotation.date);
+    const validUntilStr =
+      quotation.valid_until instanceof Date
+        ? quotation.valid_until.toISOString().split('T')[0]
+        : String(quotation.valid_until || '');
+
+    // Template variables
+    const variables = {
+      client_name: quotation.client.name,
+      company_name: tenant?.company_name || 'Quotebot',
+      quotation_number: quotation.number,
+      quotation_date: quotationDateStr,
+      valid_until: validUntilStr,
+      currency: 'INR',
+      subtotal_amount: quotedSubtotal,
+      tax_amount: quotedTax,
+      total_amount: quotedTotal,
+      item_details: itemDetails,
+      availability_warnings: availabilityWarnings || '',
+      stock_warnings: stockWarnings || '',
+      unmatched_items: unmatchedSummary.join(', '),
+      custom_message: (body.message || '').trim(),
+    };
 
     // Substitute variables in template
     const emailSubject = this.emailTemplatesService.substituteVariables(
       template.subject_template,
       variables,
     );
-    const emailBody = this.emailTemplatesService.substituteVariables(
+    let emailBody = this.emailTemplatesService.substituteVariables(
       template.body_template,
       variables,
     );
+    if (unmatchedSummary.length > 0 && !/unmatched items/i.test(emailBody)) {
+      emailBody = `${emailBody}\n\nUnmatched items from source email:\n${unmatchedSummary
+        .map((name) => `- ${name}`)
+        .join('\n')}`;
+    }
 
     if (emailAccount.provider === 'gmail') {
       const sendResult = await this.emailService.sendNow(tenantId, {
@@ -775,7 +824,9 @@ export class QuotationsService {
         return { ...quotation, invoice };
       } catch (err) {
         // don't fail the status update if invoice creation errors; log and continue
-        this.logger.warn(`Failed to create invoice for quotation: ${(err as Error).message}`);
+        this.logger.warn(
+          `Failed to create invoice for quotation: ${(err as Error).message}`,
+        );
         return quotation;
       }
     }
@@ -837,12 +888,14 @@ export class QuotationsService {
       result.data.map((quotation: any) => ({
         number: quotation.number,
         client: quotation.client.name,
-        date: quotation.date instanceof Date
-          ? quotation.date.toISOString().split('T')[0]
-          : quotation.date,
-        valid_until: quotation.valid_until instanceof Date
-          ? quotation.valid_until.toISOString().split('T')[0]
-          : quotation.valid_until,
+        date:
+          quotation.date instanceof Date
+            ? quotation.date.toISOString().split('T')[0]
+            : quotation.date,
+        valid_until:
+          quotation.valid_until instanceof Date
+            ? quotation.valid_until.toISOString().split('T')[0]
+            : quotation.valid_until,
         status: quotation.status,
         subtotal: quotation.subtotal,
         tax: quotation.tax,
@@ -863,15 +916,17 @@ export class QuotationsService {
     });
 
     // Format dates for PDF
-    const dateStr = quotation.date instanceof Date
-      ? quotation.date.toISOString().split('T')[0]
-      : String(quotation.date);
-    const validUntilStr = quotation.valid_until instanceof Date
-      ? quotation.valid_until.toISOString().split('T')[0]
-      : String(quotation.valid_until || '');
+    const dateStr =
+      quotation.date instanceof Date
+        ? quotation.date.toISOString().split('T')[0]
+        : String(quotation.date);
+    const validUntilStr =
+      quotation.valid_until instanceof Date
+        ? quotation.valid_until.toISOString().split('T')[0]
+        : String(quotation.valid_until || '');
 
     return new Promise<Buffer>((resolve, reject) => {
-      const doc = new PDFDocument({ 
+      const doc = new PDFDocument({
         margin: 50,
         size: 'A4',
         bufferPages: true,
@@ -893,7 +948,7 @@ export class QuotationsService {
         .fillColor(primaryColor)
         .font('Helvetica-Bold')
         .text(tenant?.company_name || 'Quotebot', { align: 'left' });
-      
+
       doc
         .fontSize(10)
         .fillColor(lightGray)
@@ -913,7 +968,7 @@ export class QuotationsService {
       // Quotation details in right column
       const startY = doc.y;
       doc.fontSize(10).fillColor(darkGray);
-      
+
       // Left column - Client details
       doc.font('Helvetica-Bold').text('Bill To:', 50, startY);
       doc.moveDown(0.3);
@@ -929,21 +984,31 @@ export class QuotationsService {
 
       // Right column - Quotation info
       const rightX = 350;
-      doc.font('Helvetica-Bold').fontSize(10).text('Quotation Number:', rightX, startY);
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .text('Quotation Number:', rightX, startY);
       doc.font('Helvetica').text(quotation.number, rightX + 110, startY);
-      
+
       doc.font('Helvetica-Bold').text('Date:', rightX, doc.y + 5);
       doc.font('Helvetica').text(dateStr, rightX + 110, doc.y - 12);
-      
+
       doc.font('Helvetica-Bold').text('Valid Until:', rightX, doc.y + 5);
       doc.font('Helvetica').text(validUntilStr, rightX + 110, doc.y - 12);
-      
+
       doc.font('Helvetica-Bold').text('Status:', rightX, doc.y + 5);
-      doc.font('Helvetica').fillColor(
-        quotation.status === 'draft' ? '#eab308' : 
-        quotation.status === 'sent' ? '#3b82f6' : 
-        quotation.status === 'accepted' ? '#22c55e' : '#64748b'
-      ).text(quotation.status.toUpperCase(), rightX + 110, doc.y - 12);
+      doc
+        .font('Helvetica')
+        .fillColor(
+          quotation.status === 'draft'
+            ? '#eab308'
+            : quotation.status === 'sent'
+              ? '#3b82f6'
+              : quotation.status === 'accepted'
+                ? '#22c55e'
+                : '#64748b',
+        )
+        .text(quotation.status.toUpperCase(), rightX + 110, doc.y - 12);
 
       doc.moveDown(3);
       doc.fillColor(darkGray);
@@ -964,10 +1029,22 @@ export class QuotationsService {
         .fillColor('white')
         .font('Helvetica-Bold')
         .text('Item', tableLeft + 5, tableTop + 8, { width: 200 })
-        .text('Qty', tableLeft + 210, tableTop + 8, { width: 50, align: 'center' })
-        .text('Unit Price', tableLeft + 270, tableTop + 8, { width: 70, align: 'right' })
-        .text('Tax %', tableLeft + 350, tableTop + 8, { width: 50, align: 'right' })
-        .text('Total', tableLeft + 410, tableTop + 8, { width: 80, align: 'right' });
+        .text('Qty', tableLeft + 210, tableTop + 8, {
+          width: 50,
+          align: 'center',
+        })
+        .text('Unit Price', tableLeft + 270, tableTop + 8, {
+          width: 70,
+          align: 'right',
+        })
+        .text('Tax %', tableLeft + 350, tableTop + 8, {
+          width: 50,
+          align: 'right',
+        })
+        .text('Total', tableLeft + 410, tableTop + 8, {
+          width: 80,
+          align: 'right',
+        });
 
       // Table rows
       let rowTop = tableTop + 30;
@@ -985,11 +1062,37 @@ export class QuotationsService {
         doc
           .fontSize(9)
           .fillColor(darkGray)
-          .text(item.product_name, tableLeft + 5, rowTop, { width: 200, lineBreak: false, ellipsis: true })
-          .text(`${Number(item.quantity)} ${item.unit}`, tableLeft + 210, rowTop, { width: 50, align: 'center' })
-          .text(Number(item.unit_price).toLocaleString('en-IN', {maximumFractionDigits: 2}), tableLeft + 270, rowTop, { width: 70, align: 'right' })
-          .text(`${Number(item.tax_percent)}%`, tableLeft + 350, rowTop, { width: 50, align: 'right' })
-          .text(Number(item.total).toLocaleString('en-IN', {maximumFractionDigits: 2}), tableLeft + 410, rowTop, { width: 80, align: 'right' });
+          .text(item.product_name, tableLeft + 5, rowTop, {
+            width: 200,
+            lineBreak: false,
+            ellipsis: true,
+          })
+          .text(
+            `${Number(item.quantity)} ${item.unit}`,
+            tableLeft + 210,
+            rowTop,
+            { width: 50, align: 'center' },
+          )
+          .text(
+            Number(item.unit_price).toLocaleString('en-IN', {
+              maximumFractionDigits: 2,
+            }),
+            tableLeft + 270,
+            rowTop,
+            { width: 70, align: 'right' },
+          )
+          .text(`${Number(item.tax_percent)}%`, tableLeft + 350, rowTop, {
+            width: 50,
+            align: 'right',
+          })
+          .text(
+            Number(item.total).toLocaleString('en-IN', {
+              maximumFractionDigits: 2,
+            }),
+            tableLeft + 410,
+            rowTop,
+            { width: 80, align: 'right' },
+          );
 
         rowTop += 20;
       });
@@ -1014,19 +1117,19 @@ export class QuotationsService {
         .fillColor(darkGray)
         .text('Subtotal:', summaryLeft, summaryTop, { width: 80 })
         .text(
-          `₹ ${Number(quotation.subtotal).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+          `₹ ${Number(quotation.subtotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           summaryLeft + 80,
           summaryTop,
-          { width: 95, align: 'right' }
+          { width: 95, align: 'right' },
         );
 
       doc
         .text('Tax/GST:', summaryLeft, doc.y + 5, { width: 80 })
         .text(
-          `₹ ${Number(quotation.tax).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+          `₹ ${Number(quotation.tax).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           summaryLeft + 80,
           doc.y - 12,
-          { width: 95, align: 'right' }
+          { width: 95, align: 'right' },
         );
 
       // Total with background
@@ -1042,10 +1145,10 @@ export class QuotationsService {
         .font('Helvetica-Bold')
         .text('Total:', summaryLeft + 5, totalY + 3, { width: 80 })
         .text(
-          `₹ ${Number(quotation.total).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+          `₹ ${Number(quotation.total).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           summaryLeft + 80,
           totalY + 3,
-          { width: 90, align: 'right' }
+          { width: 90, align: 'right' },
         );
 
       // Terms & Conditions
@@ -1070,22 +1173,20 @@ export class QuotationsService {
       const pages = doc.bufferedPageRange();
       for (let i = 0; i < pages.count; i++) {
         doc.switchToPage(i);
-        
+
         doc
           .fontSize(8)
           .fillColor(lightGray)
-          .text(
-            `Page ${i + 1} of ${pages.count}`,
-            50,
-            doc.page.height - 50,
-            { align: 'center', width: doc.page.width - 100 }
-          );
-        
+          .text(`Page ${i + 1} of ${pages.count}`, 50, doc.page.height - 50, {
+            align: 'center',
+            width: doc.page.width - 100,
+          });
+
         doc.text(
           `Generated by ${tenant?.company_name || 'Quotebot'} | ${new Date().toLocaleDateString()}`,
           50,
           doc.page.height - 35,
-          { align: 'center', width: doc.page.width - 100 }
+          { align: 'center', width: doc.page.width - 100 },
         );
       }
 

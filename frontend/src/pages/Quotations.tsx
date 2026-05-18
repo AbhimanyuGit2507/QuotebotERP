@@ -251,8 +251,57 @@ const Quotations: React.FC = () => {
     return styles[status] || styles.draft;
   };
 
-  const calculateTotal = (items: QuoteItem[]) => {
-    return items.reduce((sum, item) => sum + item.total, 0);
+  const calculateSubtotal = (items: QuoteItem[]) => {
+    return items.reduce((sum, item) => sum + item.quantity * item.rate, 0);
+  };
+
+  const getQuoteSubtotal = (quote: Quote) => {
+    const subtotal = Number(quote.subtotal || 0);
+    return subtotal > 0 ? subtotal : calculateSubtotal(quote.items);
+  };
+
+  const getQuoteTax = (quote: Quote) => {
+    const tax = Number(quote.tax || 0);
+    if (tax > 0) {
+      return tax;
+    }
+    const subtotal = getQuoteSubtotal(quote);
+    const total = Number(quote.total || 0);
+    if (total > 0) {
+      return Math.max(0, total - subtotal);
+    }
+    return Math.round(subtotal * 0.18 * 100) / 100;
+  };
+
+  const getQuoteTotal = (quote: Quote) => {
+    const total = Number(quote.total || 0);
+    if (total > 0) {
+      return total;
+    }
+    const subtotal = getQuoteSubtotal(quote);
+    return subtotal + getQuoteTax(quote);
+  };
+
+  const extractUnmatchedItems = (items: QuoteItem[]) => {
+    const names = new Set<string>();
+    const pattern = /unmatched\/ignored from source email:\s*(.+)$/i;
+
+    for (const item of items) {
+      if (!item.notes) {
+        continue;
+      }
+      const match = item.notes.match(pattern);
+      if (!match?.[1]) {
+        continue;
+      }
+      match[1]
+        .split(',')
+        .map((name) => name.trim())
+        .filter(Boolean)
+        .forEach((name) => names.add(name));
+    }
+
+    return Array.from(names);
   };
 
   // Handle Print/PDF
@@ -432,7 +481,7 @@ const Quotations: React.FC = () => {
               <div className="flex items-center justify-between text-[11px] text-[var(--erp-text-muted)]">
                 <span>{quote.items.length} items</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">₹{calculateTotal(quote.items).toLocaleString()}</span>
+                  <span className="font-medium">₹{getQuoteTotal(quote).toLocaleString()}</span>
                   <span>{quote.date}</span>
                 </div>
               </div>
@@ -586,27 +635,38 @@ const Quotations: React.FC = () => {
                             ) : null}
                           </td>
                           <td className="px-3 py-2 text-right">₹{item.rate.toLocaleString()}</td>
-                          <td className="px-3 py-2 text-right font-medium">₹{item.total.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right font-medium">₹{(item.quantity * item.rate).toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot className="bg-slate-50 font-bold">
                       <tr className="border-t border-[var(--erp-border)]">
                         <td colSpan={6} className="px-3 py-2 text-right text-[var(--erp-text-muted)]">Subtotal:</td>
-                        <td className="px-3 py-2 text-right">₹{calculateTotal(selectedQuote.items).toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right">₹{getQuoteSubtotal(selectedQuote).toLocaleString()}</td>
                       </tr>
                       <tr>
                         <td colSpan={6} className="px-3 py-2 text-right text-[var(--erp-text-muted)]">Tax (18% GST):</td>
-                        <td className="px-3 py-2 text-right">₹{Math.round(calculateTotal(selectedQuote.items) * 0.18).toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right">₹{getQuoteTax(selectedQuote).toLocaleString()}</td>
                       </tr>
                       <tr className="text-lg border-t border-[var(--erp-border)]">
                         <td colSpan={6} className="px-3 py-2 text-right text-[var(--erp-accent)]">Grand Total:</td>
-                        <td className="px-3 py-2 text-right text-[var(--erp-accent)]">₹{Math.round(calculateTotal(selectedQuote.items) * 1.18).toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-[var(--erp-accent)]">₹{getQuoteTotal(selectedQuote).toLocaleString()}</td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
               </div>
+
+              {extractUnmatchedItems(selectedQuote.items).length > 0 && (
+                <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <h3 className="text-[11px] font-bold text-amber-700 uppercase tracking-widest mb-2">Unmatched Items</h3>
+                  <ul className="text-[12px] text-amber-800 list-disc pl-4">
+                    {extractUnmatchedItems(selectedQuote.items).map((name) => (
+                      <li key={name}>{name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Status Actions */}
               <div className="mb-6">
