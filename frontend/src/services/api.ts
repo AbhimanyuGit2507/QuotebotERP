@@ -85,6 +85,7 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const token = options.token ?? getStoredToken();
   const headers = new Headers(options.headers || {});
+  headers.set('X-Requested-With', 'XMLHttpRequest');
 
   if (!headers.has('Content-Type') && options.body && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');

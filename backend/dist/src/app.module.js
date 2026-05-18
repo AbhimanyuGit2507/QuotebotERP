@@ -8,7 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
+const core_1 = require("@nestjs/core");
 const schedule_1 = require("@nestjs/schedule");
+const throttler_1 = require("@nestjs/throttler");
 const common_module_1 = require("./common/common.module");
 const auth_module_1 = require("./auth/auth.module");
 const products_module_1 = require("./products/products.module");
@@ -38,13 +40,18 @@ const orders_module_1 = require("./orders/orders.module");
 const email_templates_module_1 = require("./email-templates/email-templates.module");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
+const csrf_middleware_1 = require("./common/middleware/csrf.middleware");
 let AppModule = class AppModule {
+    configure(consumer) {
+        consumer.apply(csrf_middleware_1.CsrfMiddleware).forRoutes('*');
+    }
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
             schedule_1.ScheduleModule.forRoot(),
+            throttler_1.ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
             common_module_1.CommonModule,
             auth_module_1.AuthModule,
             products_module_1.ProductsModule,
@@ -74,7 +81,7 @@ exports.AppModule = AppModule = __decorate([
             email_templates_module_1.EmailTemplatesModule,
         ],
         controllers: [app_controller_1.AppController],
-        providers: [app_service_1.AppService],
+        providers: [app_service_1.AppService, { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard }],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

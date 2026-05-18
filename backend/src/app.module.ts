@@ -1,5 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
@@ -29,10 +31,12 @@ import { OrdersModule } from './orders/orders.module';
 import { EmailTemplatesModule } from './email-templates/email-templates.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { CsrfMiddleware } from './common/middleware/csrf.middleware';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     CommonModule,
     AuthModule,
     ProductsModule,
@@ -62,6 +66,10 @@ import { AppService } from './app.service';
     EmailTemplatesModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CsrfMiddleware).forRoutes('*');
+  }
+}

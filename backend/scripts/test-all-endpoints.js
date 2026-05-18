@@ -39,7 +39,7 @@ async function callApi({
   responseType = 'json',
   customHeaders = {},
 }) {
-  const headers = { ...customHeaders };
+  const headers = { 'X-Requested-With': 'XMLHttpRequest', ...customHeaders };
 
   // Send stored cookies for authenticated requests
   if (auth && Object.keys(cookieJar).length) {

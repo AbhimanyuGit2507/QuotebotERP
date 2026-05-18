@@ -14,6 +14,7 @@ const auth_service_1 = require("./auth.service");
 const auth_controller_1 = require("./auth.controller");
 const jwt_strategy_1 = require("./jwt.strategy");
 const prisma_service_1 = require("../prisma.service");
+const env_util_1 = require("../common/utils/env.util");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
@@ -22,7 +23,7 @@ exports.AuthModule = AuthModule = __decorate([
         imports: [
             passport_1.PassportModule,
             jwt_1.JwtModule.register({
-                secret: process.env.JWT_SECRET || 'your-secret-key',
+                secret: (0, env_util_1.requireEnv)('JWT_SECRET'),
                 signOptions: {
                     expiresIn: (process.env.JWT_EXPIRATION || '24h'),
                 },

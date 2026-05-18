@@ -31,9 +31,5 @@ export declare class AppController {
                 root: string;
             };
         };
-        testCredentials: {
-            email: string;
-            password: string;
-        };
     };
 }

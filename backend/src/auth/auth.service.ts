@@ -10,6 +10,7 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { LoginDto } from './dtos/login.dto';
 import { RegisterDto } from './dtos/register.dto';
+import { requireEnv } from '../common/utils/env.util';
 
 interface GoogleOAuthState {
   redirectTo?: string;

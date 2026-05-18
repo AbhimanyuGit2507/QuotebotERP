@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const passport_1 = require("@nestjs/passport");
 const passport_jwt_1 = require("passport-jwt");
 const auth_service_1 = require("./auth.service");
+const env_util_1 = require("../common/utils/env.util");
 let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(passport_jwt_1.Strategy) {
     authService;
     constructor(authService) {
@@ -31,7 +32,7 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
                 passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
             ]),
             ignoreExpiration: false,
-            secretOrKey: process.env.JWT_SECRET || 'your-secret-key',
+            secretOrKey: (0, env_util_1.requireEnv)('JWT_SECRET'),
         });
         this.authService = authService;
     }

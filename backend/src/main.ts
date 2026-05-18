@@ -2,10 +2,13 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { json, urlencoded } from 'express';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.use(helmet());
 
   // Support full HTML email payloads from Gmail sync.
   app.use(json({ limit: '10mb' }));
@@ -39,6 +42,7 @@ async function bootstrap() {
       'Authorization',
       'X-Internal-Key',
       'X-Tenant-ID',
+      'X-Requested-With',
     ],
   });
 

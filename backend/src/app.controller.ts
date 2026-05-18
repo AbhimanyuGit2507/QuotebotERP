@@ -49,10 +49,6 @@ export class AppController {
           root: 'GET /api',
         },
       },
-      testCredentials: {
-        email: 'admin@quotebot.com',
-        password: 'Admin@123',
-      },
     };
   }
 }

@@ -11,6 +11,7 @@ import {
   Res,
   Req,
 } from '@nestjs/common';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dtos/login.dto';
@@ -37,6 +38,7 @@ export class AuthController {
    * Login with email and password
    */
   @Post('login')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() loginDto: LoginDto,
@@ -52,6 +54,7 @@ export class AuthController {
    * Register a new user in an existing tenant
    */
   @Post('register')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @HttpCode(HttpStatus.CREATED)
   async register(
     @Body() registerDto: RegisterDto,
@@ -145,6 +148,7 @@ export class AuthController {
    * Exchange refresh cookie for a new access token
    */
   @Post('refresh')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Req() req: AuthRequest,

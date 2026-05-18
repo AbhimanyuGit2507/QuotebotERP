@@ -16,6 +16,7 @@ const path_1 = __importDefault(require("path"));
 const jwt_1 = require("@nestjs/jwt");
 const passport_1 = require("@nestjs/passport");
 const prisma_service_1 = require("../prisma.service");
+const env_util_1 = require("./utils/env.util");
 let CommonModule = class CommonModule {
 };
 exports.CommonModule = CommonModule;
@@ -31,7 +32,7 @@ exports.CommonModule = CommonModule = __decorate([
             }),
             passport_1.PassportModule,
             jwt_1.JwtModule.register({
-                secret: process.env.JWT_SECRET || 'your-secret-key',
+                secret: (0, env_util_1.requireEnv)('JWT_SECRET'),
                 signOptions: {
                     expiresIn: (process.env.JWT_EXPIRATION || '24h'),
                 },
