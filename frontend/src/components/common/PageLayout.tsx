@@ -17,7 +17,7 @@ const PageLayout: React.FC<PageLayoutProps> = ({
   return (
     <div className="erp-theme bg-[var(--erp-bg)] text-[var(--erp-text)] h-screen overflow-hidden flex flex-col font-['Inter']">
       <Header />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden pb-14 md:pb-0">
         <Sidebar />
         {children}
       </div>

@@ -1,7 +1,14 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageLayout from '../components/common/PageLayout';
 import { useApp } from '../context/AppContext';
+import { apiRequest } from '../services/api';
+
+interface NeedsAttentionData {
+  staleQuotes: any[];
+  overdueInvoices: any[];
+  inactiveClients: any[];
+}
 
 const KpiSkeleton: React.FC = () => (
   <div className="bg-white p-3 animate-pulse">
@@ -18,6 +25,13 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { rfqs, quotes, clients, products, invoices, showToast } = useApp();
   const [isLoading, setIsLoading] = useState(false);
+  const [needsAttention, setNeedsAttention] = useState<NeedsAttentionData | null>(null);
+
+  useEffect(() => {
+    apiRequest<NeedsAttentionData>('/suggestions/follow-ups')
+      .then(setNeedsAttention)
+      .catch(() => { /* silently ignore if endpoint not available */ });
+  }, []);
 
   // Calculate KPI data from real state
   const kpiData = useMemo(() => {
@@ -221,6 +235,44 @@ const Dashboard: React.FC = () => {
                 </div>
               ))}
         </div>
+
+        {/* Needs Attention Section */}
+        {needsAttention && (
+          <div className="bg-slate-50 border-b border-[var(--erp-border)] px-4 py-2.5 shrink-0">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="material-symbols-outlined !text-[16px] text-amber-500">notification_important</span>
+              <span className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-wider">Needs Attention</span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { count: needsAttention.staleQuotes.length, label: 'Stale Quotes', icon: 'schedule' },
+                { count: needsAttention.overdueInvoices.length, label: 'Overdue Invoices', icon: 'warning' },
+                { count: needsAttention.inactiveClients.length, label: 'Inactive Clients', icon: 'person_off' },
+              ].map((item) => {
+                const isCritical = item.count > 5;
+                return (
+                  <div
+                    key={item.label}
+                    onClick={() => navigate('/analytics?tab=suggestions')}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded cursor-pointer transition-colors ${
+                      isCritical
+                        ? 'bg-red-50 border border-red-200 hover:bg-red-100'
+                        : item.count > 0
+                        ? 'bg-amber-50 border border-amber-200 hover:bg-amber-100'
+                        : 'bg-green-50 border border-green-200'
+                    }`}
+                  >
+                    <span className={`material-symbols-outlined !text-[20px] ${isCritical ? 'text-red-500' : item.count > 0 ? 'text-amber-500' : 'text-green-500'}`}>{item.icon}</span>
+                    <div>
+                      <p className={`text-lg font-bold ${isCritical ? 'text-red-700' : item.count > 0 ? 'text-amber-700' : 'text-green-700'}`}>{item.count}</p>
+                      <p className="text-[10px] font-semibold text-[var(--erp-text-muted)] uppercase">{item.label}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
           {/* Main Content */}

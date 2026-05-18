@@ -12,6 +12,25 @@ const DEFAULT_PERMISSIONS: PermissionEntry[] = [
   { module: 'System Config', fullAccess: false, view: false, create: false, alter: false, delete: false, print: false, special: 'Admin Only' },
 ];
 
+// Granular RBAC Permission Groups (mirrors backend PERMISSION_GROUPS)
+const PERMISSION_GROUPS: Record<string, string[]> = {
+  'Quotations': ['quotation:view', 'quotation:create', 'quotation:edit', 'quotation:delete', 'quotation:approve', 'quotation:send'],
+  'RFQs': ['rfq:view', 'rfq:create', 'rfq:edit', 'rfq:delete'],
+  'Invoices': ['invoice:view', 'invoice:create', 'invoice:edit', 'invoice:delete'],
+  'Products': ['product:view', 'product:create', 'product:edit', 'product:delete'],
+  'Clients': ['client:view', 'client:create', 'client:edit', 'client:delete'],
+  'Orders': ['order:view', 'order:create', 'order:edit', 'order:approve'],
+  'Payments': ['payment:view', 'payment:create'],
+  'Analytics': ['analytics:view', 'report:export'],
+  'Settings': ['settings:view', 'settings:edit'],
+  'Administration': ['user:manage', 'role:manage', 'audit:view'],
+};
+
+const formatPermissionLabel = (perm: string): string => {
+  const [, action] = perm.split(':');
+  return action.charAt(0).toUpperCase() + action.slice(1);
+};
+
 const UserPermissions: React.FC = () => {
   const { users, addUser, updateUser, deleteUser, showConfirmModal, showToast } = useApp();
   
@@ -21,6 +40,7 @@ const UserPermissions: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'modules' | 'granular'>('granular');
 
   useEffect(() => {
     if (!users.length) {
@@ -35,6 +55,8 @@ const UserPermissions: React.FC = () => {
 
   // Permission state for selected user — loaded from backend or defaults
   const [permissions, setPermissions] = useState<PermissionEntry[]>(DEFAULT_PERMISSIONS);
+  // Granular permissions state
+  const [granularPermissions, setGranularPermissions] = useState<string[]>([]);
 
   // Filter users
   const filteredUsers = useMemo(() => {
@@ -48,10 +70,13 @@ const UserPermissions: React.FC = () => {
 
   const selectedUser = users.find(u => u.id === selectedId);
 
+  const isAdminUser = selectedUser?.role === 'admin';
+
   // Reload permissions matrix whenever selected user changes
   useEffect(() => {
     if (!selectedUser) {
       setPermissions(DEFAULT_PERMISSIONS);
+      setGranularPermissions([]);
       return;
     }
     setPermissions(
@@ -59,6 +84,9 @@ const UserPermissions: React.FC = () => {
         ? selectedUser.permissions.modules
         : DEFAULT_PERMISSIONS,
     );
+    // Load granular permissions
+    const gp = selectedUser.permissions?.granular;
+    setGranularPermissions(Array.isArray(gp) ? gp : []);
   }, [selectedUser]);
 
   const handleDelete = (user: User) => {
@@ -80,7 +108,7 @@ const UserPermissions: React.FC = () => {
     try {
       await new Promise<void>((resolve, reject) => {
         try {
-          updateUser(selectedId, { permissions: { modules: permissions } });
+          updateUser(selectedId, { permissions: { modules: permissions, granular: granularPermissions } });
           resolve();
         } catch (err) {
           reject(err);
@@ -110,6 +138,29 @@ const UserPermissions: React.FC = () => {
     setPermissions(updated);
   };
 
+  const toggleGranularPermission = (perm: string) => {
+    if (isAdminUser) return;
+    setGranularPermissions(prev =>
+      prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]
+    );
+  };
+
+  const selectAllInGroup = (group: string) => {
+    if (isAdminUser) return;
+    const groupPerms = PERMISSION_GROUPS[group];
+    setGranularPermissions(prev => {
+      const existing = new Set(prev);
+      groupPerms.forEach(p => existing.add(p));
+      return Array.from(existing);
+    });
+  };
+
+  const deselectAllInGroup = (group: string) => {
+    if (isAdminUser) return;
+    const groupPerms = new Set(PERMISSION_GROUPS[group]);
+    setGranularPermissions(prev => prev.filter(p => !groupPerms.has(p)));
+  };
+
   const getRoleBadge = (role: string) => {
     const styles: Record<string, string> = {
       admin: 'bg-red-100 text-red-700 border-red-200',
@@ -127,7 +178,7 @@ const UserPermissions: React.FC = () => {
   return (
     <PageLayout>
       {/* Left Panel - User List */}
-      <aside className="w-80 border-r border-[var(--erp-border)] flex flex-col bg-white shrink-0">
+      <aside className={`w-full md:w-80 border-r border-[var(--erp-border)] flex flex-col bg-white shrink-0 ${selectedId ? 'hidden md:flex' : 'flex'}`}>
         <div className="h-12 border-b border-[var(--erp-border)] bg-slate-50 flex items-center justify-between px-3 shrink-0">
           <h2 className="text-sm font-bold text-[var(--erp-text)] uppercase tracking-wider">Users</h2>
           <button 
@@ -206,13 +257,19 @@ const UserPermissions: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
+      <main className={`flex-1 flex flex-col min-w-0 bg-white overflow-hidden ${selectedId ? 'flex' : 'hidden md:flex'}`}>
         {selectedUser ? (
           <>
             {/* Header */}
-            <div className="h-14 border-b border-[var(--erp-border)] flex items-center justify-between px-5 shrink-0 bg-slate-50">
-              <div className="flex items-center gap-4">
-                <h2 className="text-sm font-bold text-[var(--erp-text)]">
+            <div className="h-14 border-b border-[var(--erp-border)] flex items-center justify-between px-3 md:px-5 shrink-0 bg-slate-50">
+              <div className="flex items-center gap-2 md:gap-4 min-w-0">
+                <button
+                  className="md:hidden flex items-center justify-center w-8 h-8 rounded text-[var(--erp-text-muted)] hover:bg-slate-200 shrink-0"
+                  onClick={() => setSelectedId(null)}
+                >
+                  <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                </button>
+                <h2 className="text-sm font-bold text-[var(--erp-text)] truncate">
                   Permissions: <span className="text-[var(--erp-accent)]">{selectedUser.username}</span>
                 </h2>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getRoleBadge(selectedUser.role)}`}>
@@ -223,13 +280,13 @@ const UserPermissions: React.FC = () => {
                 <button 
                   onClick={handleSavePermissions}
                   disabled={isSaving}
-                  className="btn btn-primary btn-md"
+                  className="btn btn-primary btn-sm md:btn-md"
                 >
-                  {isSaving ? 'Saving...' : 'Save Changes'}
+                  {isSaving ? 'Saving...' : 'Save'}
                 </button>
                 <button 
                   onClick={() => setEditingUser(selectedUser)}
-                  className="px-4 py-1.5 border border-[var(--erp-border)] bg-white text-[12px] font-medium rounded hover:bg-slate-50"
+                  className="hidden md:inline-flex px-4 py-1.5 border border-[var(--erp-border)] bg-white text-[12px] font-medium rounded hover:bg-slate-50"
                 >
                   Edit User
                 </button>
@@ -243,15 +300,15 @@ const UserPermissions: React.FC = () => {
             </div>
 
             {/* User Info */}
-            <div className="p-5 border-b border-[var(--erp-border)] bg-slate-50">
-              <div className="grid grid-cols-4 gap-4">
+            <div className="p-3 md:p-5 border-b border-[var(--erp-border)] bg-slate-50">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                 <div>
                   <p className="text-[11px] text-[var(--erp-text-muted)] mb-0.5">Username</p>
-                  <p className="text-sm font-semibold">{selectedUser.username}</p>
+                  <p className="text-sm font-semibold truncate">{selectedUser.username}</p>
                 </div>
                 <div>
                   <p className="text-[11px] text-[var(--erp-text-muted)] mb-0.5">Email</p>
-                  <p className="text-sm">{selectedUser.email}</p>
+                  <p className="text-sm truncate">{selectedUser.email}</p>
                 </div>
                 <div>
                   <p className="text-[11px] text-[var(--erp-text-muted)] mb-0.5">Department</p>
@@ -264,97 +321,185 @@ const UserPermissions: React.FC = () => {
               </div>
             </div>
 
-            {/* Permissions Table */}
-            <div className="flex-1 overflow-y-auto p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest">Module Permissions</h3>
-                <label className="flex items-center gap-2 text-[12px] cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4"
-                    onChange={(e) => {
-                      const val = e.target.checked;
-                      setPermissions(permissions.map(p => ({
-                        ...p,
-                        fullAccess: val, view: val, create: val, alter: val, delete: val, print: val
-                      } as PermissionEntry)));
-                    }}
-                  />
-                  <span>Grant All Access</span>
-                </label>
-              </div>
-              <div className="border border-[var(--erp-border)] rounded overflow-hidden">
-                <table className="w-full text-[12px]">
-                  <thead>
-                    <tr className="bg-slate-100 text-[10px] text-[var(--erp-text-muted)] uppercase tracking-wider">
-                      <th className="px-3 py-2 text-left w-40">Module</th>
-                      <th className="px-3 py-2 text-center w-16">Full</th>
-                      <th className="px-3 py-2 text-center w-16">View</th>
-                      <th className="px-3 py-2 text-center w-16">Create</th>
-                      <th className="px-3 py-2 text-center w-16">Alter</th>
-                      <th className="px-3 py-2 text-center w-16">Delete</th>
-                      <th className="px-3 py-2 text-center w-16">Print</th>
-                      <th className="px-3 py-2 text-center">Special Permission</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {permissions.map((perm, index) => (
-                      <tr key={perm.module} className="hover:bg-slate-50">
-                        <td className="px-3 py-2 font-medium text-[var(--erp-text)]">{perm.module}</td>
-                        <td className="px-3 py-2 text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={perm.fullAccess}
-                            onChange={() => togglePermission(index, 'fullAccess')}
-                            className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4 cursor-pointer"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={perm.view}
-                            onChange={() => togglePermission(index, 'view')}
-                            className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4 cursor-pointer"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={perm.create}
-                            onChange={() => togglePermission(index, 'create')}
-                            className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4 cursor-pointer"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={perm.alter}
-                            onChange={() => togglePermission(index, 'alter')}
-                            className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4 cursor-pointer"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={perm.delete}
-                            onChange={() => togglePermission(index, 'delete')}
-                            className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4 cursor-pointer"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={perm.print}
-                            onChange={() => togglePermission(index, 'print')}
-                            className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4 cursor-pointer"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center text-[var(--erp-accent)] italic text-[11px]">{perm.special}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            {/* Tab Switcher */}
+            <div className="flex border-b border-[var(--erp-border)] shrink-0">
+              <button
+                onClick={() => setActiveTab('granular')}
+                className={`px-4 py-2.5 text-[12px] font-bold uppercase tracking-wider border-b-2 transition-colors ${
+                  activeTab === 'granular'
+                    ? 'border-[var(--erp-accent)] text-[var(--erp-accent)]'
+                    : 'border-transparent text-[var(--erp-text-muted)] hover:text-[var(--erp-text)]'
+                }`}
+              >
+                Granular Permissions
+              </button>
+              <button
+                onClick={() => setActiveTab('modules')}
+                className={`px-4 py-2.5 text-[12px] font-bold uppercase tracking-wider border-b-2 transition-colors ${
+                  activeTab === 'modules'
+                    ? 'border-[var(--erp-accent)] text-[var(--erp-accent)]'
+                    : 'border-transparent text-[var(--erp-text-muted)] hover:text-[var(--erp-text)]'
+                }`}
+              >
+                Module Permissions
+              </button>
+            </div>
+
+            {/* Permission Content */}
+            <div className="flex-1 overflow-y-auto p-3 md:p-5">
+              {activeTab === 'granular' ? (
+                /* Granular RBAC Permission Editor */
+                <div>
+                  {isAdminUser && (
+                    <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded text-[12px] text-amber-800 flex items-center gap-2">
+                      <span className="material-symbols-outlined !text-[16px]">info</span>
+                      Admin users have implicit full access to all permissions.
+                    </div>
+                  )}
+                  <div className="space-y-4">
+                    {Object.entries(PERMISSION_GROUPS).map(([group, perms]) => {
+                      const allChecked = isAdminUser || perms.every(p => granularPermissions.includes(p));
+                      const someChecked = !isAdminUser && perms.some(p => granularPermissions.includes(p));
+                      return (
+                        <div key={group} className="border border-[var(--erp-border)] rounded overflow-hidden">
+                          <div className="bg-slate-50 px-3 py-2 flex items-center justify-between">
+                            <h4 className="text-[12px] font-bold text-[var(--erp-text)] uppercase tracking-wider">{group}</h4>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => selectAllInGroup(group)}
+                                disabled={isAdminUser}
+                                className="text-[10px] text-[var(--erp-accent)] font-medium hover:underline disabled:opacity-50"
+                              >
+                                Select All
+                              </button>
+                              <span className="text-[10px] text-slate-300">|</span>
+                              <button
+                                onClick={() => deselectAllInGroup(group)}
+                                disabled={isAdminUser}
+                                className="text-[10px] text-slate-500 font-medium hover:underline disabled:opacity-50"
+                              >
+                                Deselect All
+                              </button>
+                              <span className={`ml-2 w-2 h-2 rounded-full ${allChecked ? 'bg-green-500' : someChecked ? 'bg-amber-500' : 'bg-slate-300'}`}></span>
+                            </div>
+                          </div>
+                          <div className="px-3 py-2 flex flex-wrap gap-x-6 gap-y-2">
+                            {perms.map(perm => {
+                              const checked = isAdminUser || granularPermissions.includes(perm);
+                              return (
+                                <label key={perm} className="flex items-center gap-2 cursor-pointer min-h-[32px] min-w-[44px]">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={isAdminUser}
+                                    onChange={() => toggleGranularPermission(perm)}
+                                    className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4"
+                                  />
+                                  <span className="text-[12px] text-[var(--erp-text)]">{formatPermissionLabel(perm)}</span>
+                                  <span className="text-[10px] text-[var(--erp-text-muted)]">({perm})</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                /* Module Permissions Table */
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest">Module Permissions</h3>
+                    <label className="flex items-center gap-2 text-[12px] cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4"
+                        onChange={(e) => {
+                          const val = e.target.checked;
+                          setPermissions(permissions.map(p => ({
+                            ...p,
+                            fullAccess: val, view: val, create: val, alter: val, delete: val, print: val
+                          } as PermissionEntry)));
+                        }}
+                      />
+                      <span>Grant All Access</span>
+                    </label>
+                  </div>
+                  <div className="border border-[var(--erp-border)] rounded overflow-x-auto">
+                    <table className="w-full text-[12px] min-w-[600px]">
+                      <thead>
+                        <tr className="bg-slate-100 text-[10px] text-[var(--erp-text-muted)] uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left w-40">Module</th>
+                          <th className="px-3 py-2 text-center w-16">Full</th>
+                          <th className="px-3 py-2 text-center w-16">View</th>
+                          <th className="px-3 py-2 text-center w-16">Create</th>
+                          <th className="px-3 py-2 text-center w-16">Alter</th>
+                          <th className="px-3 py-2 text-center w-16">Delete</th>
+                          <th className="px-3 py-2 text-center w-16">Print</th>
+                          <th className="px-3 py-2 text-center">Special Permission</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {permissions.map((perm, index) => (
+                          <tr key={perm.module} className="hover:bg-slate-50">
+                            <td className="px-3 py-2 font-medium text-[var(--erp-text)]">{perm.module}</td>
+                            <td className="px-3 py-2 text-center">
+                              <input 
+                                type="checkbox" 
+                                checked={perm.fullAccess}
+                                onChange={() => togglePermission(index, 'fullAccess')}
+                                className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <input 
+                                type="checkbox" 
+                                checked={perm.view}
+                                onChange={() => togglePermission(index, 'view')}
+                                className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <input 
+                                type="checkbox" 
+                                checked={perm.create}
+                                onChange={() => togglePermission(index, 'create')}
+                                className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <input 
+                                type="checkbox" 
+                                checked={perm.alter}
+                                onChange={() => togglePermission(index, 'alter')}
+                                className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <input 
+                                type="checkbox" 
+                                checked={perm.delete}
+                                onChange={() => togglePermission(index, 'delete')}
+                                className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <input 
+                                type="checkbox" 
+                                checked={perm.print}
+                                onChange={() => togglePermission(index, 'print')}
+                                className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] w-4 h-4 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center text-[var(--erp-accent)] italic text-[11px]">{perm.special}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -412,7 +557,7 @@ const UserModal: React.FC<UserModalProps> = ({ user, onClose, onSave }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose}></div>
-      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="relative bg-white rounded-lg shadow-xl w-[95vw] md:w-full max-w-md mx-4 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--erp-border)] bg-slate-50">
           <h3 className="text-lg font-bold text-[var(--erp-text)]">{user ? 'Edit User' : 'Add New User'}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
@@ -440,7 +585,7 @@ const UserModal: React.FC<UserModalProps> = ({ user, onClose, onSave }) => {
               placeholder="user@company.com"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">Role</label>
               <select
