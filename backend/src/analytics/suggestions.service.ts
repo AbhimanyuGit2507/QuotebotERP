@@ -78,7 +78,7 @@ export class SuggestionsService {
     // If client-specific data exists, weight it
     let suggestedPrice = median;
     if (clientItems.length >= 2) {
-      const clientPrices = clientItems.map((i) => Number(i.unit_price));
+      const clientPrices = clientItems.map((i) => Number(i.unit_price)).sort((a, b) => a - b);
       const clientMedian =
         clientPrices.length % 2 === 0
           ? (clientPrices[clientPrices.length / 2 - 1] +

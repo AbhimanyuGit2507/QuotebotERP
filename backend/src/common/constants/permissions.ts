@@ -55,6 +55,30 @@ export const PERMISSIONS = {
 
   // Audit
   AUDIT_VIEW: 'audit:view',
+
+  // Accounting
+  ACCOUNTING_VIEW: 'accounting:view',
+  ACCOUNTING_CREATE: 'accounting:create',
+  ACCOUNTING_EDIT: 'accounting:edit',
+
+  // Suppliers
+  SUPPLIER_VIEW: 'supplier:view',
+  SUPPLIER_CREATE: 'supplier:create',
+  SUPPLIER_EDIT: 'supplier:edit',
+  SUPPLIER_DELETE: 'supplier:delete',
+
+  // Purchase Orders
+  PURCHASE_ORDER_VIEW: 'purchase_order:view',
+  PURCHASE_ORDER_CREATE: 'purchase_order:create',
+  PURCHASE_ORDER_EDIT: 'purchase_order:edit',
+
+  // Inventory
+  INVENTORY_VIEW: 'inventory:view',
+  INVENTORY_ADJUST: 'inventory:adjust',
+
+  // Currency
+  CURRENCY_VIEW: 'currency:view',
+  CURRENCY_EDIT: 'currency:edit',
 } as const;
 
 export const PERMISSION_GROUPS: Record<string, string[]> = {
@@ -84,6 +108,11 @@ export const PERMISSION_GROUPS: Record<string, string[]> = {
   Payments: ['payment:view', 'payment:create'],
   Analytics: ['analytics:view', 'report:export'],
   Settings: ['settings:view', 'settings:edit'],
+  Accounting: ['accounting:view', 'accounting:create', 'accounting:edit'],
+  Suppliers: ['supplier:view', 'supplier:create', 'supplier:edit', 'supplier:delete'],
+  'Purchase Orders': ['purchase_order:view', 'purchase_order:create', 'purchase_order:edit'],
+  Inventory: ['inventory:view', 'inventory:adjust'],
+  Currency: ['currency:view', 'currency:edit'],
   Administration: ['user:manage', 'role:manage', 'audit:view'],
 };
 

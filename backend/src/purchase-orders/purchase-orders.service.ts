@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
@@ -8,6 +8,14 @@ import {
   PaginatedResult,
   parsePaginationParams,
 } from '../common/utils/pagination.util';
+
+// Valid PO status transitions (state machine)
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  draft: ['sent', 'cancelled'],
+  sent: ['confirmed', 'cancelled'],
+  confirmed: ['partially_received', 'cancelled'],
+  partially_received: ['received', 'cancelled'],
+};
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -95,47 +103,69 @@ export class PurchaseOrdersService {
     },
     userId?: string,
   ) {
-    const number = await this.generateNumber(tenantId);
-
-    const items = body.items.map((item) => {
-      const qty = new Decimal(item.quantity);
-      const price = new Decimal(item.unit_price);
-      const taxPct = new Decimal(item.tax_percent || 0);
-      const lineTotal = qty.mul(price).mul(new Decimal(1).add(taxPct.div(100)));
-      return {
-        product_id: item.product_id || null,
-        product_name: item.product_name,
-        quantity: qty,
-        unit_price: price,
-        tax_percent: taxPct,
-        total: lineTotal,
-        unit: item.unit || 'pcs',
-      };
+    // Validate supplier belongs to same tenant
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id: body.supplier_id, tenant_id: tenantId, deleted_at: null },
     });
+    if (!supplier) {
+      throw new BadRequestException('Supplier not found');
+    }
 
-    const subtotal = items.reduce((sum, i) => sum.add(new Decimal(i.quantity).mul(i.unit_price)), new Decimal(0));
-    const tax = items.reduce((sum, i) => {
-      const lineTax = new Decimal(i.quantity).mul(i.unit_price).mul(i.tax_percent).div(100);
-      return sum.add(lineTax);
-    }, new Decimal(0));
-    const total = subtotal.add(tax);
+    return this.prisma.$transaction(async (tx) => {
+      const number = await this.generateNumberTx(tx, tenantId);
 
-    return this.prisma.purchaseOrderOutbound.create({
-      data: {
+      const items = body.items.map((item) => {
+        const qty = new Decimal(item.quantity);
+        const price = new Decimal(item.unit_price);
+        const taxPct = new Decimal(item.tax_percent || 0);
+        const lineTotal = qty.mul(price).mul(new Decimal(1).add(taxPct.div(100)));
+        return {
+          product_id: item.product_id || null,
+          product_name: item.product_name,
+          quantity: qty,
+          unit_price: price,
+          tax_percent: taxPct,
+          total: lineTotal,
+          unit: item.unit || 'pcs',
+        };
+      });
+
+      const subtotal = items.reduce((sum, i) => sum.add(new Decimal(i.quantity).mul(i.unit_price)), new Decimal(0));
+      const tax = items.reduce((sum, i) => {
+        const lineTax = new Decimal(i.quantity).mul(i.unit_price).mul(i.tax_percent).div(100);
+        return sum.add(lineTax);
+      }, new Decimal(0));
+      const total = subtotal.add(tax);
+
+      return tx.purchaseOrderOutbound.create({
+        data: {
+          tenant_id: tenantId,
+          number,
+          supplier_id: body.supplier_id,
+          expected_delivery: body.expected_delivery ? new Date(body.expected_delivery) : null,
+          currency: body.currency || 'INR',
+          notes: body.notes,
+          created_by: userId,
+          subtotal,
+          tax,
+          total,
+          items: { create: items },
+        },
+        include: { supplier: true, items: true },
+      });
+    });
+  }
+
+  private async generateNumberTx(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
+    const now = new Date();
+    const prefix = `PO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const count = await tx.purchaseOrderOutbound.count({
+      where: {
         tenant_id: tenantId,
-        number,
-        supplier_id: body.supplier_id,
-        expected_delivery: body.expected_delivery ? new Date(body.expected_delivery) : null,
-        currency: body.currency || 'INR',
-        notes: body.notes,
-        created_by: userId,
-        subtotal,
-        tax,
-        total,
-        items: { create: items },
+        number: { startsWith: prefix },
       },
-      include: { supplier: true, items: true },
     });
+    return `${prefix}-${String(count + 1).padStart(3, '0')}`;
   }
 
   async update(
@@ -163,10 +193,18 @@ export class PurchaseOrdersService {
   async updateStatus(id: string, tenantId: string, status: string, userId?: string) {
     const validStatuses = ['draft', 'sent', 'confirmed', 'partially_received', 'received', 'cancelled'];
     if (!validStatuses.includes(status)) {
-      throw new NotFoundException('Invalid status');
+      throw new BadRequestException('Invalid status');
     }
 
-    await this.findOne(id, tenantId);
+    const po = await this.findOne(id, tenantId);
+
+    // Validate state machine transition
+    const allowedNextStatuses = VALID_TRANSITIONS[po.status];
+    if (!allowedNextStatuses || !allowedNextStatuses.includes(status)) {
+      throw new BadRequestException(
+        `Cannot transition from ${po.status} to ${status}`,
+      );
+    }
 
     const data: any = { status };
     if (status === 'confirmed' && userId) {

@@ -77,6 +77,75 @@ export class AnalyticsController {
     return this.analyticsService.channelBreakdown(user.tenant_id);
   }
 
+  @Get('conversion-funnel')
+  @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
+  @ApiOperation({ summary: 'Get conversion funnel data' })
+  @ApiResponse({ status: 200, description: 'Conversion funnel stages' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiQuery({ name: 'startDate', required: false, description: 'Start date (ISO 8601)' })
+  @ApiQuery({ name: 'endDate', required: false, description: 'End date (ISO 8601)' })
+  conversionFunnel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.analyticsService.getConversionFunnel(
+      user.tenant_id,
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+  }
+
+  @Get('revenue-forecast')
+  @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
+  @ApiOperation({ summary: 'Get revenue forecasting data' })
+  @ApiResponse({ status: 200, description: 'Revenue forecast with monthly trend' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  revenueForecast(@CurrentUser() user: AuthenticatedUser) {
+    return this.analyticsService.getRevenueForecasting(user.tenant_id);
+  }
+
+  @Get('client-insights-enhanced')
+  @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
+  @ApiOperation({ summary: 'Get enhanced client insights with growth and response metrics' })
+  @ApiResponse({ status: 200, description: 'Enhanced client insights data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Number of top clients to return' })
+  clientInsightsEnhanced(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('limit') limit?: string,
+  ) {
+    return this.analyticsService.getClientInsightsEnhanced(
+      user.tenant_id,
+      limit ? Number(limit) : undefined,
+    );
+  }
+
+  @Get('product-performance-enhanced')
+  @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
+  @ApiOperation({ summary: 'Get enhanced product performance metrics' })
+  @ApiResponse({ status: 200, description: 'Enhanced product performance data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Number of top products to return' })
+  productPerformanceEnhanced(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('limit') limit?: string,
+  ) {
+    return this.analyticsService.getProductPerformanceEnhanced(
+      user.tenant_id,
+      limit ? Number(limit) : undefined,
+    );
+  }
+
+  @Get('ai-metrics')
+  @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
+  @ApiOperation({ summary: 'Get AI pipeline metrics' })
+  @ApiResponse({ status: 200, description: 'AI pipeline metrics data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  aiMetrics(@CurrentUser() user: AuthenticatedUser) {
+    return this.analyticsService.getAIPipelineMetrics(user.tenant_id);
+  }
+
   @Get(':report/csv')
   @RequirePermission(PERMISSIONS.REPORT_EXPORT)
   @ApiOperation({ summary: 'Export an analytics report as CSV' })

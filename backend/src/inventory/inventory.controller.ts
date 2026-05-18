@@ -6,19 +6,26 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PermissionGuard } from '../common/guards/permission.guard';
+import { RequirePermission } from '../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
+import { PERMISSIONS } from '../common/constants/permissions';
 
 @ApiTags('Inventory')
-@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('inventory')
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   @Get('movements')
+  @RequirePermission(PERMISSIONS.INVENTORY_VIEW)
+  @ApiOperation({ summary: 'List stock movements' })
+  @ApiResponse({ status: 200, description: 'Paginated stock movements' })
   getMovements(
     @CurrentUser() user: AuthenticatedUser,
     @Query('productId') productId?: string,
@@ -39,6 +46,9 @@ export class InventoryController {
   }
 
   @Post('movements')
+  @RequirePermission(PERMISSIONS.INVENTORY_ADJUST)
+  @ApiOperation({ summary: 'Record a stock movement' })
+  @ApiResponse({ status: 201, description: 'Stock movement recorded' })
   recordMovement(
     @CurrentUser() user: AuthenticatedUser,
     @Body()
@@ -59,16 +69,25 @@ export class InventoryController {
   }
 
   @Get('alerts')
+  @RequirePermission(PERMISSIONS.INVENTORY_VIEW)
+  @ApiOperation({ summary: 'Get stock alerts (low stock products)' })
+  @ApiResponse({ status: 200, description: 'Low stock alerts' })
   getAlerts(@CurrentUser() user: AuthenticatedUser) {
     return this.inventoryService.getStockAlerts(user.tenant_id);
   }
 
   @Get('valuation')
+  @RequirePermission(PERMISSIONS.INVENTORY_VIEW)
+  @ApiOperation({ summary: 'Get stock valuation report' })
+  @ApiResponse({ status: 200, description: 'Stock valuation data' })
   getValuation(@CurrentUser() user: AuthenticatedUser) {
     return this.inventoryService.getStockValuation(user.tenant_id);
   }
 
   @Post('grn')
+  @RequirePermission(PERMISSIONS.INVENTORY_ADJUST)
+  @ApiOperation({ summary: 'Record a Goods Receipt Note' })
+  @ApiResponse({ status: 201, description: 'GRN recorded' })
   recordGRN(
     @CurrentUser() user: AuthenticatedUser,
     @Body()

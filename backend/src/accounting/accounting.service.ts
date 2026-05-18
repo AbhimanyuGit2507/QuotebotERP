@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CreateAccountDto } from './dtos/create-account.dto';
 import { UpdateAccountDto } from './dtos/update-account.dto';
@@ -194,24 +195,51 @@ export class AccountingService {
     if (!debitAcct) throw new NotFoundException('Debit account not found');
     if (!creditAcct) throw new NotFoundException('Credit account not found');
 
-    const entryNumber = await this.generateEntryNumber(tenantId);
+    // Wrap number generation + create in transaction to avoid race conditions
+    return this.prisma.$transaction(async (tx) => {
+      const entryNumber = await this.generateEntryNumberTx(tx, tenantId);
 
-    return this.prisma.journalEntry.create({
-      data: {
-        tenant_id: tenantId,
-        entry_number: entryNumber,
-        date: new Date(dto.date),
-        description: dto.description,
-        debit_account_id: dto.debitAccountId,
-        credit_account_id: dto.creditAccountId,
-        amount: dto.amount,
-        reference_type: dto.referenceType || 'MANUAL',
-        reference_id: dto.referenceId,
-        is_auto: false,
-        created_by: userId,
-      },
-      include: { debit_account: true, credit_account: true },
+      return tx.journalEntry.create({
+        data: {
+          tenant_id: tenantId,
+          entry_number: entryNumber,
+          date: new Date(dto.date),
+          description: dto.description,
+          debit_account_id: dto.debitAccountId,
+          credit_account_id: dto.creditAccountId,
+          amount: dto.amount,
+          reference_type: dto.referenceType || 'MANUAL',
+          reference_id: dto.referenceId,
+          is_auto: false,
+          created_by: userId,
+        },
+        include: { debit_account: true, credit_account: true },
+      });
     });
+  }
+
+  private async generateEntryNumberTx(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const prefix = `JE-${yyyy}${mm}-`;
+
+    const latest = await tx.journalEntry.findFirst({
+      where: {
+        tenant_id: tenantId,
+        entry_number: { startsWith: prefix },
+      },
+      orderBy: { entry_number: 'desc' },
+    });
+
+    let seq = 1;
+    if (latest) {
+      const parts = latest.entry_number.split('-');
+      const lastSeq = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(lastSeq)) seq = lastSeq + 1;
+    }
+
+    return `${prefix}${String(seq).padStart(3, '0')}`;
   }
 
   async createAutoJournalEntry(
@@ -223,6 +251,15 @@ export class AccountingService {
     },
   ) {
     try {
+      // Auto-seed chart of accounts if none exist for this tenant
+      const accountCount = await this.prisma.chartOfAccount.count({
+        where: { tenant_id: tenantId, deleted_at: null },
+      });
+      if (accountCount === 0) {
+        this.logger.log(`Auto-seeding default accounts for tenant ${tenantId}`);
+        await this.seedDefaultAccounts(tenantId);
+      }
+
       // Find the relevant accounts
       const accountsNeeded =
         data.type === 'INVOICE'

@@ -35,25 +35,59 @@ async function main() {
     },
   });
 
+  const userPermissions = [
+    'quotation:view',
+    'rfq:view',
+    'invoice:view',
+    'product:view',
+    'client:view',
+    'order:view',
+    'payment:view',
+    'analytics:view',
+    'supplier:view',
+    'purchase_order:view',
+    'inventory:view',
+    'currency:view',
+    'accounting:view',
+  ];
+
+  const managerPermissions = [
+    // All view permissions
+    'quotation:view', 'quotation:create', 'quotation:edit', 'quotation:send',
+    'rfq:view', 'rfq:create', 'rfq:edit',
+    'invoice:view', 'invoice:create', 'invoice:edit',
+    'product:view', 'product:create', 'product:edit',
+    'client:view', 'client:create', 'client:edit',
+    'order:view', 'order:create', 'order:edit',
+    'payment:view', 'payment:create',
+    'analytics:view', 'report:export',
+    'supplier:view', 'supplier:create', 'supplier:edit', 'supplier:delete',
+    'purchase_order:view', 'purchase_order:create', 'purchase_order:edit',
+    'inventory:view', 'inventory:adjust',
+    'currency:view', 'currency:edit',
+    'accounting:view', 'accounting:create', 'accounting:edit',
+    'settings:view',
+  ];
+
   const userRole = await prisma.role.upsert({
     where: { name: 'user' },
     update: {
-      permissions_json: JSON.stringify(['read']),
+      permissions_json: JSON.stringify(userPermissions),
     },
     create: {
       name: 'user',
-      permissions_json: JSON.stringify(['read']),
+      permissions_json: JSON.stringify(userPermissions),
     },
   });
 
   await prisma.role.upsert({
     where: { name: 'manager' },
     update: {
-      permissions_json: JSON.stringify(['read', 'write']),
+      permissions_json: JSON.stringify(managerPermissions),
     },
     create: {
       name: 'manager',
-      permissions_json: JSON.stringify(['read', 'write']),
+      permissions_json: JSON.stringify(managerPermissions),
     },
   });
   // managerRole is used implicitly through role definitions

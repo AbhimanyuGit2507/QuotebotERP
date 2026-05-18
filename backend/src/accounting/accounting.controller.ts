@@ -21,6 +21,9 @@ import {
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PermissionGuard } from '../common/guards/permission.guard';
+import { RequirePermission } from '../common/decorators/require-permission.decorator';
+import { PERMISSIONS } from '../common/constants/permissions';
 import { AccountingService } from './accounting.service';
 import { CreateAccountDto } from './dtos/create-account.dto';
 import { UpdateAccountDto } from './dtos/update-account.dto';
@@ -30,7 +33,7 @@ type AuthRequest = Request & { user?: { id?: string; tenant_id?: string } };
 
 @ApiTags('Accounting')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('accounting')
 export class AccountingController {
   constructor(private readonly accountingService: AccountingService) {}
@@ -44,6 +47,7 @@ export class AccountingController {
   /* ─── Chart of Accounts ─── */
 
   @Get('chart-of-accounts')
+  @RequirePermission(PERMISSIONS.ACCOUNTING_VIEW)
   @ApiOperation({ summary: 'Get the chart of accounts (hierarchical)' })
   @ApiResponse({ status: 200, description: 'Hierarchical chart of accounts' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -52,6 +56,7 @@ export class AccountingController {
   }
 
   @Get('chart-of-accounts/all')
+  @RequirePermission(PERMISSIONS.ACCOUNTING_VIEW)
   @ApiOperation({ summary: 'Get all accounts (flat list)' })
   @ApiResponse({ status: 200, description: 'Flat list of all accounts' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -60,6 +65,7 @@ export class AccountingController {
   }
 
   @Post('chart-of-accounts')
+  @RequirePermission(PERMISSIONS.ACCOUNTING_CREATE)
   @ApiOperation({ summary: 'Create a new account in the chart of accounts' })
   @ApiResponse({ status: 201, description: 'Account created successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -71,6 +77,7 @@ export class AccountingController {
   }
 
   @Put('chart-of-accounts/:id')
+  @RequirePermission(PERMISSIONS.ACCOUNTING_EDIT)
   @ApiOperation({ summary: 'Update an account in the chart of accounts' })
   @ApiParam({ name: 'id', description: 'Account ID' })
   @ApiResponse({ status: 200, description: 'Account updated successfully' })
@@ -84,6 +91,7 @@ export class AccountingController {
   }
 
   @Delete('chart-of-accounts/:id')
+  @RequirePermission(PERMISSIONS.ACCOUNTING_EDIT)
   @ApiOperation({ summary: 'Delete an account from the chart of accounts' })
   @ApiParam({ name: 'id', description: 'Account ID' })
   @ApiResponse({ status: 200, description: 'Account deleted successfully' })
@@ -93,6 +101,7 @@ export class AccountingController {
   }
 
   @Post('chart-of-accounts/seed')
+  @RequirePermission(PERMISSIONS.ACCOUNTING_CREATE)
   @ApiOperation({ summary: 'Seed default chart of accounts for the tenant' })
   @ApiResponse({ status: 201, description: 'Default accounts seeded successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -103,6 +112,7 @@ export class AccountingController {
   /* ─── Journal Entries ─── */
 
   @Get('journal-entries')
+  @RequirePermission(PERMISSIONS.ACCOUNTING_VIEW)
   @ApiOperation({ summary: 'List journal entries with filtering and pagination' })
   @ApiResponse({ status: 200, description: 'Paginated list of journal entries' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -129,6 +139,7 @@ export class AccountingController {
   }
 
   @Post('journal-entries')
+  @RequirePermission(PERMISSIONS.ACCOUNTING_CREATE)
   @ApiOperation({ summary: 'Create a new journal entry' })
   @ApiResponse({ status: 201, description: 'Journal entry created successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -146,6 +157,7 @@ export class AccountingController {
   /* ─── Reports ─── */
 
   @Get('trial-balance')
+  @RequirePermission(PERMISSIONS.ACCOUNTING_VIEW)
   @ApiOperation({ summary: 'Get trial balance report' })
   @ApiResponse({ status: 200, description: 'Trial balance data' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -161,6 +173,7 @@ export class AccountingController {
   }
 
   @Get('profit-and-loss')
+  @RequirePermission(PERMISSIONS.ACCOUNTING_VIEW)
   @ApiOperation({ summary: 'Get profit and loss report' })
   @ApiResponse({ status: 200, description: 'Profit and loss data' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -179,6 +192,7 @@ export class AccountingController {
   }
 
   @Get('balance-sheet')
+  @RequirePermission(PERMISSIONS.ACCOUNTING_VIEW)
   @ApiOperation({ summary: 'Get balance sheet report' })
   @ApiResponse({ status: 200, description: 'Balance sheet data' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
