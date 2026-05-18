@@ -1610,7 +1610,7 @@ const Inbox: React.FC = () => {
                     <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest mb-2">Message Body</h3>
                     {sanitizedHtml ? (
                       <div
-                        className="bg-slate-50 p-4 rounded border border-[var(--erp-border)] text-sm text-[var(--erp-text)]"
+                        className="bg-slate-50 p-4 rounded border border-[var(--erp-border)] text-sm text-[var(--erp-text)] isolate relative z-0 pointer-events-auto"
                         dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
                       />
                     ) : (
