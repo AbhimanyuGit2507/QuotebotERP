@@ -23,26 +23,26 @@ let AdminService = class AdminService {
         const timingWindowStart = new Date(Date.now() - timingWindowDays * 24 * 60 * 60 * 1000);
         const [users, rfqs, quotations, clients, products, parseRuns, outboundEmails, activities, auditLogs, invoices, openInvoices, paidInvoices, partialInvoices, cancelledInvoices, timingMessages,] = await Promise.all([
             this.prisma.user.count({ where: { tenant_id: tenantId } }),
-            this.prisma.rFQ.count({ where: { tenant_id: tenantId } }),
-            this.prisma.quotation.count({ where: { tenant_id: tenantId } }),
-            this.prisma.client.count({ where: { tenant_id: tenantId } }),
-            this.prisma.product.count({ where: { tenant_id: tenantId } }),
+            this.prisma.rFQ.count({ where: { tenant_id: tenantId, deleted_at: null } }),
+            this.prisma.quotation.count({ where: { tenant_id: tenantId, deleted_at: null } }),
+            this.prisma.client.count({ where: { tenant_id: tenantId, deleted_at: null } }),
+            this.prisma.product.count({ where: { tenant_id: tenantId, deleted_at: null } }),
             this.prisma.parseRun.count({ where: { tenant_id: tenantId } }),
             this.prisma.outboundEmail.count({ where: { tenant_id: tenantId } }),
             this.prisma.activity.count({ where: { tenant_id: tenantId } }),
             this.prisma.auditLog.count({ where: { tenant_id: tenantId } }),
-            this.prisma.invoice.count({ where: { tenant_id: tenantId } }),
+            this.prisma.invoice.count({ where: { tenant_id: tenantId, deleted_at: null } }),
             this.prisma.invoice.count({
-                where: { tenant_id: tenantId, status: 'open' },
+                where: { tenant_id: tenantId, status: 'open', deleted_at: null },
             }),
             this.prisma.invoice.count({
-                where: { tenant_id: tenantId, status: 'paid' },
+                where: { tenant_id: tenantId, status: 'paid', deleted_at: null },
             }),
             this.prisma.invoice.count({
-                where: { tenant_id: tenantId, status: 'partial' },
+                where: { tenant_id: tenantId, status: 'partial', deleted_at: null },
             }),
             this.prisma.invoice.count({
-                where: { tenant_id: tenantId, status: 'cancelled' },
+                where: { tenant_id: tenantId, status: 'cancelled', deleted_at: null },
             }),
             this.prisma.message.findMany({
                 where: {

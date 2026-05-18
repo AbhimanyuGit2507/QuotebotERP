@@ -136,8 +136,14 @@ export class RfqsController {
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
     @Query('forceDeleteLinkedQuotation') force?: string,
+    @Query('forceDelete') forceDelete?: string,
   ) {
     const forceFlag = Boolean(force === 'true' || force === '1');
+    if (forceDelete === 'true') {
+      return this.rfqsService.forceDelete(id, user.tenant_id, {
+        forceDeleteLinkedQuotation: forceFlag,
+      });
+    }
     return this.rfqsService.remove(id, user.tenant_id, {
       forceDeleteLinkedQuotation: forceFlag,
     });

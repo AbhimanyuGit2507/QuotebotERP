@@ -75,8 +75,13 @@ let RfqsController = class RfqsController {
     sendByEmail(id, user, body) {
         return this.rfqsService.sendByEmail(id, user.tenant_id, body);
     }
-    remove(id, user, force) {
+    remove(id, user, force, forceDelete) {
         const forceFlag = Boolean(force === 'true' || force === '1');
+        if (forceDelete === 'true') {
+            return this.rfqsService.forceDelete(id, user.tenant_id, {
+                forceDeleteLinkedQuotation: forceFlag,
+            });
+        }
         return this.rfqsService.remove(id, user.tenant_id, {
             forceDeleteLinkedQuotation: forceFlag,
         });
@@ -176,8 +181,9 @@ __decorate([
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __param(2, (0, common_1.Query)('forceDeleteLinkedQuotation')),
+    __param(3, (0, common_1.Query)('forceDelete')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object, String]),
+    __metadata("design:paramtypes", [String, Object, String, String]),
     __metadata("design:returntype", void 0)
 ], RfqsController.prototype, "remove", null);
 exports.RfqsController = RfqsController = __decorate([

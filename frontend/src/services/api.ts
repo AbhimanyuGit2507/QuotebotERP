@@ -79,6 +79,19 @@ export function clearStoredToken() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
+/**
+ * Unwrap a paginated API response to extract the data array.
+ * If the response is already an array, return it as-is (backward compat).
+ * If it's a paginated object { data: T[], meta: {...} }, return data.
+ */
+export function unwrapPaginated<T>(response: T[] | { data: T[]; meta: any }): T[] {
+  if (Array.isArray(response)) return response;
+  if (response && typeof response === 'object' && 'data' in response && Array.isArray(response.data)) {
+    return response.data;
+  }
+  return [];
+}
+
 export async function apiRequest<T>(
   path: string,
   options: ApiRequestOptions = {},

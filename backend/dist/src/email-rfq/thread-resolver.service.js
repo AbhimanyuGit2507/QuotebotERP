@@ -98,7 +98,7 @@ let ThreadResolverService = ThreadResolverService_1 = class ThreadResolverServic
             if (quoteMatch && quoteMatch[1]) {
                 const qnum = quoteMatch[1].trim();
                 const quotation = await this.prisma.quotation.findFirst({
-                    where: { tenant_id: tenantId, number: qnum },
+                    where: { tenant_id: tenantId, number: qnum, deleted_at: null },
                     select: { conversation_id: true },
                 });
                 if (quotation?.conversation_id) {

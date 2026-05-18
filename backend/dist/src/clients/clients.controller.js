@@ -63,7 +63,10 @@ let ClientsController = class ClientsController {
     update(id, user, body) {
         return this.clientsService.update(id, user.tenant_id, body);
     }
-    remove(id, user) {
+    remove(id, forceDelete, user) {
+        if (forceDelete === 'true') {
+            return this.clientsService.forceDelete(id, user.tenant_id);
+        }
         return this.clientsService.remove(id, user.tenant_id);
     }
 };
@@ -136,9 +139,10 @@ __decorate([
 __decorate([
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('forceDelete')),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", void 0)
 ], ClientsController.prototype, "remove", null);
 exports.ClientsController = ClientsController = __decorate([

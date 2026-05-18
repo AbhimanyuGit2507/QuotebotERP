@@ -113,7 +113,7 @@ export class OrdersService {
 
     // Generate invoice number
     const invoiceCount = await this.prisma.invoice.count({
-      where: { tenant_id: tenantId },
+      where: { tenant_id: tenantId, deleted_at: null },
     });
     const invoiceNumber = `INV-${String(invoiceCount + 1).padStart(6, '0')}`;
 

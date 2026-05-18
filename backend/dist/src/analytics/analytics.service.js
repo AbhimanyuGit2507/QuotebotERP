@@ -20,7 +20,7 @@ let AnalyticsService = class AnalyticsService {
     }
     async salesTrends(tenantId) {
         const quotations = await this.prisma.quotation.findMany({
-            where: { tenant_id: tenantId },
+            where: { tenant_id: tenantId, deleted_at: null },
             select: { date: true, total: true, status: true },
             orderBy: { created_at: 'asc' },
         });
@@ -32,7 +32,7 @@ let AnalyticsService = class AnalyticsService {
     }
     async rfqAnalysis(tenantId) {
         const rfqs = await this.prisma.rFQ.findMany({
-            where: { tenant_id: tenantId },
+            where: { tenant_id: tenantId, deleted_at: null },
             include: { client: true, items: true },
         });
         return {
@@ -51,7 +51,7 @@ let AnalyticsService = class AnalyticsService {
     }
     async quotePerformance(tenantId) {
         const quotations = await this.prisma.quotation.findMany({
-            where: { tenant_id: tenantId },
+            where: { tenant_id: tenantId, deleted_at: null },
         });
         const accepted = quotations.filter((quotation) => quotation.status === 'accepted').length;
         return {
@@ -67,7 +67,7 @@ let AnalyticsService = class AnalyticsService {
     }
     async productPerformance(tenantId) {
         const products = await this.prisma.product.findMany({
-            where: { tenant_id: tenantId },
+            where: { tenant_id: tenantId, deleted_at: null },
             include: { quotation_items: true, category: true },
         });
         return products.map((product) => ({
@@ -82,13 +82,13 @@ let AnalyticsService = class AnalyticsService {
     }
     async clientInsights(tenantId) {
         return this.prisma.client.findMany({
-            where: { tenant_id: tenantId },
+            where: { tenant_id: tenantId, deleted_at: null },
             orderBy: [{ total_value: 'desc' }, { total_orders: 'desc' }],
         });
     }
     async channelBreakdown(tenantId) {
         const rfqs = await this.prisma.rFQ.findMany({
-            where: { tenant_id: tenantId },
+            where: { tenant_id: tenantId, deleted_at: null },
             select: { channel: true },
         });
         return rfqs.reduce((acc, rfq) => {

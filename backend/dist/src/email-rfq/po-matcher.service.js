@@ -41,7 +41,7 @@ let PoMatcherService = class PoMatcherService {
         let domainMatch = 0;
         if (quotationId) {
             const quotation = await this.prisma.quotation.findFirst({
-                where: { tenant_id: tenantId, id: quotationId },
+                where: { tenant_id: tenantId, id: quotationId, deleted_at: null },
                 select: {
                     conversation_id: true,
                     client_id: true,
@@ -55,7 +55,7 @@ let PoMatcherService = class PoMatcherService {
             }
             if (quotation?.client_id) {
                 const client = await this.prisma.client.findFirst({
-                    where: { tenant_id: tenantId, id: quotation.client_id },
+                    where: { tenant_id: tenantId, id: quotation.client_id, deleted_at: null },
                     select: { email: true },
                 });
                 if (client?.email) {
@@ -101,7 +101,7 @@ let PoMatcherService = class PoMatcherService {
                 });
                 if (po?.po_number && quotationId) {
                     const quotationRec = await this.prisma.quotation.findFirst({
-                        where: { tenant_id: tenantId, id: quotationId },
+                        where: { tenant_id: tenantId, id: quotationId, deleted_at: null },
                         select: { number: true },
                     });
                     if (quotationRec?.number && po.po_number === quotationRec.number)
@@ -111,12 +111,12 @@ let PoMatcherService = class PoMatcherService {
         }
         if (!customerMatch && quotationId) {
             const quotation = await this.prisma.quotation.findFirst({
-                where: { tenant_id: tenantId, id: quotationId },
+                where: { tenant_id: tenantId, id: quotationId, deleted_at: null },
                 select: { client_id: true },
             });
             if (quotation?.client_id) {
                 const client = await this.prisma.client.findFirst({
-                    where: { tenant_id: tenantId, id: quotation.client_id },
+                    where: { tenant_id: tenantId, id: quotation.client_id, deleted_at: null },
                     select: { email: true },
                 });
                 if (client?.email) {

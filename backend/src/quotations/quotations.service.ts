@@ -392,6 +392,29 @@ export class QuotationsService {
     return { message: 'Quotation deleted successfully' };
   }
 
+  async forceDelete(
+    id: string,
+    tenantId: string,
+    options?: { forceDeleteLinkedRfq?: boolean },
+  ) {
+    const quotation = await this.prisma.quotation.findFirst({
+      where: { id, tenant_id: tenantId },
+    });
+    if (!quotation) {
+      throw new NotFoundException(`Quotation ${id} not found`);
+    }
+
+    if (options?.forceDeleteLinkedRfq) {
+      await this.prisma.rFQ.deleteMany({ where: { quotation_id: id } });
+    }
+
+    // Hard-delete items first, then quotation
+    await this.prisma.quotationItem.deleteMany({ where: { quotation_id: id } });
+    await this.prisma.quotationVersion.deleteMany({ where: { quotation_id: id } });
+    await this.prisma.quotation.delete({ where: { id } });
+    return { message: 'Quotation permanently deleted' };
+  }
+
   async duplicate(id: string, tenantId: string) {
     const quotation = await this.findOne(id, tenantId);
     return this.create(tenantId, {

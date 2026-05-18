@@ -135,7 +135,7 @@ export declare class ClientsController {
         total_value: import("@prisma/client-runtime-utils").Decimal;
         last_order_date: Date | null;
     }>;
-    remove(id: string, user: AuthenticatedUser): Promise<{
+    remove(id: string, forceDelete: string, user: AuthenticatedUser): Promise<{
         message: string;
     }>;
 }

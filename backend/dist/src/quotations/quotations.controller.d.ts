@@ -616,7 +616,7 @@ export declare class QuotationsController {
         payment_status: string;
         paid_amount: import("@prisma/client-runtime-utils").Decimal;
     })[]>;
-    remove(id: string, user: AuthenticatedUser, force?: string): Promise<{
+    remove(id: string, user: AuthenticatedUser, force?: string, forceDelete?: string): Promise<{
         message: string;
     }>;
 }

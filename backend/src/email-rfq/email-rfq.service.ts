@@ -700,6 +700,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       where: {
         tenant_id: tenantId,
         quotation_id: quotationId,
+        deleted_at: null,
       },
     });
 
@@ -711,6 +712,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       where: {
         id: quotationId,
         tenant_id: tenantId,
+        deleted_at: null,
       },
       include: {
         client: true,

@@ -463,7 +463,7 @@ export declare class RfqsController {
         subject: string;
         status: string;
     }>;
-    remove(id: string, user: AuthenticatedUser, force?: string): Promise<{
+    remove(id: string, user: AuthenticatedUser, force?: string, forceDelete?: string): Promise<{
         message: string;
     }>;
 }

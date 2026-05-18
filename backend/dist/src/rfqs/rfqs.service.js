@@ -703,6 +703,23 @@ let RfqsService = RfqsService_1 = class RfqsService {
         await this.prisma.rFQ.update({ where: { id }, data: { deleted_at: new Date() } });
         return { message: 'RFQ deleted successfully' };
     }
+    async forceDelete(id, tenantId, options) {
+        const rfq = await this.prisma.rFQ.findFirst({
+            where: { id, tenant_id: tenantId },
+        });
+        if (!rfq) {
+            throw new common_1.NotFoundException(`RFQ ${id} not found`);
+        }
+        const linkedQuotationId = rfq?.quotation_id;
+        if (linkedQuotationId && options?.forceDeleteLinkedQuotation) {
+            await this.prisma.quotationItem.deleteMany({ where: { quotation_id: linkedQuotationId } });
+            await this.prisma.quotationVersion.deleteMany({ where: { quotation_id: linkedQuotationId } });
+            await this.prisma.quotation.delete({ where: { id: linkedQuotationId } }).catch(() => { });
+        }
+        await this.prisma.rFQItem.deleteMany({ where: { rfq_id: id } });
+        await this.prisma.rFQ.delete({ where: { id } });
+        return { message: 'RFQ permanently deleted' };
+    }
     async updateStatus(id, tenantId, status) {
         return this.update(id, tenantId, { status });
     }

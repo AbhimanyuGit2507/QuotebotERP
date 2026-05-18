@@ -151,8 +151,14 @@ export class QuotationsController {
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
     @Query('forceDeleteLinkedRfq') force?: string,
+    @Query('forceDelete') forceDelete?: string,
   ) {
     const forceFlag = Boolean(force === 'true' || force === '1');
+    if (forceDelete === 'true') {
+      return this.quotationsService.forceDelete(id, user.tenant_id, {
+        forceDeleteLinkedRfq: forceFlag,
+      });
+    }
     return this.quotationsService.remove(id, user.tenant_id, {
       forceDeleteLinkedRfq: forceFlag,
     });

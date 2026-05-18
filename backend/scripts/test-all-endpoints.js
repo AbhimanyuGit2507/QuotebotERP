@@ -669,19 +669,19 @@ async function run() {
     await callApi({
       name: `Quotations Delete (${quotationId})`,
       method: 'DELETE',
-      path: `/quotations/${quotationId}?forceDeleteLinkedRfq=true`,
+      path: `/quotations/${quotationId}?forceDeleteLinkedRfq=true&forceDelete=true`,
       expected: [200],
     });
   }
   if (state.rfqId) {
     // RFQ may already be deleted by the force-delete of its linked quotation above
-    await callApi({ name: 'RFQs Delete', method: 'DELETE', path: `/rfqs/${state.rfqId}?forceDeleteLinkedQuotation=true`, expected: [200, 404] });
+    await callApi({ name: 'RFQs Delete', method: 'DELETE', path: `/rfqs/${state.rfqId}?forceDeleteLinkedQuotation=true&forceDelete=true`, expected: [200, 404] });
   }
   if (state.clientId) {
-    await callApi({ name: 'Clients Delete', method: 'DELETE', path: `/clients/${state.clientId}`, expected: [200] });
+    await callApi({ name: 'Clients Delete', method: 'DELETE', path: `/clients/${state.clientId}?forceDelete=true`, expected: [200] });
   }
   if (state.productId) {
-    await callApi({ name: 'Products Delete', method: 'DELETE', path: `/products/${state.productId}`, expected: [200] });
+    await callApi({ name: 'Products Delete', method: 'DELETE', path: `/products/${state.productId}?forceDelete=true`, expected: [200] });
   }
   if (state.userId) {
     await callApi({ name: 'Users Delete', method: 'DELETE', path: `/users/${state.userId}`, expected: [200] });

@@ -392,6 +392,11 @@ export declare class RfqsService {
     }): Promise<{
         message: string;
     }>;
+    forceDelete(id: string, tenantId: string, options?: {
+        forceDeleteLinkedQuotation?: boolean;
+    }): Promise<{
+        message: string;
+    }>;
     updateStatus(id: string, tenantId: string, status: string): Promise<{
         items: {
             product_name: string;

@@ -299,6 +299,21 @@ let QuotationsService = class QuotationsService {
         await this.prisma.quotation.update({ where: { id }, data: { deleted_at: new Date() } });
         return { message: 'Quotation deleted successfully' };
     }
+    async forceDelete(id, tenantId, options) {
+        const quotation = await this.prisma.quotation.findFirst({
+            where: { id, tenant_id: tenantId },
+        });
+        if (!quotation) {
+            throw new common_1.NotFoundException(`Quotation ${id} not found`);
+        }
+        if (options?.forceDeleteLinkedRfq) {
+            await this.prisma.rFQ.deleteMany({ where: { quotation_id: id } });
+        }
+        await this.prisma.quotationItem.deleteMany({ where: { quotation_id: id } });
+        await this.prisma.quotationVersion.deleteMany({ where: { quotation_id: id } });
+        await this.prisma.quotation.delete({ where: { id } });
+        return { message: 'Quotation permanently deleted' };
+    }
     async duplicate(id, tenantId) {
         const quotation = await this.findOne(id, tenantId);
         return this.create(tenantId, {

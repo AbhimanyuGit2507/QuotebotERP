@@ -59,7 +59,10 @@ let ProductsController = class ProductsController {
     update(id, user, body) {
         return this.productsService.update(id, user.tenant_id, body);
     }
-    remove(id, user) {
+    remove(id, forceDelete, user) {
+        if (forceDelete === 'true') {
+            return this.productsService.forceDelete(id, user.tenant_id);
+        }
         return this.productsService.remove(id, user.tenant_id);
     }
     uploadImage(id, user, body) {
@@ -123,9 +126,10 @@ __decorate([
 __decorate([
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('forceDelete')),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "remove", null);
 __decorate([

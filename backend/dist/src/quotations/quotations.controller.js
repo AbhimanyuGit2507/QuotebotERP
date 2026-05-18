@@ -76,8 +76,13 @@ let QuotationsController = class QuotationsController {
     getInvoices(id, user) {
         return this.quotationsService.getRelatedInvoices(id, user.tenant_id);
     }
-    remove(id, user, force) {
+    remove(id, user, force, forceDelete) {
         const forceFlag = Boolean(force === 'true' || force === '1');
+        if (forceDelete === 'true') {
+            return this.quotationsService.forceDelete(id, user.tenant_id, {
+                forceDeleteLinkedRfq: forceFlag,
+            });
+        }
         return this.quotationsService.remove(id, user.tenant_id, {
             forceDeleteLinkedRfq: forceFlag,
         });
@@ -186,8 +191,9 @@ __decorate([
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
     __param(2, (0, common_1.Query)('forceDeleteLinkedRfq')),
+    __param(3, (0, common_1.Query)('forceDelete')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object, String]),
+    __metadata("design:paramtypes", [String, Object, String, String]),
     __metadata("design:returntype", void 0)
 ], QuotationsController.prototype, "remove", null);
 exports.QuotationsController = QuotationsController = __decorate([

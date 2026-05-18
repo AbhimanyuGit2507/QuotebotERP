@@ -94,7 +94,14 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  remove(
+    @Param('id') id: string,
+    @Query('forceDelete') forceDelete: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (forceDelete === 'true') {
+      return this.productsService.forceDelete(id, user.tenant_id);
+    }
     return this.productsService.remove(id, user.tenant_id);
   }
 

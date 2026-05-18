@@ -112,7 +112,14 @@ export class ClientsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  remove(
+    @Param('id') id: string,
+    @Query('forceDelete') forceDelete: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (forceDelete === 'true') {
+      return this.clientsService.forceDelete(id, user.tenant_id);
+    }
     return this.clientsService.remove(id, user.tenant_id);
   }
 }

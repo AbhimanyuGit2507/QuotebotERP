@@ -304,6 +304,11 @@ export declare class QuotationsService {
     }): Promise<{
         message: string;
     }>;
+    forceDelete(id: string, tenantId: string, options?: {
+        forceDeleteLinkedRfq?: boolean;
+    }): Promise<{
+        message: string;
+    }>;
     duplicate(id: string, tenantId: string): Promise<{
         items: {
             product_name: string;

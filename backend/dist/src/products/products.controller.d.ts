@@ -101,7 +101,7 @@ export declare class ProductsController {
         image_url: string | null;
         deleted_at: Date | null;
     }>;
-    remove(id: string, user: AuthenticatedUser): Promise<{
+    remove(id: string, forceDelete: string, user: AuthenticatedUser): Promise<{
         message: string;
     }>;
     uploadImage(id: string, user: AuthenticatedUser, body: UploadProductImageDto): Promise<{

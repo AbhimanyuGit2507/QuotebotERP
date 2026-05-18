@@ -467,6 +467,7 @@ let EmailRfqService = EmailRfqService_1 = class EmailRfqService {
             where: {
                 tenant_id: tenantId,
                 quotation_id: quotationId,
+                deleted_at: null,
             },
         });
         if (existing) {
@@ -476,6 +477,7 @@ let EmailRfqService = EmailRfqService_1 = class EmailRfqService {
             where: {
                 id: quotationId,
                 tenant_id: tenantId,
+                deleted_at: null,
             },
             include: {
                 client: true,

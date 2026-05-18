@@ -7,7 +7,7 @@ import React, {
   useState,
 } from 'react';
 import { useAuth } from './AuthContext';
-import { apiRequest, downloadFromApi } from '../services/api';
+import { apiRequest, downloadFromApi, unwrapPaginated } from '../services/api';
 
 export interface RFQLineItem {
   id: string;
@@ -815,13 +815,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         backendInvoices,
       ] =
         await Promise.all([
-          apiRequest<any[]>('/products'),
+          apiRequest<any>('/products').then(unwrapPaginated),
           apiRequest<any[]>('/products/categories'),
-          apiRequest<any[]>('/clients'),
-          apiRequest<any[]>('/rfqs'),
-          apiRequest<any[]>('/quotations'),
+          apiRequest<any>('/clients').then(unwrapPaginated),
+          apiRequest<any>('/rfqs').then(unwrapPaginated),
+          apiRequest<any>('/quotations').then(unwrapPaginated),
           apiRequest<any[]>('/inbox/messages'),
-          apiRequest<any[]>('/invoices'),
+          apiRequest<any>('/invoices').then(unwrapPaginated),
         ]);
 
       const [backendCompany, backendNotifications, backendTemplates, backendAutomationRules] =
@@ -953,7 +953,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const fetchRFQs = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
-      const backendRfqs = await apiRequest<any[]>('/rfqs');
+      const backendRfqs = unwrapPaginated(await apiRequest<any>('/rfqs'));
       const productById = new Map(products.map((product) => [product.id, product]));
       
       const mappedRfqs: RFQ[] = backendRfqs.map((rfq) => {
@@ -1001,7 +1001,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const fetchQuotations = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
-      const backendQuotes = await apiRequest<any[]>('/quotations');
+      const backendQuotes = unwrapPaginated(await apiRequest<any>('/quotations'));
       setQuotes(backendQuotes.map(mapQuote));
     } catch {
       // Ignore transient quotation polling failures

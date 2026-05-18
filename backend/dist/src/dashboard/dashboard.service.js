@@ -19,23 +19,23 @@ let DashboardService = class DashboardService {
     }
     async getKpis(tenantId) {
         const [rfqs, quotations, acceptedQuotes, declinedQuotes, products, clients, openInvoices, paidInvoices,] = await Promise.all([
-            this.prisma.rFQ.count({ where: { tenant_id: tenantId } }),
-            this.prisma.quotation.count({ where: { tenant_id: tenantId } }),
+            this.prisma.rFQ.count({ where: { tenant_id: tenantId, deleted_at: null } }),
+            this.prisma.quotation.count({ where: { tenant_id: tenantId, deleted_at: null } }),
             this.prisma.quotation.count({
-                where: { tenant_id: tenantId, status: 'accepted' },
+                where: { tenant_id: tenantId, status: 'accepted', deleted_at: null },
             }),
             this.prisma.quotation.count({
-                where: { tenant_id: tenantId, status: 'declined' },
+                where: { tenant_id: tenantId, status: 'declined', deleted_at: null },
             }),
             this.prisma.product.count({
-                where: { tenant_id: tenantId, status: 'active' },
+                where: { tenant_id: tenantId, status: 'active', deleted_at: null },
             }),
-            this.prisma.client.count({ where: { tenant_id: tenantId } }),
+            this.prisma.client.count({ where: { tenant_id: tenantId, deleted_at: null } }),
             this.prisma.invoice.count({
-                where: { tenant_id: tenantId, status: 'open' },
+                where: { tenant_id: tenantId, status: 'open', deleted_at: null },
             }),
             this.prisma.invoice.count({
-                where: { tenant_id: tenantId, status: 'paid' },
+                where: { tenant_id: tenantId, status: 'paid', deleted_at: null },
             }),
         ]);
         return {
@@ -52,11 +52,11 @@ let DashboardService = class DashboardService {
     async getRfqVsQuotes(tenantId) {
         const [rfqs, quotes] = await Promise.all([
             this.prisma.rFQ.findMany({
-                where: { tenant_id: tenantId },
+                where: { tenant_id: tenantId, deleted_at: null },
                 select: { created_at: true },
             }),
             this.prisma.quotation.findMany({
-                where: { tenant_id: tenantId },
+                where: { tenant_id: tenantId, deleted_at: null },
                 select: { created_at: true },
             }),
         ]);
@@ -74,7 +74,7 @@ let DashboardService = class DashboardService {
     }
     async getQuoteStatus(tenantId) {
         const quotations = await this.prisma.quotation.findMany({
-            where: { tenant_id: tenantId },
+            where: { tenant_id: tenantId, deleted_at: null },
             select: { status: true },
         });
         const counts = quotations.reduce((acc, quotation) => {
@@ -85,7 +85,7 @@ let DashboardService = class DashboardService {
     }
     async getRfqByChannel(tenantId) {
         const rfqs = await this.prisma.rFQ.findMany({
-            where: { tenant_id: tenantId },
+            where: { tenant_id: tenantId, deleted_at: null },
             select: { channel: true },
         });
         const counts = rfqs.reduce((acc, rfq) => {
@@ -108,10 +108,10 @@ let DashboardService = class DashboardService {
     async getSystemStatus(tenantId) {
         const [pendingRfqs, draftQuotes, files] = await Promise.all([
             this.prisma.rFQ.count({
-                where: { tenant_id: tenantId, status: 'pending' },
+                where: { tenant_id: tenantId, status: 'pending', deleted_at: null },
             }),
             this.prisma.quotation.count({
-                where: { tenant_id: tenantId, status: 'draft' },
+                where: { tenant_id: tenantId, status: 'draft', deleted_at: null },
             }),
             this.prisma.file.count({ where: { tenant_id: tenantId } }),
         ]);
