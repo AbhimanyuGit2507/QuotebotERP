@@ -31,6 +31,7 @@ import { OrdersModule } from './orders/orders.module';
 import { EmailTemplatesModule } from './email-templates/email-templates.module';
 import { TaxModule } from './tax/tax.module';
 import { PaymentsModule } from './payments/payments.module';
+import { AccountingModule } from './accounting/accounting.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware';
@@ -68,6 +69,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware';
     EmailTemplatesModule,
     TaxModule,
     PaymentsModule,
+    AccountingModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

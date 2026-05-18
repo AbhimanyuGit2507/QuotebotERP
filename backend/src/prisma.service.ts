@@ -30,6 +30,8 @@ type IntegrationMappingDelegate = PrismaClient['integrationMapping'];
 type AssistanceTicketDelegate = PrismaClient['assistanceTicket'];
 type AssistancePurchaseOrderDelegate = PrismaClient['assistancePurchaseOrder'];
 type EmailTemplateDelegate = PrismaClient['emailTemplate'];
+type ChartOfAccountDelegate = PrismaClient['chartOfAccount'];
+type JournalEntryDelegate = PrismaClient['journalEntry'];
 
 declare const globalThis: {
   prismaGlobal: PrismaClient;
@@ -174,6 +176,14 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 
   get emailTemplate(): EmailTemplateDelegate {
     return this.prismaClient.emailTemplate;
+  }
+
+  get chartOfAccount(): ChartOfAccountDelegate {
+    return this.prismaClient.chartOfAccount;
+  }
+
+  get journalEntry(): JournalEntryDelegate {
+    return this.prismaClient.journalEntry;
   }
 
   get db(): PrismaClient {
