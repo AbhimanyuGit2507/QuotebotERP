@@ -387,6 +387,89 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
   );
 };
 
+interface PromptModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (value: string) => void;
+  title?: string;
+  fieldLabel?: string;
+  placeholder?: string;
+  defaultValue?: string;
+  confirmLabel?: string;
+}
+
+export const PromptModal: React.FC<PromptModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title = 'Input Required',
+  fieldLabel = 'Value',
+  placeholder = 'Enter a value...',
+  defaultValue = '',
+  confirmLabel = 'OK',
+}) => {
+  const [value, setValue] = React.useState(defaultValue);
+  const prevIsOpen = React.useRef(isOpen);
+
+  React.useEffect(() => {
+    // Only reset when the modal transitions from closed to open
+    if (isOpen && !prevIsOpen.current) {
+      setValue(defaultValue);
+    }
+    prevIsOpen.current = isOpen;
+  }, [isOpen, defaultValue]);
+
+  const handleConfirm = () => {
+    onConfirm(value);
+    onClose();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleConfirm();
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="sm">
+      <div className="p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+            <span className="material-symbols-outlined text-blue-600">edit</span>
+          </div>
+          <h3 className="text-lg font-bold text-[var(--erp-text)]">{title}</h3>
+        </div>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-[var(--erp-text-muted)] mb-1.5">{fieldLabel}</label>
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="w-full text-sm border border-[var(--erp-border)] rounded py-2 px-3 focus:ring-2 focus:ring-[var(--erp-accent)] focus:border-[var(--erp-accent)] outline-none"
+            autoFocus
+          />
+        </div>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="btn btn-secondary btn-md"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            className="btn btn-primary btn-md"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
 const Modals = {
   Modal,
   ConfirmDeleteModal,
@@ -395,6 +478,7 @@ const Modals = {
   ManualOverrideModal,
   QuickCreateQuoteModal,
   QuickAddProductModal,
+  PromptModal,
 };
 
 export default Modals;

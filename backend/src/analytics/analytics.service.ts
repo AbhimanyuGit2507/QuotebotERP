@@ -8,7 +8,7 @@ export class AnalyticsService {
 
   async salesTrends(tenantId: string) {
     const quotations = await this.prisma.quotation.findMany({
-      where: { tenant_id: tenantId },
+      where: { tenant_id: tenantId, deleted_at: null },
       select: { date: true, total: true, status: true },
       orderBy: { created_at: 'asc' },
     });
@@ -22,7 +22,7 @@ export class AnalyticsService {
 
   async rfqAnalysis(tenantId: string) {
     const rfqs = await this.prisma.rFQ.findMany({
-      where: { tenant_id: tenantId },
+      where: { tenant_id: tenantId, deleted_at: null },
       include: { client: true, items: true },
     });
 
@@ -44,7 +44,7 @@ export class AnalyticsService {
 
   async quotePerformance(tenantId: string) {
     const quotations = await this.prisma.quotation.findMany({
-      where: { tenant_id: tenantId },
+      where: { tenant_id: tenantId, deleted_at: null },
     });
 
     const accepted = quotations.filter(
@@ -58,18 +58,18 @@ export class AnalyticsService {
         ? (accepted / quotations.length) * 100
         : 0,
       totalValue: quotations.reduce(
-        (sum, quotation) => sum + quotation.total,
+        (sum, quotation) => sum + Number(quotation.total),
         0,
       ),
       averageValue:
-        quotations.reduce((sum, quotation) => sum + quotation.total, 0) /
+        quotations.reduce((sum, quotation) => sum + Number(quotation.total), 0) /
         (quotations.length || 1),
     };
   }
 
   async productPerformance(tenantId: string) {
     const products = await this.prisma.product.findMany({
-      where: { tenant_id: tenantId },
+      where: { tenant_id: tenantId, deleted_at: null },
       include: { quotation_items: true, category: true },
     });
 
@@ -86,14 +86,14 @@ export class AnalyticsService {
 
   async clientInsights(tenantId: string) {
     return this.prisma.client.findMany({
-      where: { tenant_id: tenantId },
+      where: { tenant_id: tenantId, deleted_at: null },
       orderBy: [{ total_value: 'desc' }, { total_orders: 'desc' }],
     });
   }
 
   async channelBreakdown(tenantId: string) {
     const rfqs = await this.prisma.rFQ.findMany({
-      where: { tenant_id: tenantId },
+      where: { tenant_id: tenantId, deleted_at: null },
       select: { channel: true },
     });
 

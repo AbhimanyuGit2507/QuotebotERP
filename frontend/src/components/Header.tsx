@@ -362,28 +362,306 @@ const Header: React.FC = () => {
   const userInitial = (user?.name?.trim()?.charAt(0) || 'U').toUpperCase();
 
   return (
-    <header className="h-12 bg-[var(--erp-bg)] border-b border-[var(--erp-border)] flex items-center justify-between px-4 shrink-0 z-20 font-sans">
-      <div className="flex items-center gap-4">
-        <Link to="/home" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-          <img src={logo} alt="Quotebot" className="h-8 w-auto" />
-          <div className="flex flex-col leading-none">
-            <span className="font-bold text-sm uppercase tracking-tight text-[var(--erp-text)]">{companyDisplayName}</span>
-            <span className="text-[10px] text-[var(--erp-text-muted)] tracking-widest">ENTERPRISE</span>
+    <header className="bg-[var(--erp-bg)] border-b border-[var(--erp-border)] shrink-0 z-20 font-sans">
+      {/* Main header row */}
+      <div className="h-12 flex items-center justify-between px-2 sm:px-4">
+        {/* Left: Logo + Search (search hidden on mobile, shown below) */}
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          {/* Spacer for mobile hamburger menu */}
+          <div className="w-9 md:hidden shrink-0" />
+
+          <Link to="/home" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
+            <img src={logo} alt="Quotebot" className="h-7 sm:h-8 w-auto" />
+            <div className="flex flex-col leading-none">
+              <span className="font-bold text-xs sm:text-sm uppercase tracking-tight text-[var(--erp-text)]">{companyDisplayName}</span>
+              <span className="text-[9px] sm:text-[10px] text-[var(--erp-text-muted)] tracking-widest">ENTERPRISE</span>
+            </div>
+          </Link>
+
+          <div className="hidden sm:block h-6 w-px bg-[var(--erp-border)]"></div>
+
+          {/* Search bar - hidden on mobile, shown in second row */}
+          <div className="relative hidden md:block" ref={searchRef}>
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--erp-text-muted)] !text-[18px]">search</span>
+            <input
+              id="global-search"
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onFocus={() => searchQuery && setShowSearchResults(true)}
+              placeholder="Search RFQs, quotes, clients, products... (Ctrl+K)"
+              className="w-[280px] lg:w-[420px] pl-9 pr-3 py-1.5 text-sm border border-[var(--erp-border)] rounded-lg bg-[var(--erp-surface)] focus:bg-white focus:ring-2 focus:ring-[var(--erp-accent)]/20 focus:border-[var(--erp-accent)] outline-none transition-all"
+            />
+            {showSearchResults && searchResults.length > 0 && (
+              <div className="absolute left-0 top-full mt-1 w-full bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 overflow-hidden">
+                {searchResults.map((result) => (
+                  <button
+                    key={result.id}
+                    onClick={() => handleSearchSelect(result)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--erp-surface)] transition-colors text-left border-b border-[var(--erp-border)] last:border-0"
+                  >
+                    <span className="material-symbols-outlined !text-[18px] text-[var(--erp-text-muted)]">{result.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[var(--erp-text)] truncate">{result.title}</p>
+                      {result.subtitle && (
+                        <p className="text-[11px] text-[var(--erp-text-muted)] truncate">{result.subtitle}</p>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-[var(--erp-text-muted)] uppercase bg-[var(--erp-surface)] px-1.5 py-0.5 rounded">
+                      {result.type}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {showSearchResults && searchQuery && searchResults.length === 0 && (
+              <div className="absolute left-0 top-full mt-1 w-full bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 p-4 text-center">
+                <span className="material-symbols-outlined text-[var(--erp-text-muted)] text-3xl mb-2">search_off</span>
+                <p className="text-sm text-[var(--erp-text-muted)]">No results found for &quot;{searchQuery}&quot;</p>
+              </div>
+            )}
           </div>
-        </Link>
+        </div>
 
-        <div className="h-6 w-px bg-[var(--erp-border)]"></div>
+        {/* Right: Actions */}
+        <div className="flex items-center gap-0.5 sm:gap-1">
+          <div className="relative" ref={quickActionsRef}>
+            <button
+              className={`p-1.5 sm:p-2 rounded transition-colors ${showQuickActions ? 'bg-[var(--erp-surface-strong)]' : 'hover:bg-[var(--erp-surface)]'}`}
+              onClick={() => {
+                setShowQuickActions(!showQuickActions);
+                setShowNotifications(false);
+                setShowUserMenu(false);
+              }}
+              title="Quick Actions"
+            >
+              <span className="material-symbols-outlined text-[var(--erp-text-muted)] !text-xl">bolt</span>
+            </button>
+            {showQuickActions && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 w-[calc(100vw-1rem)] sm:w-72 max-w-sm overflow-hidden">
+                <div className="p-2.5 border-b border-[var(--erp-border)] text-[11px] font-bold text-[var(--erp-text-muted)] uppercase bg-[var(--erp-surface)]">
+                  Quick Actions
+                </div>
+                <div className="max-h-96 overflow-y-auto">
+                  {quickActions.map((action) => (
+                    <button
+                      key={action.label}
+                      onClick={() => {
+                        action.action();
+                        setShowQuickActions(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-3 text-sm hover:bg-[var(--erp-surface)] transition-colors border-b border-[var(--erp-border)] last:border-0"
+                    >
+                      <div className={`w-9 h-9 rounded-lg ${action.bgColor} flex items-center justify-center shrink-0`}>
+                        <span className={`material-symbols-outlined !text-[20px] ${action.color}`}>{action.icon}</span>
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <p className="font-medium text-[var(--erp-text)] truncate">{action.label}</p>
+                        <p className="text-[11px] text-[var(--erp-text-muted)] truncate">{action.description}</p>
+                      </div>
+                      {action.count > 0 && (
+                        <span className="text-xs font-bold text-[var(--erp-accent)] bg-[var(--erp-accent)]/10 px-2 py-0.5 rounded-full">
+                          {action.count}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
-        <div className="relative" ref={searchRef}>
+          <div className="relative" ref={notificationsRef}>
+            <button
+              className={`p-1.5 sm:p-2 rounded transition-colors relative ${showNotifications ? 'bg-[var(--erp-surface-strong)]' : 'hover:bg-[var(--erp-surface)]'}`}
+              onClick={() => {
+                setShowNotifications(!showNotifications);
+                setShowQuickActions(false);
+                setShowUserMenu(false);
+              }}
+              title="Notifications"
+            >
+              <span className="material-symbols-outlined text-[var(--erp-text-muted)] !text-xl">notifications</span>
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[14px] h-[14px] bg-[var(--erp-accent)] rounded-full text-[9px] text-white font-bold flex items-center justify-center">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            {showNotifications && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 w-[calc(100vw-1rem)] sm:w-96 max-w-md overflow-hidden">
+                <div className="p-3 border-b border-[var(--erp-border)] flex items-center justify-between bg-[var(--erp-surface)]">
+                  <span className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase">Notifications</span>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        markAllNotificationsRead();
+                      }}
+                      className="text-[11px] text-[var(--erp-accent)] hover:underline font-medium"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-96 overflow-y-auto">
+                  {notifications.length > 0 ? (
+                    notifications.map((notification) => {
+                      const unread = !readNotificationIds.has(notification.id);
+                      return (
+                        <div
+                          key={notification.id}
+                          onClick={() => {
+                            markNotificationRead(notification.id);
+                            if (notification.action) {
+                              notification.action();
+                              setShowNotifications(false);
+                            }
+                          }}
+                          className={`px-3 py-3 border-b border-[var(--erp-border)] last:border-0 hover:bg-[var(--erp-surface)] cursor-pointer transition-colors ${unread ? 'bg-[rgba(0,126,167,0.05)]' : ''}`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                              notification.type === 'rfq' ? 'bg-orange-50' :
+                              notification.type === 'quote' ? 'bg-purple-50' :
+                              notification.type === 'inbox' ? 'bg-blue-50' :
+                              notification.type === 'stock' ? 'bg-red-50' :
+                              'bg-gray-50'
+                            }`}>
+                              <span
+                                className={`material-symbols-outlined !text-[18px] ${
+                                  notification.type === 'rfq' ? 'text-orange-600' :
+                                  notification.type === 'quote' ? 'text-purple-600' :
+                                  notification.type === 'inbox' ? 'text-blue-600' :
+                                  notification.type === 'stock' ? 'text-red-600' :
+                                  'text-gray-600'
+                                }`}
+                              >
+                                {notification.type === 'rfq'
+                                  ? 'assignment'
+                                  : notification.type === 'quote'
+                                    ? 'receipt_long'
+                                    : notification.type === 'inbox'
+                                      ? 'mail'
+                                      : notification.type === 'stock'
+                                        ? 'inventory'
+                                        : 'info'}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className={`text-sm ${unread ? 'font-semibold text-[var(--erp-text)]' : 'text-[var(--erp-text)]'}`}>{notification.title}</p>
+                                {unread && (
+                                  <span className="w-2 h-2 bg-[var(--erp-accent)] rounded-full mt-1.5 shrink-0"></span>
+                                )}
+                              </div>
+                              <p className="text-[12px] text-[var(--erp-text-muted)] mt-0.5 line-clamp-2">{notification.message}</p>
+                              <p className="text-[10px] text-[var(--erp-text-muted)] mt-1 font-medium">{notification.time}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="px-4 py-8 text-center">
+                      <span className="material-symbols-outlined text-[var(--erp-text-muted)] text-4xl mb-2">notifications_off</span>
+                      <p className="text-sm text-[var(--erp-text-muted)]">No notifications</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Date & Live indicator - hidden on small mobile */}
+          <div className="hidden sm:flex items-center gap-1.5 bg-[var(--erp-surface-strong)] px-2.5 py-1 rounded text-[12px] mx-1">
+            <span className="material-symbols-outlined !text-[16px] text-[var(--erp-text-muted)]">calendar_today</span>
+            <span className="font-medium text-[var(--erp-text)]">{currentDate}</span>
+          </div>
+
+          <div className="hidden lg:flex items-center gap-1.5 bg-[rgba(0,167,225,0.12)] border border-[rgba(0,167,225,0.35)] px-2.5 py-1 rounded text-[11px] mx-1">
+            <span className="material-symbols-outlined !text-[14px] text-[var(--erp-accent-strong)]">monitoring</span>
+            <span className="font-semibold text-[var(--erp-accent)]">Live</span>
+            <span className="text-[var(--erp-accent-strong)]">•</span>
+            <span className="text-[var(--erp-accent)]">{rfqs.length} RFQs · {quotes.length} Quotes</span>
+          </div>
+
+          <Link
+            to="/system-config"
+            className={`hidden sm:flex p-2 rounded transition-colors ${isActive('/system-config') ? 'bg-[var(--erp-surface-strong)] text-[var(--erp-accent)]' : 'hover:bg-[var(--erp-surface)]'}`}
+            title="Settings"
+          >
+            <span
+              className={`material-symbols-outlined !text-xl ${isActive('/system-config') ? 'text-[var(--erp-accent)]' : 'text-[var(--erp-text-muted)]'}`}
+            >
+              settings
+            </span>
+          </Link>
+
+          <div className="relative" ref={userMenuRef}>
+            <button
+              className={`flex items-center gap-1 sm:gap-2 p-1 sm:p-1.5 rounded transition-colors ${showUserMenu ? 'bg-[var(--erp-surface-strong)]' : 'hover:bg-[var(--erp-surface)]'}`}
+              onClick={() => {
+                setShowUserMenu(!showUserMenu);
+                setShowNotifications(false);
+                setShowQuickActions(false);
+              }}
+            >
+              <div className="w-7 h-7 rounded-full bg-[var(--erp-accent)] flex items-center justify-center text-white font-bold text-sm">
+                {userInitial}
+              </div>
+              <span className="material-symbols-outlined text-[var(--erp-text-muted)] !text-[18px] hidden sm:block">expand_more</span>
+            </button>
+            {showUserMenu && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 w-[calc(100vw-1rem)] sm:w-56 max-w-xs overflow-hidden">
+                <div className="p-3 border-b border-[var(--erp-border)] bg-[var(--erp-surface)]">
+                  <p className="font-semibold text-sm text-[var(--erp-text)]">{user?.name || 'User'}</p>
+                  <p className="text-[11px] text-[var(--erp-text-muted)] mt-0.5">{user?.role || 'Member'}</p>
+                </div>
+                <div className="py-1">
+                  <Link
+                    to="/user-permissions"
+                    onClick={() => setShowUserMenu(false)}
+                    className="flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[var(--erp-surface)] transition-colors"
+                  >
+                    <span className="material-symbols-outlined !text-[18px] text-[var(--erp-text-muted)]">person</span>
+                    My Profile
+                  </Link>
+                  <Link
+                    to="/system-config"
+                    onClick={() => setShowUserMenu(false)}
+                    className="flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[var(--erp-surface)] transition-colors"
+                  >
+                    <span className="material-symbols-outlined !text-[18px] text-[var(--erp-text-muted)]">tune</span>
+                    Preferences
+                  </Link>
+                </div>
+                <div className="border-t border-[var(--erp-border)] py-1">
+                  <button
+                    onClick={logout}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-[var(--erp-accent)] hover:bg-[var(--erp-surface)] transition-colors"
+                  >
+                    <span className="material-symbols-outlined !text-[18px]">logout</span>
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile search row - shown only on <768px */}
+      <div className="md:hidden px-2 pb-2" ref={searchRef}>
+        <div className="relative">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--erp-text-muted)] !text-[18px]">search</span>
           <input
-            id="global-search"
             type="text"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             onFocus={() => searchQuery && setShowSearchResults(true)}
-            placeholder="Search RFQs, quotes, clients, products... (Ctrl+K)"
-            className="w-[420px] pl-9 pr-3 py-1.5 text-sm border border-[var(--erp-border)] rounded-lg bg-[var(--erp-surface)] focus:bg-white focus:ring-2 focus:ring-[var(--erp-accent)]/20 focus:border-[var(--erp-accent)] outline-none transition-all"
+            placeholder="Search... (Ctrl+K)"
+            className="w-full pl-9 pr-3 py-1.5 text-sm border border-[var(--erp-border)] rounded-lg bg-[var(--erp-surface)] focus:bg-white focus:ring-2 focus:ring-[var(--erp-accent)]/20 focus:border-[var(--erp-accent)] outline-none transition-all"
           />
           {showSearchResults && searchResults.length > 0 && (
             <div className="absolute left-0 top-full mt-1 w-full bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 overflow-hidden">
@@ -410,232 +688,7 @@ const Header: React.FC = () => {
           {showSearchResults && searchQuery && searchResults.length === 0 && (
             <div className="absolute left-0 top-full mt-1 w-full bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 p-4 text-center">
               <span className="material-symbols-outlined text-[var(--erp-text-muted)] text-3xl mb-2">search_off</span>
-              <p className="text-sm text-[var(--erp-text-muted)]">No results found for "{searchQuery}"</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-1">
-        <div className="relative" ref={quickActionsRef}>
-          <button
-            className={`p-2 rounded transition-colors ${showQuickActions ? 'bg-[var(--erp-surface-strong)]' : 'hover:bg-[var(--erp-surface)]'}`}
-            onClick={() => {
-              setShowQuickActions(!showQuickActions);
-              setShowNotifications(false);
-              setShowUserMenu(false);
-            }}
-            title="Quick Actions"
-          >
-            <span className="material-symbols-outlined text-[var(--erp-text-muted)] !text-xl">bolt</span>
-          </button>
-          {showQuickActions && (
-            <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 w-72 overflow-hidden">
-              <div className="p-2.5 border-b border-[var(--erp-border)] text-[11px] font-bold text-[var(--erp-text-muted)] uppercase bg-[var(--erp-surface)]">
-                Quick Actions
-              </div>
-              <div className="max-h-96 overflow-y-auto">
-                {quickActions.map((action) => (
-                  <button
-                    key={action.label}
-                    onClick={() => {
-                      action.action();
-                      setShowQuickActions(false);
-                    }}
-                    className="w-full flex items-center gap-3 px-3 py-3 text-sm hover:bg-[var(--erp-surface)] transition-colors border-b border-[var(--erp-border)] last:border-0"
-                  >
-                    <div className={`w-9 h-9 rounded-lg ${action.bgColor} flex items-center justify-center shrink-0`}>
-                      <span className={`material-symbols-outlined !text-[20px] ${action.color}`}>{action.icon}</span>
-                    </div>
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="font-medium text-[var(--erp-text)] truncate">{action.label}</p>
-                      <p className="text-[11px] text-[var(--erp-text-muted)] truncate">{action.description}</p>
-                    </div>
-                    {action.count > 0 && (
-                      <span className="text-xs font-bold text-[var(--erp-accent)] bg-[var(--erp-accent)]/10 px-2 py-0.5 rounded-full">
-                        {action.count}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="relative" ref={notificationsRef}>
-          <button
-            className={`p-2 rounded transition-colors relative ${showNotifications ? 'bg-[var(--erp-surface-strong)]' : 'hover:bg-[var(--erp-surface)]'}`}
-            onClick={() => {
-              setShowNotifications(!showNotifications);
-              setShowQuickActions(false);
-              setShowUserMenu(false);
-            }}
-            title="Notifications"
-          >
-            <span className="material-symbols-outlined text-[var(--erp-text-muted)] !text-xl">notifications</span>
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 min-w-[14px] h-[14px] bg-[var(--erp-accent)] rounded-full text-[9px] text-white font-bold flex items-center justify-center">
-                {unreadCount}
-              </span>
-            )}
-          </button>
-          {showNotifications && (
-            <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 w-96 overflow-hidden">
-              <div className="p-3 border-b border-[var(--erp-border)] flex items-center justify-between bg-[var(--erp-surface)]">
-                <span className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase">Notifications</span>
-                {unreadCount > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      markAllNotificationsRead();
-                    }}
-                    className="text-[11px] text-[var(--erp-accent)] hover:underline font-medium"
-                  >
-                    Mark all read
-                  </button>
-                )}
-              </div>
-              <div className="max-h-96 overflow-y-auto">
-                {notifications.length > 0 ? (
-                  notifications.map((notification) => {
-                    const unread = !readNotificationIds.has(notification.id);
-                    return (
-                      <div
-                        key={notification.id}
-                        onClick={() => {
-                          markNotificationRead(notification.id);
-                          if (notification.action) {
-                            notification.action();
-                            setShowNotifications(false);
-                          }
-                        }}
-                        className={`px-3 py-3 border-b border-[var(--erp-border)] last:border-0 hover:bg-[var(--erp-surface)] cursor-pointer transition-colors ${unread ? 'bg-[rgba(0,126,167,0.05)]' : ''}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                            notification.type === 'rfq' ? 'bg-orange-50' :
-                            notification.type === 'quote' ? 'bg-purple-50' :
-                            notification.type === 'inbox' ? 'bg-blue-50' :
-                            notification.type === 'stock' ? 'bg-red-50' :
-                            'bg-gray-50'
-                          }`}>
-                            <span
-                              className={`material-symbols-outlined !text-[18px] ${
-                                notification.type === 'rfq' ? 'text-orange-600' :
-                                notification.type === 'quote' ? 'text-purple-600' :
-                                notification.type === 'inbox' ? 'text-blue-600' :
-                                notification.type === 'stock' ? 'text-red-600' :
-                                'text-gray-600'
-                              }`}
-                            >
-                              {notification.type === 'rfq'
-                                ? 'assignment'
-                                : notification.type === 'quote'
-                                  ? 'receipt_long'
-                                  : notification.type === 'inbox'
-                                    ? 'mail'
-                                    : notification.type === 'stock'
-                                      ? 'inventory'
-                                      : 'info'}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className={`text-sm ${unread ? 'font-semibold text-[var(--erp-text)]' : 'text-[var(--erp-text)]'}`}>{notification.title}</p>
-                              {unread && (
-                                <span className="w-2 h-2 bg-[var(--erp-accent)] rounded-full mt-1.5 shrink-0"></span>
-                              )}
-                            </div>
-                            <p className="text-[12px] text-[var(--erp-text-muted)] mt-0.5 line-clamp-2">{notification.message}</p>
-                            <p className="text-[10px] text-[var(--erp-text-muted)] mt-1 font-medium">{notification.time}</p>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="px-4 py-8 text-center">
-                    <span className="material-symbols-outlined text-[var(--erp-text-muted)] text-4xl mb-2">notifications_off</span>
-                    <p className="text-sm text-[var(--erp-text-muted)]">No notifications</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1.5 bg-[var(--erp-surface-strong)] px-2.5 py-1 rounded text-[12px] mx-1">
-          <span className="material-symbols-outlined !text-[16px] text-[var(--erp-text-muted)]">calendar_today</span>
-          <span className="font-medium text-[var(--erp-text)]">{currentDate}</span>
-        </div>
-
-        <div className="flex items-center gap-1.5 bg-[rgba(0,167,225,0.12)] border border-[rgba(0,167,225,0.35)] px-2.5 py-1 rounded text-[11px] mx-1">
-          <span className="material-symbols-outlined !text-[14px] text-[var(--erp-accent-strong)]">monitoring</span>
-          <span className="font-semibold text-[var(--erp-accent)]">Live</span>
-          <span className="text-[var(--erp-accent-strong)]">•</span>
-          <span className="text-[var(--erp-accent)]">{rfqs.length} RFQs · {quotes.length} Quotes</span>
-        </div>
-
-        <Link
-          to="/system-config"
-          className={`p-2 rounded transition-colors ${isActive('/system-config') ? 'bg-[var(--erp-surface-strong)] text-[var(--erp-accent)]' : 'hover:bg-[var(--erp-surface)]'}`}
-          title="Settings"
-        >
-          <span
-            className={`material-symbols-outlined !text-xl ${isActive('/system-config') ? 'text-[var(--erp-accent)]' : 'text-[var(--erp-text-muted)]'}`}
-          >
-            settings
-          </span>
-        </Link>
-
-        <div className="relative" ref={userMenuRef}>
-          <button
-            className={`flex items-center gap-2 p-1.5 rounded transition-colors ${showUserMenu ? 'bg-[var(--erp-surface-strong)]' : 'hover:bg-[var(--erp-surface)]'}`}
-            onClick={() => {
-              setShowUserMenu(!showUserMenu);
-              setShowNotifications(false);
-              setShowQuickActions(false);
-            }}
-          >
-            <div className="w-7 h-7 rounded-full bg-[var(--erp-accent)] flex items-center justify-center text-white font-bold text-sm">
-              {userInitial}
-            </div>
-            <span className="material-symbols-outlined text-[var(--erp-text-muted)] !text-[18px]">expand_more</span>
-          </button>
-          {showUserMenu && (
-            <div className="absolute right-0 top-full mt-1 bg-white border border-[var(--erp-border)] rounded-lg shadow-xl z-50 w-56 overflow-hidden">
-              <div className="p-3 border-b border-[var(--erp-border)] bg-[var(--erp-surface)]">
-                <p className="font-semibold text-sm text-[var(--erp-text)]">{user?.name || 'User'}</p>
-                <p className="text-[11px] text-[var(--erp-text-muted)] mt-0.5">{user?.role || 'Member'}</p>
-              </div>
-              <div className="py-1">
-                <Link
-                  to="/user-permissions"
-                  onClick={() => setShowUserMenu(false)}
-                  className="flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[var(--erp-surface)] transition-colors"
-                >
-                  <span className="material-symbols-outlined !text-[18px] text-[var(--erp-text-muted)]">person</span>
-                  My Profile
-                </Link>
-                <Link
-                  to="/system-config"
-                  onClick={() => setShowUserMenu(false)}
-                  className="flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[var(--erp-surface)] transition-colors"
-                >
-                  <span className="material-symbols-outlined !text-[18px] text-[var(--erp-text-muted)]">tune</span>
-                  Preferences
-                </Link>
-              </div>
-              <div className="border-t border-[var(--erp-border)] py-1">
-                <button
-                  onClick={logout}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-[var(--erp-accent)] hover:bg-[var(--erp-surface)] transition-colors"
-                >
-                  <span className="material-symbols-outlined !text-[18px]">logout</span>
-                  Sign Out
-                </button>
-              </div>
+              <p className="text-sm text-[var(--erp-text-muted)]">No results found for &quot;{searchQuery}&quot;</p>
             </div>
           )}
         </div>

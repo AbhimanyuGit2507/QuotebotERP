@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { InvoicesService } from './invoices.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -15,6 +16,7 @@ import { BadRequestException } from '@nestjs/common';
 
 type AuthRequest = Request & { user?: { tenant_id?: string } };
 
+@ApiTags('Invoices')
 @UseGuards(JwtAuthGuard)
 @Controller('invoices')
 export class InvoicesController {
@@ -31,10 +33,25 @@ export class InvoicesController {
   }
 
   @Get()
-  async list(@Req() req: AuthRequest, @Query('status') status?: string) {
+  async list(
+    @Req() req: AuthRequest,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
+  ) {
     const tenantId = req.user?.tenant_id;
     if (!tenantId) throw new BadRequestException('Missing tenant id');
-    return this.invoicesService.list(tenantId, status);
+    return this.invoicesService.list(tenantId, {
+      status,
+      search,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
+    });
   }
 
   @Get(':id')

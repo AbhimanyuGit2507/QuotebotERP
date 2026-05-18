@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { encryptToken, decryptToken } from '../utils/tokenCrypto';
 import { spawn } from 'child_process';
@@ -10,6 +10,8 @@ import { OutboundEmailUpdateDto } from './dtos/outbound-email-update.dto';
 
 @Injectable()
 export class EmailService {
+  private readonly logger = new Logger(EmailService.name);
+
   constructor(private prisma: PrismaService) {}
 
   private buildMimePart(headers: Record<string, string>, body: string): string {
@@ -447,11 +449,7 @@ export class EmailService {
     const clientId = process.env.GMAIL_CLIENT_ID;
     const redirectUri = process.env.GMAIL_REDIRECT_URI;
 
-    console.log('[Backend][EmailService] initiateGoogleOAuth called', {
-      hasClientId: Boolean(clientId),
-      redirectUri,
-      stateLength: state?.length ?? 0,
-    });
+    this.logger.log(`initiateGoogleOAuth called hasClientId=${Boolean(clientId)} redirectUri=${redirectUri} stateLength=${state?.length ?? 0}`);
 
     if (!clientId || !redirectUri) {
       throw new BadRequestException(
@@ -486,12 +484,7 @@ export class EmailService {
     tenantId: string,
     userId: string,
   ) {
-    console.log('[Backend][EmailService] handleGoogleOAuthCallback called', {
-      tenantId,
-      userId,
-      hasCode: Boolean(code),
-      hasState: Boolean(state),
-    });
+    this.logger.log(`handleGoogleOAuthCallback called tenantId=${tenantId} userId=${userId} hasCode=${Boolean(code)} hasState=${Boolean(state)}`);
 
     const clientId = process.env.GMAIL_CLIENT_ID;
     const clientSecret = process.env.GMAIL_CLIENT_SECRET;
@@ -521,14 +514,7 @@ export class EmailService {
     });
 
     const tokenPayload: unknown = await tokenResponse.json();
-    console.log('[Backend][EmailService] Token exchange response', {
-      ok: tokenResponse.ok,
-      status: tokenResponse.status,
-      payload:
-        typeof tokenPayload === 'object'
-          ? JSON.stringify(tokenPayload).substring(0, 200)
-          : 'not object',
-    });
+    this.logger.log(`Token exchange response ok=${tokenResponse.ok} status=${tokenResponse.status}`);
 
     if (!tokenResponse.ok) {
       const errorMsg =
@@ -564,11 +550,7 @@ export class EmailService {
     );
 
     const profilePayload: unknown = await profileResponse.json();
-    console.log('[Backend][EmailService] Profile fetch response', {
-      ok: profileResponse.ok,
-      status: profileResponse.status,
-      payload: JSON.stringify(profilePayload).substring(0, 300),
-    });
+    this.logger.log(`Profile fetch response ok=${profileResponse.ok} status=${profileResponse.status}`);
 
     if (!profileResponse.ok) {
       const errorMsg =
@@ -672,13 +654,7 @@ export class EmailService {
       },
     });
 
-    console.log('[Backend][EmailService] Email account upserted', {
-      emailAccountId: emailAccount.id,
-      emailAddress: emailAccount.email_address,
-      provider: emailAccount.provider,
-      tenantId,
-      userId,
-    });
+    this.logger.log(`Email account upserted id=${emailAccount.id} email=${emailAccount.email_address} provider=${emailAccount.provider} tenantId=${tenantId}`);
 
     return emailAccount;
   }
@@ -1090,8 +1066,8 @@ export class EmailService {
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Unknown refresh error';
-          console.error(
-            `[Backend][EmailService] Failed to refresh access token for account ${email.email_account_id}: ${message}`,
+          this.logger.error(
+            `Failed to refresh access token for account ${email.email_account_id}: ${message}`,
           );
         }
       }
@@ -1198,13 +1174,7 @@ export class EmailService {
       }>;
     },
   ) {
-    console.log('[EmailService] sendNow called', {
-      tenantId,
-      emailAccountId: data.email_account_id,
-      to: data.to,
-      subject: data.subject,
-      attachmentsCount: data.attachments?.length || 0,
-    });
+    this.logger.log(`sendNow called tenantId=${tenantId} emailAccountId=${data.email_account_id} to=${data.to?.join(',')} subject=${data.subject} attachments=${data.attachments?.length || 0}`);
 
     const account = await this.prisma.emailAccount.findFirst({
       where: {
@@ -1215,23 +1185,14 @@ export class EmailService {
     });
 
     if (!account) {
-      console.error('[EmailService] Email account not found', {
-        emailAccountId: data.email_account_id,
-        tenantId,
-      });
+      this.logger.error(`Email account not found emailAccountId=${data.email_account_id} tenantId=${tenantId}`);
       throw new BadRequestException('Email account not found or not active');
     }
 
-    console.log('[EmailService] Email account found', {
-      id: account.id,
-      email: account.email_address,
-      provider: account.provider,
-    });
+    this.logger.log(`Email account found id=${account.id} email=${account.email_address} provider=${account.provider}`);
 
     if (account.provider !== 'gmail') {
-      console.error('[EmailService] Unsupported provider', {
-        provider: account.provider,
-      });
+      this.logger.error(`Unsupported provider: ${account.provider}`);
       throw new BadRequestException(
         'Immediate send is only supported for Gmail accounts',
       );
@@ -1256,25 +1217,20 @@ export class EmailService {
     };
 
     if (!accessToken || isExpired(expiresAt)) {
-      console.log(
-        '[EmailService] Access token expired or missing, refreshing...',
-      );
+      this.logger.log('Access token expired or missing, refreshing...');
       try {
         const refreshed = await this.refreshEmailAccountAccessToken(
           account.id,
           tenantId,
         );
         accessToken = refreshed.access_token as string | undefined;
-        console.log('[EmailService] Access token refreshed successfully');
+        this.logger.log('Access token refreshed successfully');
       } catch (err) {
-        console.error('[EmailService] Failed to refresh access token:', {
-          error: err instanceof Error ? err.message : String(err),
-          accountId: account.id,
-        });
+        this.logger.error(`Failed to refresh access token: ${err instanceof Error ? err.message : String(err)} accountId=${account.id}`);
         throw new BadRequestException('Could not refresh Gmail access token');
       }
     } else {
-      console.log('[EmailService] Using existing access token');
+      this.logger.log('Using existing access token');
     }
 
     const fromAddress = account.email_address;
@@ -1298,12 +1254,7 @@ export class EmailService {
     const sendUrl =
       'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
 
-    console.log('[EmailService] Sending email via Gmail API', {
-      url: sendUrl,
-      to: data.to,
-      from: fromAddress,
-      messageSize: rawMessage.length,
-    });
+    this.logger.log(`Sending email via Gmail API to=${data.to?.join(',')} from=${fromAddress} messageSize=${rawMessage.length}`);
 
     let sendResponse: unknown = null;
     try {
@@ -1316,10 +1267,10 @@ export class EmailService {
         body: JSON.stringify({ raw: encoded }),
       });
     } catch (err) {
-      console.error('[EmailService] Gmail send network error:', {
-        error: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-      });
+      this.logger.error(
+        `Gmail send network error: ${err instanceof Error ? err.message : String(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
     }
 
     const sent = Boolean(
@@ -1352,23 +1303,15 @@ export class EmailService {
             providerResult = parsed as Record<string, unknown>;
           }
         } catch (jsonErr) {
-          console.error(
-            '[EmailService] Failed to parse Gmail API response:',
-            jsonErr,
+          this.logger.error(
+            `Failed to parse Gmail API response: ${jsonErr instanceof Error ? jsonErr.message : String(jsonErr)}`,
           );
           providerResult = {};
         }
       }
     }
 
-    console.log('[EmailService] Gmail API response', {
-      sent,
-      status: responseStatus,
-      statusText: responseStatusText,
-      hasError: !!providerResult.error,
-      errorDetails: providerResult.error,
-      messageId: providerResult.id,
-    });
+    this.logger.log(`Gmail API response sent=${sent} status=${responseStatus} statusText=${responseStatusText} messageId=${providerResult.id}`);
 
     // Log outbound email
     const outbound = await this.prisma.outboundEmail.create({
@@ -1388,20 +1331,11 @@ export class EmailService {
 
     if (!sent) {
       const errorMessage = `Failed to send email via Gmail: ${JSON.stringify(providerResult)}`;
-      console.error('[EmailService] Email send failed', {
-        outboundId: outbound.id,
-        error: providerResult,
-        status: responseStatus,
-        statusText: responseStatusText,
-      });
+      this.logger.error(`Email send failed outboundId=${outbound.id} status=${responseStatus} statusText=${responseStatusText}`);
       throw new BadRequestException(errorMessage);
     }
 
-    console.log('[EmailService] ✓ Email sent successfully', {
-      outboundId: outbound.id,
-      messageId: providerResult.id,
-      to: data.to,
-    });
+    this.logger.log(`✓ Email sent successfully outboundId=${outbound.id} messageId=${providerResult.id} to=${data.to?.join(',')}`);
 
     return {
       success: true,

@@ -1,16 +1,43 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import {
+  PaginationParams,
+  PaginatedResult,
+  parsePaginationParams,
+} from '../common/utils/pagination.util';
 
 @Injectable()
 export class ActivitiesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(tenantId: string) {
-    return this.prisma.activity.findMany({
-      where: { tenant_id: tenantId },
-      include: { user: true },
-      orderBy: { created_at: 'desc' },
-    });
+  async findAll(
+    tenantId: string,
+    params: PaginationParams = {},
+  ): Promise<PaginatedResult<any>> {
+    const { skip, take, page, pageSize } = parsePaginationParams(params);
+
+    const where: any = { tenant_id: tenantId };
+
+    const [data, total] = await Promise.all([
+      this.prisma.activity.findMany({
+        where,
+        include: { user: true },
+        orderBy: { created_at: 'desc' },
+        skip,
+        take,
+      }),
+      this.prisma.activity.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    };
   }
 
   async findByEntity(tenantId: string, entityType: string, entityId: string) {

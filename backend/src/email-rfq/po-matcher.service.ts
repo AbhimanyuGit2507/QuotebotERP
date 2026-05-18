@@ -50,7 +50,7 @@ export class PoMatcherService {
     // Thread match: check if conversation is linked to the quotation (if quotationId provided)
     if (quotationId) {
       const quotation = await this.prisma.quotation.findFirst({
-        where: { tenant_id: tenantId, id: quotationId },
+        where: { tenant_id: tenantId, id: quotationId, deleted_at: null },
         select: {
           conversation_id: true,
           client_id: true,
@@ -68,7 +68,7 @@ export class PoMatcherService {
       // customer match: compare client email domain if available
       if (quotation?.client_id) {
         const client = await this.prisma.client.findFirst({
-          where: { tenant_id: tenantId, id: quotation.client_id },
+          where: { tenant_id: tenantId, id: quotation.client_id, deleted_at: null },
           select: { email: true },
         });
         if (client?.email) {
@@ -101,7 +101,8 @@ export class PoMatcherService {
       }
 
       // amount match: extract numeric amounts from message and compare with quotation.total
-      if (quotation?.total) {
+      const quotationTotal = Number(quotation?.total || 0);
+      if (quotationTotal > 0) {
         const numbers = Array.from(
           String(messageBody || '').matchAll(
             /\b(\d{1,3}(?:[,\d]{0,}|)\.?\d{0,2})\b/g,
@@ -112,9 +113,8 @@ export class PoMatcherService {
         if (numbers.length > 0) {
           // take largest number as candidate
           const candidate = Math.max(...numbers);
-          const diff = Math.abs(candidate - (quotation.total || 0));
-          const rel =
-            (quotation.total || 1) > 0 ? diff / (quotation.total || 1) : 1;
+          const diff = Math.abs(candidate - quotationTotal);
+          const rel = quotationTotal > 0 ? diff / quotationTotal : 1;
           amountMatch = rel <= 0.02 ? 1 : rel <= 0.1 ? 0.6 : 0;
         }
       }
@@ -127,7 +127,7 @@ export class PoMatcherService {
         });
         if (po?.po_number && quotationId) {
           const quotationRec = await this.prisma.quotation.findFirst({
-            where: { tenant_id: tenantId, id: quotationId },
+            where: { tenant_id: tenantId, id: quotationId, deleted_at: null },
             select: { number: true },
           });
           if (quotationRec?.number && po.po_number === quotationRec.number)
@@ -139,12 +139,12 @@ export class PoMatcherService {
     // customer match fallback: check if message contains client email local-part or exact email
     if (!customerMatch && quotationId) {
       const quotation = await this.prisma.quotation.findFirst({
-        where: { tenant_id: tenantId, id: quotationId },
+        where: { tenant_id: tenantId, id: quotationId, deleted_at: null },
         select: { client_id: true },
       });
       if (quotation?.client_id) {
         const client = await this.prisma.client.findFirst({
-          where: { tenant_id: tenantId, id: quotation.client_id },
+          where: { tenant_id: tenantId, id: quotation.client_id, deleted_at: null },
           select: { email: true },
         });
         if (client?.email) {

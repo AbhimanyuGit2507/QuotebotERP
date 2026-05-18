@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import type { StringValue } from 'ms';
 import { PrismaService } from '../prisma.service';
+import { requireEnv } from './utils/env.util';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { PrismaService } from '../prisma.service';
     }),
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-secret-key',
+      secret: requireEnv('JWT_SECRET'),
       signOptions: {
         expiresIn: (process.env.JWT_EXPIRATION || '24h') as StringValue,
       },

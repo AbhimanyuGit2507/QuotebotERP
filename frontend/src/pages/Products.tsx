@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import PageLayout from '../components/common/PageLayout';
+import { PromptModal } from '../components/common/Modals';
 import { apiRequest } from '../services/api';
 import { useApp, Product } from '../context/AppContext';
 
@@ -561,6 +562,8 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, categories, onClos
     gst: product?.gst?.toString() || '18',
     status: product?.status || 'active',
   });
+  const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
 
   const handleSubmit = () => {
     if (!formData.sku || !formData.name || !formData.price) return;
@@ -600,19 +603,10 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, categories, onClos
               <label className="block text-[12px] font-medium text-[var(--erp-text-muted)] mb-1">Category</label>
               <select
                 value={formData.category}
-                onChange={async (e) => {
+                onChange={(e) => {
                   const val = e.target.value;
                   if (val === '__add_new__') {
-                    const name = window.prompt('Enter new category name');
-                    if (name && name.trim()) {
-                      try {
-                        await apiRequest('/products/categories', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
-                        // refresh parent data
-                        window.location.reload();
-                      } catch (err) {
-                        alert('Failed to create category');
-                      }
-                    }
+                    setShowNewCategoryModal(true);
                   } else {
                     setFormData({ ...formData, category: val });
                   }
@@ -720,6 +714,32 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, categories, onClos
           </button>
         </div>
       </div>
+      {/* New Category Modal */}
+      <PromptModal
+        isOpen={showNewCategoryModal}
+        onClose={() => { setShowNewCategoryModal(false); setCategoryError(null); }}
+        onConfirm={async (name) => {
+          if (name && name.trim()) {
+            try {
+              await apiRequest('/products/categories', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
+              setCategoryError(null);
+              setShowNewCategoryModal(false);
+              window.location.reload();
+            } catch (_err) {
+              setCategoryError('Failed to create category');
+            }
+          }
+        }}
+        title="New Category"
+        fieldLabel="Category Name"
+        placeholder="Enter new category name"
+        confirmLabel="Create"
+      />
+      {categoryError && (
+        <div className="fixed bottom-4 right-4 z-[60] bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg text-sm">
+          {categoryError}
+        </div>
+      )}
     </div>
   );
 };

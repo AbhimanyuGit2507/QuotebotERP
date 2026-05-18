@@ -5,6 +5,7 @@ interface FormFieldProps {
   label: string;
   required?: boolean;
   hint?: string;
+  error?: string;
   children: React.ReactNode;
   horizontal?: boolean;
 }
@@ -13,6 +14,7 @@ export const FormField: React.FC<FormFieldProps> = ({
   label, 
   required, 
   hint, 
+  error,
   children, 
   horizontal = true 
 }) => {
@@ -24,7 +26,8 @@ export const FormField: React.FC<FormFieldProps> = ({
         </label>
         <div className="flex-1">
           {children}
-          {hint && <p className="text-[12px] text-[var(--erp-text-muted)] mt-1">{hint}</p>}
+          {hint && !error && <p className="text-[12px] text-[var(--erp-text-muted)] mt-1">{hint}</p>}
+          {error && <p className="text-[12px] text-red-500 mt-1">{error}</p>}
         </div>
       </div>
     );
@@ -35,7 +38,8 @@ export const FormField: React.FC<FormFieldProps> = ({
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       {children}
-      {hint && <p className="text-[12px] text-[var(--erp-text-muted)]">{hint}</p>}
+      {hint && !error && <p className="text-[12px] text-[var(--erp-text-muted)]">{hint}</p>}
+      {error && <p className="text-[12px] text-red-500">{error}</p>}
     </div>
   );
 };
@@ -43,13 +47,17 @@ export const FormField: React.FC<FormFieldProps> = ({
 // Text Input Component
 interface TextInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   fullWidth?: boolean;
+  error?: string;
 }
 
-export const TextInput: React.FC<TextInputProps> = ({ fullWidth = true, className = '', ...props }) => (
-  <input 
-    className={`text-sm border border-[var(--erp-border)] focus:ring-1 focus:ring-[var(--erp-accent)] focus:border-[var(--erp-accent)] outline-none py-2 px-3 rounded ${fullWidth ? 'w-full' : ''} ${className}`}
-    {...props}
-  />
+export const TextInput: React.FC<TextInputProps> = ({ fullWidth = true, error, className = '', ...props }) => (
+  <div>
+    <input 
+      className={`text-sm border ${error ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-[var(--erp-border)] focus:ring-[var(--erp-accent)] focus:border-[var(--erp-accent)]'} focus:ring-1 outline-none py-2 px-3 rounded ${fullWidth ? 'w-full' : ''} ${className}`}
+      {...props}
+    />
+    {error && <p className="text-[12px] text-red-500 mt-1">{error}</p>}
+  </div>
 );
 
 // Select Component
@@ -61,17 +69,21 @@ interface SelectOption {
 interface SelectInputProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'children'> {
   options: SelectOption[];
   fullWidth?: boolean;
+  error?: string;
 }
 
-export const SelectInput: React.FC<SelectInputProps> = ({ options, fullWidth = true, className = '', ...props }) => (
-  <select 
-    className={`text-sm border border-[var(--erp-border)] focus:ring-1 focus:ring-[var(--erp-accent)] focus:border-[var(--erp-accent)] outline-none py-2 px-3 rounded bg-white ${fullWidth ? 'w-full' : ''} ${className}`}
-    {...props}
-  >
-    {options.map(opt => (
-      <option key={opt.value} value={opt.value}>{opt.label}</option>
-    ))}
-  </select>
+export const SelectInput: React.FC<SelectInputProps> = ({ options, fullWidth = true, error, className = '', ...props }) => (
+  <div>
+    <select 
+      className={`text-sm border ${error ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-[var(--erp-border)] focus:ring-[var(--erp-accent)] focus:border-[var(--erp-accent)]'} focus:ring-1 outline-none py-2 px-3 rounded bg-white ${fullWidth ? 'w-full' : ''} ${className}`}
+      {...props}
+    >
+      {options.map(opt => (
+        <option key={opt.value} value={opt.value}>{opt.label}</option>
+      ))}
+    </select>
+    {error && <p className="text-[12px] text-red-500 mt-1">{error}</p>}
+  </div>
 );
 
 // Toggle/Checkbox Component
@@ -79,18 +91,23 @@ interface ToggleProps {
   label: string;
   checked?: boolean;
   onChange?: (checked: boolean) => void;
+  required?: boolean;
+  error?: string;
 }
 
-export const Toggle: React.FC<ToggleProps> = ({ label, checked, onChange }) => (
-  <label className="flex items-center gap-3 cursor-pointer text-sm text-[var(--erp-text)]">
-    <input 
-      type="checkbox" 
-      checked={checked}
-      onChange={(e) => onChange?.(e.target.checked)}
-      className="rounded border-[var(--erp-border)] text-[var(--erp-accent)] focus:ring-[var(--erp-accent)] w-4 h-4"
-    />
-    <span>{label}</span>
-  </label>
+export const Toggle: React.FC<ToggleProps> = ({ label, checked, onChange, required, error }) => (
+  <div>
+    <label className="flex items-center gap-3 cursor-pointer text-sm text-[var(--erp-text)]">
+      <input 
+        type="checkbox" 
+        checked={checked}
+        onChange={(e) => onChange?.(e.target.checked)}
+        className={`rounded ${error ? 'border-red-500 text-red-500' : 'border-[var(--erp-border)] text-[var(--erp-accent)]'} focus:ring-[var(--erp-accent)] w-4 h-4`}
+      />
+      <span>{label} {required && <span className="text-red-500">*</span>}</span>
+    </label>
+    {error && <p className="text-[12px] text-red-500 mt-1">{error}</p>}
+  </div>
 );
 
 // Section Header Component

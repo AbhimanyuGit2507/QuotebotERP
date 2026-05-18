@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -10,6 +11,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { RfqsService } from './rfqs.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -22,6 +24,7 @@ import { UpdateRfqStatusDto } from './dtos/update-rfq-status.dto';
 import { CreateRfqFromEmailDto } from './dtos/create-rfq-from-email.dto';
 import { SendRfqEmailDto } from './dtos/send-rfq-email.dto';
 
+@ApiTags('RFQs')
 @UseGuards(JwtAuthGuard)
 @Controller('rfqs')
 export class RfqsController {
@@ -31,12 +34,20 @@ export class RfqsController {
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: RfqsQueryDto,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
     return this.rfqsService.findAll(user.tenant_id, {
       search: query.search,
       status: query.status,
       channel: query.channel,
       limit: query.limit,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
     });
   }
 
@@ -128,8 +139,17 @@ export class RfqsController {
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
     @Query('forceDeleteLinkedQuotation') force?: string,
+    @Query('forceDelete') forceDelete?: string,
   ) {
     const forceFlag = Boolean(force === 'true' || force === '1');
+    if (forceDelete === 'true') {
+      if (user.role !== 'admin') {
+        throw new ForbiddenException('Only admin users can permanently delete records');
+      }
+      return this.rfqsService.forceDelete(id, user.tenant_id, {
+        forceDeleteLinkedQuotation: forceFlag,
+      });
+    }
     return this.rfqsService.remove(id, user.tenant_id, {
       forceDeleteLinkedQuotation: forceFlag,
     });

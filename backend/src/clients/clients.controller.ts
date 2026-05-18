@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -11,6 +12,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ClientsService } from './clients.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -20,6 +22,7 @@ import { CreateClientDto } from './dtos/create-client.dto';
 import { UpdateClientDto } from './dtos/update-client.dto';
 import { UpdateClientTierDto } from './dtos/update-client-tier.dto';
 
+@ApiTags('Clients')
 @UseGuards(JwtAuthGuard)
 @Controller('clients')
 export class ClientsController {
@@ -30,6 +33,10 @@ export class ClientsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('search') search?: string,
     @Query('tier') tier?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
     const allowedTiers = ['new', 'regular', 'top'];
 
@@ -37,7 +44,14 @@ export class ClientsController {
       throw new BadRequestException('Invalid tier filter');
     }
 
-    return this.clientsService.findAll(user.tenant_id, { search, tier });
+    return this.clientsService.findAll(user.tenant_id, {
+      search,
+      tier,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
+    });
   }
 
   @Get('export/csv')
@@ -101,7 +115,17 @@ export class ClientsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  remove(
+    @Param('id') id: string,
+    @Query('forceDelete') forceDelete: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (forceDelete === 'true') {
+      if (user.role !== 'admin') {
+        throw new ForbiddenException('Only admin users can permanently delete records');
+      }
+      return this.clientsService.forceDelete(id, user.tenant_id);
+    }
     return this.clientsService.remove(id, user.tenant_id);
   }
 }

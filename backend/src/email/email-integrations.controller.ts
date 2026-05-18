@@ -9,7 +9,9 @@ import {
   Req,
   Res,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { EmailService } from './email.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -21,8 +23,11 @@ import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.
  * Note: OAuth callback endpoint is public (called by Google)
  * Other endpoints require JWT authentication
  */
+@SkipThrottle()
 @Controller('email-integrations')
 export class EmailIntegrationsController {
+  private readonly logger = new Logger(EmailIntegrationsController.name);
+
   constructor(private emailService: EmailService) {}
 
   /**
@@ -91,12 +96,7 @@ export class EmailIntegrationsController {
     const userId = req.user?.id;
     const tenantId = req.user?.tenant_id;
 
-    console.log('[Backend][OAuth] Authorize request received', {
-      userId,
-      tenantId,
-      path: req.path,
-      method: req.method,
-    });
+    this.logger.log(`OAuth authorize request received userId=${userId} tenantId=${tenantId}`);
 
     if (!userId || !tenantId) {
       return res.status(400).json({
@@ -113,10 +113,7 @@ export class EmailIntegrationsController {
       // Get OAuth authorization URL
       const authUrl = this.emailService.initiateGoogleOAuth(state);
 
-      console.log('[Backend][OAuth] Generated authorization URL successfully', {
-        userId,
-        tenantId,
-      });
+      this.logger.log(`OAuth generated authorization URL successfully userId=${userId} tenantId=${tenantId}`);
 
       // Return redirect URL
       return res.json({
@@ -124,11 +121,7 @@ export class EmailIntegrationsController {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'OAuth error';
-      console.error('[Backend][OAuth] Authorize request failed', {
-        userId,
-        tenantId,
-        error: message,
-      });
+      this.logger.error(`OAuth authorize request failed userId=${userId} tenantId=${tenantId} error=${message}`);
       return res.status(500).json({ error: message });
     }
   }
@@ -147,12 +140,7 @@ export class EmailIntegrationsController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    console.log('[Backend][OAuth] Callback received', {
-      hasCode: Boolean(code),
-      hasState: Boolean(state),
-      path: req.path,
-      method: req.method,
-    });
+    this.logger.log(`OAuth callback received hasCode=${Boolean(code)} hasState=${Boolean(state)}`);
 
     if (!code || !state) {
       return res.status(400).json({
@@ -169,9 +157,7 @@ export class EmailIntegrationsController {
       const tenantId = statePayload.tenantId as string;
 
       if (!userId || !tenantId) {
-        console.error('[Backend][OAuth] Invalid callback state payload', {
-          statePayload,
-        });
+        this.logger.error('OAuth invalid callback state payload');
         return res.status(400).json({ error: 'Invalid state data' });
       }
 
@@ -183,29 +169,18 @@ export class EmailIntegrationsController {
         userId,
       );
 
-      console.log('[Backend][OAuth] Callback completed and account linked', {
-        userId,
-        tenantId,
-        email: emailAccount.email_address,
-      });
+      this.logger.log(`OAuth callback completed and account linked userId=${userId} tenantId=${tenantId} email=${emailAccount.email_address}`);
 
       try {
         const syncResult =
           this.emailService.triggerImmediateGmailSync(tenantId);
-        console.log('[Backend][OAuth] Immediate sync trigger result', {
-          tenantId,
-          started: syncResult.started,
-          reason: syncResult.reason,
-        });
+        this.logger.log(`OAuth immediate sync trigger result tenantId=${tenantId} started=${syncResult.started} reason=${syncResult.reason}`);
       } catch (syncError) {
         const syncMessage =
           syncError instanceof Error
             ? syncError.message
             : 'Unknown sync trigger error';
-        console.error('[Backend][OAuth] Failed to trigger immediate sync', {
-          tenantId,
-          error: syncMessage,
-        });
+        this.logger.error(`OAuth failed to trigger immediate sync tenantId=${tenantId} error=${syncMessage}`);
       }
 
       // Redirect to frontend with success message
@@ -215,9 +190,7 @@ export class EmailIntegrationsController {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'OAuth error';
-      console.error('[Backend][OAuth] Callback failed', {
-        error: message,
-      });
+      this.logger.error(`OAuth callback failed error=${message}`);
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       return res.redirect(
         `${frontendUrl}/system-config?tab=communication&error=${encodeURIComponent(message)}`,

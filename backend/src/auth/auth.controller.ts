@@ -11,6 +11,8 @@ import {
   Res,
   Req,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dtos/login.dto';
@@ -25,6 +27,7 @@ type AuthRequest = Omit<Request, 'cookies'> & {
   cookies?: Record<string, string | undefined>;
 };
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
@@ -37,6 +40,7 @@ export class AuthController {
    * Login with email and password
    */
   @Post('login')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @HttpCode(HttpStatus.OK)
   async login(
     @Body() loginDto: LoginDto,
@@ -52,6 +56,7 @@ export class AuthController {
    * Register a new user in an existing tenant
    */
   @Post('register')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @HttpCode(HttpStatus.CREATED)
   async register(
     @Body() registerDto: RegisterDto,
@@ -145,6 +150,7 @@ export class AuthController {
    * Exchange refresh cookie for a new access token
    */
   @Post('refresh')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Req() req: AuthRequest,

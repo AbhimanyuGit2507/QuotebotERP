@@ -10,6 +10,7 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { LoginDto } from './dtos/login.dto';
 import { RegisterDto } from './dtos/register.dto';
+import { requireEnv } from '../common/utils/env.util';
 
 interface GoogleOAuthState {
   redirectTo?: string;
@@ -97,6 +98,10 @@ export class AuthService {
 
     if (!tenant) {
       throw new BadRequestException('Invalid tenant ID');
+    }
+
+    if (!tenant.allow_public_registration) {
+      throw new BadRequestException('Public registration is disabled for this tenant');
     }
 
     const userRole = await this.prisma.role.findUnique({

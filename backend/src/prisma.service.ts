@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
@@ -16,6 +16,7 @@ const prismaClientSingleton = () => {
   return new PrismaClient({ adapter });
 };
 
+type TaxProfileDelegate = PrismaClient['taxProfile'];
 type InvoiceDelegate = PrismaClient['invoice'];
 type PaymentDelegate = PrismaClient['payment'];
 type AccountingIntegrationDelegate = PrismaClient['accountingIntegration'];
@@ -35,6 +36,7 @@ if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
 
 @Injectable()
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(PrismaService.name);
   private prismaClient: PrismaClient = prisma;
 
   get user() {
@@ -133,6 +135,10 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.prismaClient.outboundEmail;
   }
 
+  get taxProfile(): TaxProfileDelegate {
+    return this.prismaClient.taxProfile;
+  }
+
   get invoice(): InvoiceDelegate {
     return this.prismaClient.invoice;
   }
@@ -177,15 +183,15 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     await this.prismaClient.$connect();
-    console.log('✅ Prisma connected to database');
+    this.logger.log('✅ Prisma connected to database');
   }
 
   async onModuleDestroy() {
     try {
       await this.prismaClient.$disconnect();
-      console.log('✅ Prisma disconnected from database');
+      this.logger.log('✅ Prisma disconnected from database');
     } catch (err) {
-      console.warn('Prisma disconnect error:', err);
+      this.logger.warn(`Prisma disconnect error: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     // Ensure the underlying pg Pool is closed to avoid open handles
@@ -196,10 +202,10 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
       // @ts-ignore
       if (pool && typeof pool.end === 'function') {
         await pool.end();
-        console.log('✅ Postgres pool ended');
+        this.logger.log('✅ Postgres pool ended');
       }
     } catch (err) {
-      console.warn('Postgres pool end error:', err);
+      this.logger.warn(`Postgres pool end error: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }

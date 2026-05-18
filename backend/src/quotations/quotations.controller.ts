@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -11,6 +12,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { QuotationsService } from './quotations.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -21,6 +23,7 @@ import { CreateQuotationDto } from './dtos/create-quotation.dto';
 import { UpdateQuotationDto } from './dtos/update-quotation.dto';
 import { SendQuotationEmailDto } from './dtos/send-quotation-email.dto';
 
+@ApiTags('Quotations')
 @UseGuards(JwtAuthGuard)
 @Controller('quotations')
 export class QuotationsController {
@@ -30,8 +33,19 @@ export class QuotationsController {
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: QuotationsQueryDto,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
-    return this.quotationsService.findAll(user.tenant_id, query);
+    return this.quotationsService.findAll(user.tenant_id, {
+      search: query.search,
+      status: query.status,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
+    });
   }
 
   @Get('export/csv')
@@ -135,13 +149,36 @@ export class QuotationsController {
     return this.quotationsService.getRelatedInvoices(id, user.tenant_id);
   }
 
+  @Post(':id/approve')
+  approve(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quotationsService.approve(id, user.tenant_id, user.id);
+  }
+
+  @Post(':id/reject')
+  reject(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.quotationsService.reject(id, user.tenant_id, user.id, reason);
+  }
+
   @Delete(':id')
   remove(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
     @Query('forceDeleteLinkedRfq') force?: string,
+    @Query('forceDelete') forceDelete?: string,
   ) {
     const forceFlag = Boolean(force === 'true' || force === '1');
+    if (forceDelete === 'true') {
+      if (user.role !== 'admin') {
+        throw new ForbiddenException('Only admin users can permanently delete records');
+      }
+      return this.quotationsService.forceDelete(id, user.tenant_id, {
+        forceDeleteLinkedRfq: forceFlag,
+      });
+    }
     return this.quotationsService.remove(id, user.tenant_id, {
       forceDeleteLinkedRfq: forceFlag,
     });

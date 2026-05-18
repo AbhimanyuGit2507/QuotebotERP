@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -10,6 +11,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -20,6 +22,7 @@ import { CreateProductDto } from './dtos/create-product.dto';
 import { UpdateProductDto } from './dtos/update-product.dto';
 import { UploadProductImageDto } from './dtos/upload-product-image.dto';
 
+@ApiTags('Products')
 @UseGuards(JwtAuthGuard)
 @Controller('products')
 export class ProductsController {
@@ -29,11 +32,19 @@ export class ProductsController {
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ProductsQueryDto,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
     return this.productsService.findAll(user.tenant_id, {
       search: query.search,
       category: query.category,
       status: query.status,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
     });
   }
 
@@ -86,7 +97,17 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  remove(
+    @Param('id') id: string,
+    @Query('forceDelete') forceDelete: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (forceDelete === 'true') {
+      if (user.role !== 'admin') {
+        throw new ForbiddenException('Only admin users can permanently delete records');
+      }
+      return this.productsService.forceDelete(id, user.tenant_id);
+    }
     return this.productsService.remove(id, user.tenant_id);
   }
 

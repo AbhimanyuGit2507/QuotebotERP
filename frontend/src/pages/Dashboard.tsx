@@ -1,11 +1,23 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageLayout from '../components/common/PageLayout';
 import { useApp } from '../context/AppContext';
 
+const KpiSkeleton: React.FC = () => (
+  <div className="bg-white p-3 animate-pulse">
+    <div className="flex items-center gap-2 mb-2">
+      <div className="w-[18px] h-[18px] bg-slate-200 rounded" />
+      <div className="h-3 bg-slate-200 rounded w-20" />
+    </div>
+    <div className="h-7 bg-slate-200 rounded w-12 mb-1" />
+    <div className="h-3 bg-slate-200 rounded w-16" />
+  </div>
+);
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { rfqs, quotes, clients, products, invoices, showToast } = useApp();
+  const [isLoading, setIsLoading] = useState(false);
 
   // Calculate KPI data from real state
   const kpiData = useMemo(() => {
@@ -124,7 +136,11 @@ const Dashboard: React.FC = () => {
   };
 
   const handleRefresh = () => {
-    showToast('Dashboard refreshed', 'success');
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+      showToast('Dashboard refreshed', 'success');
+    }, 600);
   };
 
   const handleKPIClick = (index: number) => {
@@ -156,8 +172,8 @@ const Dashboard: React.FC = () => {
     <PageLayout>
       <main className="flex-1 bg-white flex flex-col overflow-hidden">
         {/* Quick Actions Bar */}
-        <div className="h-12 bg-slate-50 border-b border-[var(--erp-border)] flex items-center justify-between px-4 shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="h-auto sm:h-12 bg-slate-50 border-b border-[var(--erp-border)] flex flex-wrap items-center justify-between px-2 sm:px-4 py-2 sm:py-0 shrink-0 gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button 
               onClick={() => navigate('/quotations')}
               className="btn btn-primary btn-sm"
@@ -167,48 +183,50 @@ const Dashboard: React.FC = () => {
             </button>
             <button 
               onClick={() => navigate('/rfq-inbox')}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-[var(--erp-border)] text-[12px] font-medium rounded hover:bg-white text-[var(--erp-text)]"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 border border-[var(--erp-border)] text-[12px] font-medium rounded hover:bg-white text-[var(--erp-text)]"
             >
               <span className="material-symbols-outlined !text-[16px]">inbox</span>
               Go to RFQ Inbox
             </button>
             <button 
               onClick={() => navigate('/products')}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-[var(--erp-border)] text-[12px] font-medium rounded hover:bg-white text-[var(--erp-text)]"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 border border-[var(--erp-border)] text-[12px] font-medium rounded hover:bg-white text-[var(--erp-text)]"
             >
               <span className="material-symbols-outlined !text-[16px]">inventory_2</span>
               Manage Products
             </button>
           </div>
           <div className="flex items-center gap-3 text-[11px] text-[var(--erp-text-muted)]">
-            <span>Last updated: just now</span>
+            <span className="hidden sm:inline">Last updated: just now</span>
             <button onClick={handleRefresh} className="text-[var(--erp-accent)] hover:underline font-medium">Refresh</button>
           </div>
         </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-8 gap-px bg-[var(--erp-border)] border-b border-[var(--erp-border)] shrink-0">
-          {kpiData.map((kpi, idx) => (
-            <div 
-              key={idx} 
-              onClick={() => handleKPIClick(idx)}
-              className="bg-white p-3 hover:bg-slate-50 cursor-pointer transition-colors"
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <span className="material-symbols-outlined !text-[18px] text-[var(--erp-text-muted)]">{kpi.icon}</span>
-                <p className="text-[11px] text-[var(--erp-text-muted)] uppercase font-bold">{kpi.label}</p>
-              </div>
-              <h3 className="text-2xl font-bold text-[var(--erp-text)]">{kpi.value}</h3>
-              <p className={`text-[11px] ${kpi.subColor} mt-0.5`}>{kpi.sub}</p>
-            </div>
-          ))}
+        {/* KPI Cards - responsive grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-px bg-[var(--erp-border)] border-b border-[var(--erp-border)] shrink-0">
+          {isLoading
+            ? Array.from({ length: 8 }).map((_, idx) => <KpiSkeleton key={idx} />)
+            : kpiData.map((kpi, idx) => (
+                <div 
+                  key={idx} 
+                  onClick={() => handleKPIClick(idx)}
+                  className="bg-white p-3 hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="material-symbols-outlined !text-[18px] text-[var(--erp-text-muted)]">{kpi.icon}</span>
+                    <p className="text-[11px] text-[var(--erp-text-muted)] uppercase font-bold truncate">{kpi.label}</p>
+                  </div>
+                  <h3 className="text-2xl font-bold text-[var(--erp-text)]">{kpi.value}</h3>
+                  <p className={`text-[11px] ${kpi.subColor} mt-0.5`}>{kpi.sub}</p>
+                </div>
+              ))}
         </div>
 
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
           {/* Main Content */}
-          <div className="flex-1 overflow-auto p-4 bg-slate-50">
-            {/* Charts Row */}
-            <div className="grid grid-cols-3 gap-4 mb-4">
+          <div className="flex-1 overflow-auto p-2 sm:p-4 bg-slate-50">
+            {/* Charts Row - responsive grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
               {/* RFQ vs Quote Timeline */}
               <div className="bg-white border border-[var(--erp-border)] rounded shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/rfq-inbox')}>
                 <div className="px-3 py-2 border-b border-[var(--erp-border)] flex items-center justify-between">
@@ -246,7 +264,7 @@ const Dashboard: React.FC = () => {
                   <span className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase">Quote Status</span>
                 </div>
                 <div className="p-3 flex items-center gap-4">
-                  <div className="relative w-24 h-24">
+                  <div className="relative w-24 h-24 shrink-0">
                     <svg viewBox="0 0 36 36" className="w-full h-full">
                       <circle cx="18" cy="18" r="15.91549430918954" fill="transparent" stroke="#e2e8f0" strokeWidth="3"></circle>
                       <circle cx="18" cy="18" r="15.91549430918954" fill="transparent" stroke="#10b981" strokeWidth="3" strokeDasharray={`${quoteStatusData.accepted} ${100 - quoteStatusData.accepted}`} strokeDashoffset="25"></circle>
@@ -296,48 +314,50 @@ const Dashboard: React.FC = () => {
                   View All →
                 </button>
               </div>
-              <table className="w-full text-[12px]">
-                <thead className="bg-slate-50 text-[10px] text-[var(--erp-text-muted)] uppercase tracking-wider">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Date</th>
-                    <th className="px-3 py-2 text-left">RFQ Number</th>
-                    <th className="px-3 py-2 text-left">Client</th>
-                    <th className="px-3 py-2 text-center">Items</th>
-                    <th className="px-3 py-2 text-right">Value</th>
-                    <th className="px-3 py-2 text-center">Status</th>
-                    <th className="px-3 py-2 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {recentRfqs.map(rfq => (
-                    <tr key={rfq.id} className="hover:bg-slate-50">
-                      <td className="px-3 py-2 text-[var(--erp-text-muted)]">{rfq.date}</td>
-                      <td className="px-3 py-2 font-medium text-[var(--erp-accent)]">{rfq.number}</td>
-                      <td className="px-3 py-2">{rfq.client}</td>
-                      <td className="px-3 py-2 text-center">{rfq.items}</td>
-                      <td className="px-3 py-2 text-right font-medium">{rfq.value}</td>
-                      <td className="px-3 py-2 text-center">
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${getStatusBadge(rfq.status)}`}>
-                          {rfq.status.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <button 
-                          onClick={() => navigate('/rfq-inbox')}
-                          className="text-[var(--erp-accent)] hover:underline font-medium"
-                        >
-                          View
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[12px]">
+                  <thead className="bg-slate-50 text-[10px] text-[var(--erp-text-muted)] uppercase tracking-wider">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Date</th>
+                      <th className="px-3 py-2 text-left">RFQ Number</th>
+                      <th className="px-3 py-2 text-left">Client</th>
+                      <th className="px-3 py-2 text-center">Items</th>
+                      <th className="px-3 py-2 text-right">Value</th>
+                      <th className="px-3 py-2 text-center">Status</th>
+                      <th className="px-3 py-2 text-center">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {recentRfqs.map(rfq => (
+                      <tr key={rfq.id} className="hover:bg-slate-50">
+                        <td className="px-3 py-2 text-[var(--erp-text-muted)] whitespace-nowrap">{rfq.date}</td>
+                        <td className="px-3 py-2 font-medium text-[var(--erp-accent)] whitespace-nowrap">{rfq.number}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{rfq.client}</td>
+                        <td className="px-3 py-2 text-center">{rfq.items}</td>
+                        <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{rfq.value}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${getStatusBadge(rfq.status)}`}>
+                            {rfq.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <button 
+                            onClick={() => navigate('/rfq-inbox')}
+                            className="text-[var(--erp-accent)] hover:underline font-medium"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
-          {/* Right Sidebar */}
-          <aside className="w-64 bg-white border-l border-[var(--erp-border)] overflow-auto shrink-0">
+          {/* Right Sidebar - hidden on mobile, shown on lg+ */}
+          <aside className="w-full lg:w-64 bg-white border-t lg:border-t-0 lg:border-l border-[var(--erp-border)] overflow-auto shrink-0">
             {/* Activity Feed */}
             <div className="border-b border-[var(--erp-border)]">
               <div className="px-3 py-2 bg-slate-50 border-b border-[var(--erp-border)]">

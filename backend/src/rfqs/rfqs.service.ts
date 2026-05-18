@@ -1,12 +1,18 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { recordsToCsv } from '../common/utils/export.util';
 import { EmailService } from '../email/email.service';
+import {
+  PaginationParams,
+  PaginatedResult,
+  parsePaginationParams,
+} from '../common/utils/pagination.util';
 
 interface RfqItemInput {
   product_id: string;
@@ -85,8 +91,22 @@ type RfqDbClient = Pick<
   | 'quotationItem'
 >;
 
+/** Allowed sortable columns for RFQs list */
+const RFQ_SORTABLE_FIELDS = new Set([
+  'created_at',
+  'number',
+  'status',
+  'channel',
+  'priority',
+  'confidence_score',
+  'due_date',
+  'updated_at',
+]);
+
 @Injectable()
 export class RfqsService {
+  private readonly logger = new Logger(RfqsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
@@ -186,7 +206,7 @@ export class RfqsService {
       });
     } catch (error) {
       // Best-effort audit write: do not fail RFQ ingestion on logging errors.
-      console.warn('ParseRun logging skipped:', (error as Error).message);
+      this.logger.warn(`ParseRun logging skipped: ${(error as Error).message}`);
     }
   }
 
@@ -239,6 +259,7 @@ export class RfqsService {
       productCandidatesCache = await this.prisma.product.findMany({
         where: {
           tenant_id: tenantId,
+          deleted_at: null,
         },
         select: {
           id: true,
@@ -272,6 +293,7 @@ export class RfqsService {
           where: {
             id: rawItem.product_id,
             tenant_id: tenantId,
+            deleted_at: null,
           },
           select: {
             id: true,
@@ -315,6 +337,7 @@ export class RfqsService {
           where: {
             tenant_id: tenantId,
             name: { equals: productName, mode: 'insensitive' },
+            deleted_at: null,
           },
           select: {
             id: true,
@@ -482,38 +505,61 @@ export class RfqsService {
 
   async findAll(
     tenantId: string,
-    query: {
-      search?: string;
+    query: PaginationParams & {
       status?: string;
       channel?: string;
       limit?: number;
     },
-  ) {
+  ): Promise<PaginatedResult<any>> {
+    const { skip, take, page, pageSize } = parsePaginationParams(query);
     const { search, status, channel, limit } = query;
 
-    return this.prisma.rFQ.findMany({
-      where: {
-        tenant_id: tenantId,
-        ...(search
-          ? {
-              OR: [
-                { number: { contains: search, mode: 'insensitive' } },
-                { client: { name: { contains: search, mode: 'insensitive' } } },
-              ],
-            }
-          : {}),
-        ...(status ? { status } : {}),
-        ...(channel ? { channel } : {}),
+    const where: any = {
+      tenant_id: tenantId,
+      deleted_at: null,
+      ...(search
+        ? {
+            OR: [
+              { number: { contains: search, mode: 'insensitive' } },
+              { display_name: { contains: search, mode: 'insensitive' } },
+              { client: { name: { contains: search, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+      ...(status ? { status } : {}),
+      ...(channel ? { channel } : {}),
+    };
+
+    const effectiveTake = limit ? Math.min(limit, take) : take;
+
+    const [data, total] = await Promise.all([
+      this.prisma.rFQ.findMany({
+        where,
+        include: { client: true, items: true, quotation: true },
+        orderBy: {
+          [query.sortBy && RFQ_SORTABLE_FIELDS.has(query.sortBy) ? query.sortBy : 'created_at']:
+            query.sortOrder || 'desc',
+        },
+        skip,
+        take: effectiveTake,
+      }),
+      this.prisma.rFQ.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        pageSize: effectiveTake,
+        totalPages: Math.ceil(total / effectiveTake),
       },
-      include: { client: true, items: true, quotation: true },
-      orderBy: { created_at: 'desc' },
-      ...(limit ? { take: limit } : {}),
-    });
+    };
   }
 
   async findOne(id: string, tenantId: string) {
     const rfq = await this.prisma.rFQ.findFirst({
-      where: { id, tenant_id: tenantId },
+      where: { id, tenant_id: tenantId, deleted_at: null },
       include: { client: true, items: true, quotation: true },
     });
 
@@ -875,10 +921,7 @@ export class RfqsService {
       });
     } catch (err) {
       // best-effort: continue even if message update fails
-      console.warn(
-        'Failed to update source message payload:',
-        (err as Error).message,
-      );
+      this.logger.warn(`Failed to update source message payload: ${(err as Error).message}`);
     }
 
     await this.recordParseRun({
@@ -969,21 +1012,49 @@ export class RfqsService {
 
     if (linkedQuotationId && options?.forceDeleteLinkedQuotation) {
       try {
-        await this.prisma.quotation.delete({
+        await this.prisma.quotation.update({
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           where: { id: linkedQuotationId },
+          data: { deleted_at: new Date() },
         });
       } catch (err) {
-        // proceed even if deletion of quotation fails
-        console.warn(
-          'Failed to delete linked quotation:',
-          (err as Error).message,
-        );
+        // proceed even if soft-deletion of quotation fails
+        this.logger.warn(`Failed to soft-delete linked quotation: ${(err as Error).message}`);
       }
     }
 
-    await this.prisma.rFQ.delete({ where: { id } });
+    await this.prisma.rFQ.update({ where: { id }, data: { deleted_at: new Date() } });
     return { message: 'RFQ deleted successfully' };
+  }
+
+  async forceDelete(
+    id: string,
+    tenantId: string,
+    options?: { forceDeleteLinkedQuotation?: boolean },
+  ) {
+    const rfq = await this.prisma.rFQ.findFirst({
+      where: { id, tenant_id: tenantId },
+    });
+    if (!rfq) {
+      throw new NotFoundException(`RFQ ${id} not found`);
+    }
+
+    const linkedQuotationId = (rfq as any)?.quotation_id;
+    if (linkedQuotationId && options?.forceDeleteLinkedQuotation) {
+      await this.prisma.quotationItem.deleteMany({ where: { quotation_id: linkedQuotationId } });
+      await this.prisma.quotationVersion.deleteMany({ where: { quotation_id: linkedQuotationId } });
+      await this.prisma.invoice.deleteMany({ where: { quotation_id: linkedQuotationId } });
+      await this.prisma.assistancePurchaseOrder.deleteMany({ where: { quotation_id: linkedQuotationId } });
+      await this.prisma.quotation.delete({ where: { id: linkedQuotationId } }).catch(() => {});
+    }
+
+    await this.prisma.rFQItem.deleteMany({ where: { rfq_id: id } });
+    try {
+      await this.prisma.rFQ.delete({ where: { id } });
+    } catch {
+      await this.prisma.rFQ.update({ where: { id }, data: { deleted_at: new Date() } });
+    }
+    return { message: 'RFQ permanently deleted' };
   }
 
   async updateStatus(id: string, tenantId: string, status: string) {
@@ -1092,6 +1163,7 @@ export class RfqsService {
           where: {
             tenant_id: tenantId,
             id: { in: productIds },
+            deleted_at: null,
           },
           select: {
             id: true,
@@ -1108,10 +1180,11 @@ export class RfqsService {
 
     const quotationItems = rfq.items.map((item) => {
       const matchedProduct = productMap.get(item.product_id);
-      const unitPrice = matchedProduct?.price ?? 0;
-      const taxPercent = matchedProduct?.gst_percent ?? 18;
+      const unitPrice = Number(matchedProduct?.price ?? 0);
+      const taxPercent = Number(matchedProduct?.gst_percent ?? 18);
       const availableStock = matchedProduct?.stock ?? 0;
-      const lineSubtotal = item.quantity * unitPrice;
+      const qty = Number(item.quantity);
+      const lineSubtotal = qty * unitPrice;
       const lineTax = (lineSubtotal * taxPercent) / 100;
       const lineTotal = lineSubtotal + lineTax;
 
@@ -1121,7 +1194,7 @@ export class RfqsService {
       if (availableStock <= 0) {
         availability = 'out_of_stock';
         available_quantity = 0;
-      } else if (item.quantity > availableStock) {
+      } else if (qty > availableStock) {
         availability = 'insufficient_stock';
         available_quantity = availableStock;
       } else {
@@ -1132,7 +1205,7 @@ export class RfqsService {
       return {
         product_id: item.product_id,
         product_name: item.product_name,
-        quantity: item.quantity,
+        quantity: qty,
         unit: item.unit,
         unit_price: unitPrice,
         tax_percent: taxPercent,
@@ -1164,6 +1237,24 @@ export class RfqsService {
     );
     const total = Number((subtotal + tax).toFixed(2));
 
+    // Determine approval status based on configured threshold
+    let approvalStatus = 'not_required';
+    const companySettings = await db.quotation.findFirst({
+      // We can't query settingsCompany directly via the db transaction client
+      // when it only has a subset of models. Use the full prisma client instead.
+      where: { id: 'nonexistent' }, // dummy query to satisfy type
+    }).catch(() => null);
+    // Use main prisma instance for settings lookup (not part of the transaction subset)
+    const settings = await this.prisma.settingsCompany.findUnique({
+      where: { tenant_id: tenantId },
+    });
+    if (
+      settings?.quotation_approval_threshold &&
+      total > Number(settings.quotation_approval_threshold)
+    ) {
+      approvalStatus = 'pending';
+    }
+
     const quotation = await db.quotation.create({
       data: {
         tenant_id: tenantId,
@@ -1179,11 +1270,10 @@ export class RfqsService {
           rfq.client?.name || '',
           rfq.items.map((i) => i.product_name),
         ).tokens as unknown as Prisma.InputJsonValue,
-        date: new Date().toISOString().split('T')[0],
-        valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split('T')[0],
+        date: new Date(),
+        valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: 'draft',
+        approval_status: approvalStatus,
         terms_conditions: quotationTermsConditions,
         subtotal,
         tax,
@@ -1231,10 +1321,10 @@ export class RfqsService {
       limit?: number;
     },
   ) {
-    const rfqs = await this.findAll(tenantId, query);
+    const result = await this.findAll(tenantId, { ...query, pageSize: 10000 });
 
     return recordsToCsv(
-      rfqs.map((rfq) => ({
+      result.data.map((rfq: any) => ({
         number: rfq.number,
         client: rfq.client.name,
         channel: rfq.channel,

@@ -6,12 +6,13 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { PrismaService } from '../prisma.service';
+import { requireEnv } from '../common/utils/env.util';
 
 @Module({
   imports: [
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-secret-key',
+      secret: requireEnv('JWT_SECRET'),
       signOptions: {
         expiresIn: (process.env.JWT_EXPIRATION || '24h') as StringValue,
       },

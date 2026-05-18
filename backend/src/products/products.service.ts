@@ -6,6 +6,23 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { recordsToCsv } from '../common/utils/export.util';
+import {
+  PaginationParams,
+  PaginatedResult,
+  parsePaginationParams,
+} from '../common/utils/pagination.util';
+
+/** Allowed sortable columns for products list */
+const PRODUCT_SORTABLE_FIELDS = new Set([
+  'created_at',
+  'name',
+  'sku',
+  'price',
+  'cost',
+  'stock',
+  'status',
+  'updated_at',
+]);
 
 @Injectable()
 export class ProductsService {
@@ -13,29 +30,49 @@ export class ProductsService {
 
   async findAll(
     tenantId: string,
-    query: { search?: string; category?: string; status?: string },
-  ) {
-    const { search, category, status } = query;
+    params: PaginationParams & { category?: string; status?: string },
+  ): Promise<PaginatedResult<any>> {
+    const { skip, take, page, pageSize } = parsePaginationParams(params);
+    const { search, category, status } = params;
 
-    return this.prisma.product.findMany({
-      where: {
-        tenant_id: tenantId,
-        ...(search
-          ? {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { sku: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-        ...(category ? { category_id: category } : {}),
-        ...(status ? { status } : {}),
+    const where: any = {
+      tenant_id: tenantId,
+      deleted_at: null,
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { sku: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(category ? { category_id: category } : {}),
+      ...(status ? { status } : {}),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        include: { category: true },
+        orderBy: {
+          [params.sortBy && PRODUCT_SORTABLE_FIELDS.has(params.sortBy) ? params.sortBy : 'created_at']:
+            params.sortOrder || 'desc',
+        },
+        skip,
+        take,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
       },
-      include: {
-        category: true,
-      },
-      orderBy: { created_at: 'desc' },
-    });
+    };
   }
 
   async getCategories(tenantId: string) {
@@ -47,7 +84,7 @@ export class ProductsService {
 
   async findOne(id: string, tenantId: string) {
     const product = await this.prisma.product.findFirst({
-      where: { id, tenant_id: tenantId },
+      where: { id, tenant_id: tenantId, deleted_at: null },
       include: { category: true },
     });
 
@@ -134,6 +171,16 @@ export class ProductsService {
 
   async remove(id: string, tenantId: string) {
     await this.findOne(id, tenantId);
+    await this.prisma.product.update({
+      where: { id },
+      data: { deleted_at: new Date() },
+    });
+
+    return { message: 'Product deleted successfully' };
+  }
+
+  async forceDelete(id: string, tenantId: string) {
+    await this.findOne(id, tenantId);
     try {
       await this.prisma.product.delete({ where: { id } });
     } catch (error) {
@@ -148,7 +195,7 @@ export class ProductsService {
       throw error;
     }
 
-    return { message: 'Product deleted successfully' };
+    return { message: 'Product permanently deleted' };
   }
 
   async uploadImage(id: string, tenantId: string, imageUrl: string) {
@@ -159,10 +206,10 @@ export class ProductsService {
     tenantId: string,
     query: { search?: string; category?: string; status?: string },
   ) {
-    const products = await this.findAll(tenantId, query);
+    const result = await this.findAll(tenantId, { ...query, pageSize: 10000 });
 
     return recordsToCsv(
-      products.map((product) => ({
+      result.data.map((product: any) => ({
         sku: product.sku,
         name: product.name,
         category: product.category.name,

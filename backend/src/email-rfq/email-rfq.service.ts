@@ -700,6 +700,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       where: {
         tenant_id: tenantId,
         quotation_id: quotationId,
+        deleted_at: null,
       },
     });
 
@@ -711,6 +712,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       where: {
         id: quotationId,
         tenant_id: tenantId,
+        deleted_at: null,
       },
       include: {
         client: true,
@@ -732,11 +734,11 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
         quotation_id: quotationId,
         conversation_id: conversationId,
         number: this.generateInvoiceNumber(),
-        date: new Date().toISOString().split('T')[0],
+        date: new Date(),
         currency: companySettings?.currency ?? 'INR',
-        subtotal: quotation.subtotal ?? 0,
-        tax: quotation.tax ?? 0,
-        total: quotation.total ?? 0,
+        subtotal: Number(quotation.subtotal) || 0,
+        tax: Number(quotation.tax) || 0,
+        total: Number(quotation.total) || 0,
         status: 'open',
       },
     });
@@ -2846,13 +2848,13 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
               const itemDetails =
                 fullInvoice?.quotation?.items
                   ?.map((item, index) => {
-                    return `${index + 1}. ${item.product_name} - Qty: ${item.quantity} ${item.unit} @ INR ${item.unit_price}/unit = INR ${item.total}`;
+                    return `${index + 1}. ${item.product_name} - Qty: ${Number(item.quantity)} ${item.unit} @ INR ${Number(item.unit_price)}/unit = INR ${Number(item.total)}`;
                   })
                   .join('\n') || '';
 
               // Determine payment status
-              const paidAmount = fullInvoice?.paid_amount || 0;
-              const totalAmount = fullInvoice?.total || 0;
+              const paidAmount = Number(fullInvoice?.paid_amount || 0);
+              const totalAmount = Number(fullInvoice?.total || 0);
               let paymentStatus = '';
               if (paidAmount >= totalAmount) {
                 paymentStatus = 'Status: PAID';
@@ -2862,13 +2864,21 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
                 paymentStatus = 'Status: PENDING PAYMENT';
               }
 
+              // Format dates for template
+              const invoiceDateStr = fullInvoice?.date instanceof Date
+                ? fullInvoice.date.toISOString().split('T')[0]
+                : String(fullInvoice?.date || '');
+              const dueDateStr = fullInvoice?.due_date instanceof Date
+                ? fullInvoice.due_date.toISOString().split('T')[0]
+                : String(fullInvoice?.due_date || '');
+
               // Template variables
               const variables = {
                 client_name: fullInvoice?.quotation?.client?.name || 'Customer',
                 company_name: tenant?.company_name || 'Quotebot',
                 invoice_number: fullInvoice?.number || '',
-                invoice_date: fullInvoice?.date || '',
-                due_date: fullInvoice?.due_date || '',
+                invoice_date: invoiceDateStr,
+                due_date: dueDateStr,
                 currency: fullInvoice?.currency || 'INR',
                 total_amount: Number(totalAmount).toLocaleString('en-IN', {
                   maximumFractionDigits: 2,
