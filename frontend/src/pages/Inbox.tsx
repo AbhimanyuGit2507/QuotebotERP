@@ -16,6 +16,9 @@ import {
 
 interface GmailSyncStatus {
   status: 'idle' | 'running' | 'completed' | 'failed' | string;
+  phase?: string | null;
+  progressPercent?: number | null;
+  message?: string | null;
   totalMessages?: number;
   processedMessages?: number;
   synced?: number;
@@ -92,7 +95,8 @@ const Inbox: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
-    let manualSyncPolling: NodeJS.Timeout | null = null;
+    let manualSyncPolling: unknown = null;
+    const isSyncRunning = syncStatus?.status === 'running';
 
     const refreshSyncStatus = async () => {
       if (!isMounted) {
@@ -107,7 +111,7 @@ const Inbox: React.FC = () => {
     }, 5000);
 
     // Special fast polling for manual sync
-    if (manualSyncRequested && syncStatus?.status === 'running') {
+    if (manualSyncRequested || isSyncRunning) {
       manualSyncPolling = window.setInterval(() => {
         void refreshSyncStatus();
       }, 1000); // Poll every 1 second during manual sync
@@ -117,7 +121,7 @@ const Inbox: React.FC = () => {
       isMounted = false;
       window.clearInterval(interval);
       if (manualSyncPolling) {
-        window.clearInterval(manualSyncPolling);
+        window.clearInterval(manualSyncPolling as number);
       }
     };
   }, [loadSyncStatus, manualSyncRequested, syncStatus]);
@@ -936,6 +940,7 @@ const Inbox: React.FC = () => {
   const handleManualSync = async () => {
     try {
       setSyncTriggering(true);
+      syncFailureNotified.current = false;
       const response = await apiRequest<{
         started?: boolean;
         reason?: string;
@@ -951,6 +956,9 @@ const Inbox: React.FC = () => {
         setSyncStatus((previous) => ({
           ...(previous || {}),
           status: 'running',
+          phase: 'queued',
+          progressPercent: 1,
+          message: 'Sync queued',
         }));
         void loadSyncStatus();
         window.setTimeout(() => {
@@ -1076,6 +1084,10 @@ const Inbox: React.FC = () => {
       return 0;
     }
 
+    if (typeof syncStatus.progressPercent === 'number') {
+      return Math.max(1, Math.min(100, syncStatus.progressPercent));
+    }
+
     // If status is completed, show 100%
     if (syncStatus.status === 'completed') {
       return 100;
@@ -1099,13 +1111,9 @@ const Inbox: React.FC = () => {
     return Math.max(1, Math.min(99, percent));
   }, [syncStatus]);
   const shouldShowSyncBanner =
-    manualSyncRequested &&
-    (
-      syncTriggering ||
-      syncStatus?.status === 'running' ||
-      (!syncStatus && !manualSyncRunningSeen) ||
-      (syncStatus?.status !== 'failed' && !manualSyncRunningSeen)
-    );
+    syncTriggering ||
+    syncStatus?.status === 'running' ||
+    (manualSyncRequested && syncStatus?.status !== 'completed' && syncStatus?.status !== 'failed');
 
   return (
     <PageLayout>
@@ -1115,8 +1123,10 @@ const Inbox: React.FC = () => {
             <div className="flex items-center justify-between gap-4">
               <p className="text-sm font-medium text-blue-800">
                 {syncStatus?.status === 'running'
-                  ? `Syncing inbox... ${syncProgressPercent}%`
-                  : 'Starting inbox sync...'}
+                  ? `${syncStatus.message || 'Syncing inbox...'} ${syncProgressPercent}%`
+                  : syncTriggering
+                    ? 'Starting inbox sync...'
+                    : 'Inbox sync pending...'}
               </p>
               <p className="text-xs text-blue-700">
                 Found new emails: {syncStatus?.synced || 0} • Duplicates: {syncStatus?.duplicates || 0}

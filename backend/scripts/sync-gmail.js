@@ -35,6 +35,9 @@ const config = {
 const syncStatus = {
   status: 'idle',
   tenantId: config.tenantId,
+  phase: 'idle',
+  progressPercent: 0,
+  message: 'Idle',
   startedAt: null,
   endedAt: null,
   lastRunAt: null,
@@ -50,6 +53,88 @@ const syncStatus = {
   user_error: null,
   technical_error: null,
 };
+
+function getProgressPercent(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return 0;
+  }
+
+  if (snapshot.status === 'completed') {
+    return 100;
+  }
+
+  if (snapshot.status === 'failed') {
+    return Math.min(Number(snapshot.progressPercent || 0) || 0, 99);
+  }
+
+  const phase = typeof snapshot.phase === 'string' ? snapshot.phase : 'idle';
+  const accountsTotal = Number(snapshot.accountsTotal || 0);
+  const accountsProcessed = Number(snapshot.accountsProcessed || 0);
+  const totalMessages = Number(snapshot.totalMessages || 0);
+  const processedMessages = Number(snapshot.processedMessages || 0);
+
+  if (phase === 'queued' || phase === 'starting') {
+    return 1;
+  }
+
+  if (phase === 'fetching_accounts') {
+    return 10;
+  }
+
+  if (phase === 'fetching_messages') {
+    if (accountsTotal > 0) {
+      return Math.max(12, Math.min(25, 12 + Math.round((accountsProcessed / accountsTotal) * 10)));
+    }
+    return 15;
+  }
+
+  if (phase === 'processing_messages') {
+    if (totalMessages > 0) {
+      return Math.max(25, Math.min(95, 25 + Math.round((processedMessages / totalMessages) * 70)));
+    }
+
+    if (accountsTotal > 0) {
+      return Math.max(25, Math.min(95, 25 + Math.round((accountsProcessed / accountsTotal) * 60)));
+    }
+
+    return 25;
+  }
+
+  if (phase === 'finalizing') {
+    return 98;
+  }
+
+  return Math.max(1, Math.min(99, Number(snapshot.progressPercent || 0) || 1));
+}
+
+function getStatusMessage(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return 'Syncing inbox...';
+  }
+
+  if (typeof snapshot.message === 'string' && snapshot.message.trim()) {
+    return snapshot.message;
+  }
+
+  switch (snapshot.phase) {
+    case 'queued':
+      return 'Sync queued';
+    case 'fetching_accounts':
+      return 'Fetching connected email accounts...';
+    case 'fetching_messages':
+      return 'Fetching recent Gmail messages...';
+    case 'processing_messages':
+      return 'Processing inbox messages...';
+    case 'finalizing':
+      return 'Finishing Gmail sync...';
+    case 'completed':
+      return 'Sync completed';
+    case 'failed':
+      return 'Sync failed';
+    default:
+      return 'Syncing inbox...';
+  }
+}
 
 function resolveUserError(message) {
   const normalized = (message || '').toLowerCase();
@@ -77,6 +162,11 @@ function writeSyncStatus() {
 
 function setSyncStatus(partial) {
   Object.assign(syncStatus, partial);
+  syncStatus.progressPercent =
+    typeof partial.progressPercent === 'number'
+      ? partial.progressPercent
+      : getProgressPercent(syncStatus);
+  syncStatus.message = getStatusMessage(syncStatus);
   writeSyncStatus();
 }
 
@@ -262,6 +352,9 @@ async function main() {
 
   setSyncStatus({
     status: 'running',
+    phase: 'starting',
+    progressPercent: 1,
+    message: 'Starting Gmail sync...',
     tenantId: config.tenantId,
     startedAt: new Date().toISOString(),
     endedAt: null,
@@ -280,6 +373,11 @@ async function main() {
   try {
     // 1. Get all email accounts for this tenant
     console.log('📧 Fetching email accounts...');
+    setSyncStatus({
+      phase: 'fetching_accounts',
+      progressPercent: 10,
+      message: 'Fetching connected email accounts...',
+    });
     const accountsRes = await httpRequest({
       url: `${config.apiBaseUrl}/internal/email-accounts`,
       method: 'GET',
@@ -293,6 +391,9 @@ async function main() {
     if (!Array.isArray(accounts) || accounts.length === 0) {
       console.log('⏭️  No email accounts found\n');
       setSyncStatus({
+        phase: 'finalizing',
+        progressPercent: 98,
+        message: 'No email accounts found',
         status: 'completed',
         endedAt: new Date().toISOString(),
         lastRunAt: new Date().toISOString(),
@@ -301,7 +402,12 @@ async function main() {
     }
 
     console.log(`✅ Found ${accounts.length} account(s)\n`);
-    setSyncStatus({ accountsTotal: accounts.length });
+    setSyncStatus({
+      accountsTotal: accounts.length,
+      phase: 'fetching_messages',
+      progressPercent: 15,
+      message: 'Fetching recent Gmail messages...',
+    });
 
     let totalSynced = 0;
     let totalDuplicates = 0;
@@ -312,7 +418,11 @@ async function main() {
     for (const account of accounts) {
       // All accounts from getActiveEmailAccounts are already active
       console.log(`📧 Syncing account: ${account.id}`);
-      setSyncStatus({ currentAccountId: account.id });
+      setSyncStatus({
+        currentAccountId: account.id,
+        phase: 'fetching_messages',
+        message: `Fetching messages for ${account.email_address || account.id}...`,
+      });
 
       // Check if token needs refresh
       if (account.expires_at && new Date(account.expires_at).getTime() < Date.now()) {
@@ -334,6 +444,7 @@ async function main() {
             user_error: resolveUserError(reason),
             technical_error: reason,
             accountsProcessed: syncStatus.accountsProcessed + 1,
+            phase: 'processing_messages',
           });
           continue;
         }
@@ -353,17 +464,24 @@ async function main() {
           user_error: resolveUserError(String(messagesRes.status)),
           technical_error: `Gmail fetch failed (HTTP ${messagesRes.status})`,
           accountsProcessed: syncStatus.accountsProcessed + 1,
+          phase: 'processing_messages',
         });
         continue;
       }
 
       const messageList = messagesRes.messages || [];
       console.log(`  ✅ Found ${messageList.length} messages`);
-      setSyncStatus({ totalMessages: syncStatus.totalMessages + messageList.length });
+      setSyncStatus({
+        totalMessages: syncStatus.totalMessages + messageList.length,
+        phase: 'processing_messages',
+        message: 'Processing inbox messages...',
+      });
 
       if (messageList.length === 0) {
         console.log('  (No new messages)\n');
-        setSyncStatus({ accountsProcessed: syncStatus.accountsProcessed + 1 });
+        setSyncStatus({
+          accountsProcessed: syncStatus.accountsProcessed + 1,
+        });
         continue;
       }
 
@@ -383,6 +501,7 @@ async function main() {
           setSyncStatus({
             failed: totalFailed,
             processedMessages: syncStatus.processedMessages + 1,
+            phase: 'processing_messages',
           });
           continue;
         }
@@ -445,10 +564,16 @@ async function main() {
           setSyncStatus({ failed: totalFailed });
         }
 
-        setSyncStatus({ processedMessages: syncStatus.processedMessages + 1 });
+        setSyncStatus({
+          processedMessages: syncStatus.processedMessages + 1,
+          phase: 'processing_messages',
+        });
       }
 
-      setSyncStatus({ accountsProcessed: syncStatus.accountsProcessed + 1 });
+      setSyncStatus({
+        accountsProcessed: syncStatus.accountsProcessed + 1,
+        phase: 'processing_messages',
+      });
       console.log();
     }
 
@@ -458,6 +583,9 @@ async function main() {
     const summaryUserError = summaryError ? resolveUserError(summaryError) : null;
 
     setSyncStatus({
+      phase: 'finalizing',
+      progressPercent: shouldFailRun ? getProgressPercent({ ...syncStatus, status: 'failed' }) : 100,
+      message: shouldFailRun ? 'Sync failed' : 'Sync completed',
       status: shouldFailRun ? 'failed' : 'completed',
       endedAt: completedAt,
       lastRunAt: completedAt,
@@ -480,6 +608,9 @@ async function main() {
     const errorMessage = err instanceof Error ? err.message : String(err);
     const failedAt = new Date().toISOString();
     setSyncStatus({
+      phase: 'failed',
+      progressPercent: Math.min(syncStatus.progressPercent || 0, 99),
+      message: 'Sync failed',
       status: 'failed',
       endedAt: failedAt,
       lastRunAt: failedAt,
@@ -492,5 +623,37 @@ async function main() {
     process.exit(1);
   }
 }
+
+process.on('unhandledRejection', (reason) => {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  setSyncStatus({
+    status: 'failed',
+    phase: 'failed',
+    progressPercent: Math.min(syncStatus.progressPercent || 0, 99),
+    message: 'Sync failed',
+    endedAt: new Date().toISOString(),
+    lastRunAt: new Date().toISOString(),
+    currentAccountId: null,
+    error: resolveUserError(message),
+    user_error: resolveUserError(message),
+    technical_error: message,
+  });
+});
+
+process.on('uncaughtException', (error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  setSyncStatus({
+    status: 'failed',
+    phase: 'failed',
+    progressPercent: Math.min(syncStatus.progressPercent || 0, 99),
+    message: 'Sync failed',
+    endedAt: new Date().toISOString(),
+    lastRunAt: new Date().toISOString(),
+    currentAccountId: null,
+    error: resolveUserError(message),
+    user_error: resolveUserError(message),
+    technical_error: message,
+  });
+});
 
 main();

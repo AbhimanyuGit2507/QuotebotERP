@@ -15,6 +15,9 @@ interface EmailIntegrationsProps {
 
 interface GmailSyncStatus {
   status: 'idle' | 'running' | 'completed' | 'failed' | string;
+  phase?: string | null;
+  progressPercent?: number | null;
+  message?: string | null;
   startedAt?: string | null;
   endedAt?: string | null;
   lastRunAt?: string | null;
@@ -72,6 +75,12 @@ export const EmailIntegrations: React.FC<EmailIntegrationsProps> = ({
     });
     if (result.started) {
       setSuccessMessage('Gmail connected. Initial sync started.');
+      setSyncStatus({
+        status: 'running',
+        phase: 'queued',
+        progressPercent: 1,
+        message: 'Sync queued',
+      });
     }
 
     await loadSyncStatus();
@@ -139,14 +148,15 @@ export const EmailIntegrations: React.FC<EmailIntegrationsProps> = ({
   }, [loadEmailAccounts, loadSyncStatus, onSuccess, triggerSyncNow]);
 
   useEffect(() => {
+    const intervalDelay = syncStatus?.status === 'running' ? 1500 : 5000;
     const interval = window.setInterval(() => {
       loadSyncStatus();
-    }, 5000);
+    }, intervalDelay);
 
     return () => {
       window.clearInterval(interval);
     };
-  }, [loadSyncStatus]);
+  }, [loadSyncStatus, syncStatus?.status]);
 
   const handleConnectGmail = async () => {
     try {
@@ -253,7 +263,9 @@ export const EmailIntegrations: React.FC<EmailIntegrationsProps> = ({
 
         {syncStatus && syncStatus.status === 'running' && (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
-            <p className="text-sm font-medium text-blue-800">Syncing Gmail inbox...</p>
+            <p className="text-sm font-medium text-blue-800">
+              {syncStatus.message || 'Syncing Gmail inbox...'}
+            </p>
             <p className="text-xs text-blue-700 mt-1">
               {syncStatus.processedMessages || 0}/{syncStatus.totalMessages || 0} emails processed
               {' • '}
@@ -263,8 +275,9 @@ export const EmailIntegrations: React.FC<EmailIntegrationsProps> = ({
               <div
                 className="h-full bg-blue-500 transition-all duration-300"
                 style={{
-                  width: `${
-                    (syncStatus.totalMessages || 0) > 0
+                  width: `${typeof syncStatus.progressPercent === 'number'
+                    ? Math.max(1, Math.min(100, syncStatus.progressPercent))
+                    : (syncStatus.totalMessages || 0) > 0
                       ? Math.min(
                           100,
                           Math.round(
@@ -273,8 +286,7 @@ export const EmailIntegrations: React.FC<EmailIntegrationsProps> = ({
                               100,
                           ),
                         )
-                      : 5
-                  }%`,
+                      : 5}%`,
                 }}
               />
             </div>

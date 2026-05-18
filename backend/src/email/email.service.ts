@@ -193,6 +193,41 @@ export class EmailService {
     );
 
     const statusFile = this.getSyncStatusFilePath(tenantId);
+    try {
+      fs.mkdirSync(path.dirname(statusFile), { recursive: true });
+      const initialStatus = {
+        status: 'running',
+        phase: 'queued',
+        progressPercent: 1,
+        message: 'Sync queued',
+        tenantId,
+        startedAt: new Date().toISOString(),
+        endedAt: null,
+        lastRunAt: null,
+        accountsTotal: 0,
+        accountsProcessed: 0,
+        totalMessages: 0,
+        processedMessages: 0,
+        synced: 0,
+        duplicates: 0,
+        failed: 0,
+        currentAccountId: null,
+        error: null,
+        user_error: null,
+        technical_error: null,
+      };
+      fs.writeFileSync(
+        statusFile,
+        `${JSON.stringify(initialStatus, null, 2)}\n`,
+        'utf8',
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `Could not initialize Gmail sync status for tenant ${tenantId}: ${message}`,
+      );
+    }
+
     const child = spawn('node', [syncScriptPath], {
       cwd: process.cwd(),
       detached: true,
@@ -449,7 +484,9 @@ export class EmailService {
     const clientId = process.env.GMAIL_CLIENT_ID;
     const redirectUri = process.env.GMAIL_REDIRECT_URI;
 
-    this.logger.log(`initiateGoogleOAuth called hasClientId=${Boolean(clientId)} redirectUri=${redirectUri} stateLength=${state?.length ?? 0}`);
+    this.logger.log(
+      `initiateGoogleOAuth called hasClientId=${Boolean(clientId)} redirectUri=${redirectUri} stateLength=${state?.length ?? 0}`,
+    );
 
     if (!clientId || !redirectUri) {
       throw new BadRequestException(
@@ -484,7 +521,9 @@ export class EmailService {
     tenantId: string,
     userId: string,
   ) {
-    this.logger.log(`handleGoogleOAuthCallback called tenantId=${tenantId} userId=${userId} hasCode=${Boolean(code)} hasState=${Boolean(state)}`);
+    this.logger.log(
+      `handleGoogleOAuthCallback called tenantId=${tenantId} userId=${userId} hasCode=${Boolean(code)} hasState=${Boolean(state)}`,
+    );
 
     const clientId = process.env.GMAIL_CLIENT_ID;
     const clientSecret = process.env.GMAIL_CLIENT_SECRET;
@@ -514,7 +553,9 @@ export class EmailService {
     });
 
     const tokenPayload: unknown = await tokenResponse.json();
-    this.logger.log(`Token exchange response ok=${tokenResponse.ok} status=${tokenResponse.status}`);
+    this.logger.log(
+      `Token exchange response ok=${tokenResponse.ok} status=${tokenResponse.status}`,
+    );
 
     if (!tokenResponse.ok) {
       const errorMsg =
@@ -550,7 +591,9 @@ export class EmailService {
     );
 
     const profilePayload: unknown = await profileResponse.json();
-    this.logger.log(`Profile fetch response ok=${profileResponse.ok} status=${profileResponse.status}`);
+    this.logger.log(
+      `Profile fetch response ok=${profileResponse.ok} status=${profileResponse.status}`,
+    );
 
     if (!profileResponse.ok) {
       const errorMsg =
@@ -654,7 +697,9 @@ export class EmailService {
       },
     });
 
-    this.logger.log(`Email account upserted id=${emailAccount.id} email=${emailAccount.email_address} provider=${emailAccount.provider} tenantId=${tenantId}`);
+    this.logger.log(
+      `Email account upserted id=${emailAccount.id} email=${emailAccount.email_address} provider=${emailAccount.provider} tenantId=${tenantId}`,
+    );
 
     return emailAccount;
   }
@@ -1174,7 +1219,9 @@ export class EmailService {
       }>;
     },
   ) {
-    this.logger.log(`sendNow called tenantId=${tenantId} emailAccountId=${data.email_account_id} to=${data.to?.join(',')} subject=${data.subject} attachments=${data.attachments?.length || 0}`);
+    this.logger.log(
+      `sendNow called tenantId=${tenantId} emailAccountId=${data.email_account_id} to=${data.to?.join(',')} subject=${data.subject} attachments=${data.attachments?.length || 0}`,
+    );
 
     const account = await this.prisma.emailAccount.findFirst({
       where: {
@@ -1185,11 +1232,15 @@ export class EmailService {
     });
 
     if (!account) {
-      this.logger.error(`Email account not found emailAccountId=${data.email_account_id} tenantId=${tenantId}`);
+      this.logger.error(
+        `Email account not found emailAccountId=${data.email_account_id} tenantId=${tenantId}`,
+      );
       throw new BadRequestException('Email account not found or not active');
     }
 
-    this.logger.log(`Email account found id=${account.id} email=${account.email_address} provider=${account.provider}`);
+    this.logger.log(
+      `Email account found id=${account.id} email=${account.email_address} provider=${account.provider}`,
+    );
 
     if (account.provider !== 'gmail') {
       this.logger.error(`Unsupported provider: ${account.provider}`);
@@ -1226,7 +1277,9 @@ export class EmailService {
         accessToken = refreshed.access_token as string | undefined;
         this.logger.log('Access token refreshed successfully');
       } catch (err) {
-        this.logger.error(`Failed to refresh access token: ${err instanceof Error ? err.message : String(err)} accountId=${account.id}`);
+        this.logger.error(
+          `Failed to refresh access token: ${err instanceof Error ? err.message : String(err)} accountId=${account.id}`,
+        );
         throw new BadRequestException('Could not refresh Gmail access token');
       }
     } else {
@@ -1254,7 +1307,9 @@ export class EmailService {
     const sendUrl =
       'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
 
-    this.logger.log(`Sending email via Gmail API to=${data.to?.join(',')} from=${fromAddress} messageSize=${rawMessage.length}`);
+    this.logger.log(
+      `Sending email via Gmail API to=${data.to?.join(',')} from=${fromAddress} messageSize=${rawMessage.length}`,
+    );
 
     let sendResponse: unknown = null;
     try {
@@ -1311,7 +1366,20 @@ export class EmailService {
       }
     }
 
-    this.logger.log(`Gmail API response sent=${sent} status=${responseStatus} statusText=${responseStatusText} messageId=${providerResult.id}`);
+    const providerMessageId =
+      providerResult && typeof (providerResult as any).id !== 'undefined'
+        ? String((providerResult as any).id)
+        : '';
+    const safeResponseStatus =
+      typeof responseStatus !== 'undefined' ? String(responseStatus) : '';
+    const safeResponseStatusText =
+      typeof responseStatusText !== 'undefined'
+        ? String(responseStatusText)
+        : '';
+
+    this.logger.log(
+      `Gmail API response sent=${String(sent)} status=${safeResponseStatus} statusText=${safeResponseStatusText} messageId=${providerMessageId}`,
+    );
 
     // Log outbound email
     const outbound = await this.prisma.outboundEmail.create({
@@ -1331,11 +1399,18 @@ export class EmailService {
 
     if (!sent) {
       const errorMessage = `Failed to send email via Gmail: ${JSON.stringify(providerResult)}`;
-      this.logger.error(`Email send failed outboundId=${outbound.id} status=${responseStatus} statusText=${responseStatusText}`);
+      this.logger.error(
+        `Email send failed outboundId=${outbound.id} status=${responseStatus} statusText=${responseStatusText}`,
+      );
       throw new BadRequestException(errorMessage);
     }
 
-    this.logger.log(`✓ Email sent successfully outboundId=${outbound.id} messageId=${providerResult.id} to=${data.to?.join(',')}`);
+    const safeToList = Array.isArray((data as any).to)
+      ? (data as any).to.join(',')
+      : String((data as any).to ?? '');
+    this.logger.log(
+      `✓ Email sent successfully outboundId=${outbound.id} messageId=${providerMessageId} to=${safeToList}`,
+    );
 
     return {
       success: true,
