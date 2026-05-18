@@ -5,6 +5,7 @@ node_modules/
 
 # Dist
 /dist/
+backend/dist/
 
 # Logs and runtime files
 .runlogs/
