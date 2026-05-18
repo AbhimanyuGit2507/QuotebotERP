@@ -29,11 +29,19 @@ export class ProductsController {
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ProductsQueryDto,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
     return this.productsService.findAll(user.tenant_id, {
       search: query.search,
       category: query.category,
       status: query.status,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
     });
   }
 

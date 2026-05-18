@@ -14,32 +14,48 @@ const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../prisma.service");
 const export_util_1 = require("../common/utils/export.util");
+const pagination_util_1 = require("../common/utils/pagination.util");
 let ProductsService = class ProductsService {
     prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async findAll(tenantId, query) {
-        const { search, category, status } = query;
-        return this.prisma.product.findMany({
-            where: {
-                tenant_id: tenantId,
-                ...(search
-                    ? {
-                        OR: [
-                            { name: { contains: search, mode: 'insensitive' } },
-                            { sku: { contains: search, mode: 'insensitive' } },
-                        ],
-                    }
-                    : {}),
-                ...(category ? { category_id: category } : {}),
-                ...(status ? { status } : {}),
+    async findAll(tenantId, params) {
+        const { skip, take, page, pageSize } = (0, pagination_util_1.parsePaginationParams)(params);
+        const { search, category, status } = params;
+        const where = {
+            tenant_id: tenantId,
+            deleted_at: null,
+            ...(search
+                ? {
+                    OR: [
+                        { name: { contains: search, mode: 'insensitive' } },
+                        { sku: { contains: search, mode: 'insensitive' } },
+                    ],
+                }
+                : {}),
+            ...(category ? { category_id: category } : {}),
+            ...(status ? { status } : {}),
+        };
+        const [data, total] = await Promise.all([
+            this.prisma.product.findMany({
+                where,
+                include: { category: true },
+                orderBy: { [params.sortBy || 'created_at']: params.sortOrder || 'desc' },
+                skip,
+                take,
+            }),
+            this.prisma.product.count({ where }),
+        ]);
+        return {
+            data,
+            meta: {
+                total,
+                page,
+                pageSize,
+                totalPages: Math.ceil(total / pageSize),
             },
-            include: {
-                category: true,
-            },
-            orderBy: { created_at: 'desc' },
-        });
+        };
     }
     async getCategories(tenantId) {
         return this.prisma.productCategory.findMany({
@@ -49,7 +65,7 @@ let ProductsService = class ProductsService {
     }
     async findOne(id, tenantId) {
         const product = await this.prisma.product.findFirst({
-            where: { id, tenant_id: tenantId },
+            where: { id, tenant_id: tenantId, deleted_at: null },
             include: { category: true },
         });
         if (!product) {
@@ -95,6 +111,14 @@ let ProductsService = class ProductsService {
     }
     async remove(id, tenantId) {
         await this.findOne(id, tenantId);
+        await this.prisma.product.update({
+            where: { id },
+            data: { deleted_at: new Date() },
+        });
+        return { message: 'Product deleted successfully' };
+    }
+    async forceDelete(id, tenantId) {
+        await this.findOne(id, tenantId);
         try {
             await this.prisma.product.delete({ where: { id } });
         }
@@ -105,14 +129,14 @@ let ProductsService = class ProductsService {
             }
             throw error;
         }
-        return { message: 'Product deleted successfully' };
+        return { message: 'Product permanently deleted' };
     }
     async uploadImage(id, tenantId, imageUrl) {
         return this.update(id, tenantId, { image_url: imageUrl });
     }
     async exportCsv(tenantId, query) {
-        const products = await this.findAll(tenantId, query);
-        return (0, export_util_1.recordsToCsv)(products.map((product) => ({
+        const result = await this.findAll(tenantId, { ...query, pageSize: 10000 });
+        return (0, export_util_1.recordsToCsv)(result.data.map((product) => ({
             sku: product.sku,
             name: product.name,
             category: product.category.name,

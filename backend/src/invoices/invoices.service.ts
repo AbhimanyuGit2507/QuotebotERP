@@ -1,6 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import {
+  PaginationParams,
+  PaginatedResult,
+  parsePaginationParams,
+} from '../common/utils/pagination.util';
 
 @Injectable()
 export class InvoicesService {
@@ -27,7 +32,7 @@ export class InvoicesService {
     }
 
     const existingInvoice = await this.prisma.invoice.findFirst({
-      where: { tenant_id: tenantId, quotation_id: quotation.id },
+      where: { tenant_id: tenantId, quotation_id: quotation.id, deleted_at: null },
       include: { payments: true, quotation: true },
     });
 
@@ -44,12 +49,12 @@ export class InvoicesService {
         tenant_id: tenantId,
         quotation_id: quotation.id,
         number: this.generateInvoiceNumber(),
-        date: payload.date || new Date().toISOString().split('T')[0],
-        due_date: payload.due_date || undefined,
+        date: payload.date ? new Date(payload.date) : new Date(),
+        due_date: payload.due_date ? new Date(payload.due_date) : undefined,
         currency: companySettings?.currency ?? 'INR',
-        subtotal: quotation.subtotal ?? 0,
-        tax: quotation.tax ?? 0,
-        total: quotation.total ?? 0,
+        subtotal: Number(quotation.subtotal) || 0,
+        tax: Number(quotation.tax) || 0,
+        total: Number(quotation.total) || 0,
         status: 'open',
       },
       include: { payments: true, quotation: true },
@@ -86,17 +91,52 @@ export class InvoicesService {
     return invoice;
   }
 
-  async list(tenantId: string, status?: string) {
-    return this.prisma.invoice.findMany({
-      where: { tenant_id: tenantId, ...(status ? { status } : {}) },
-      include: { payments: true, quotation: true },
-      orderBy: { created_at: 'desc' },
-    });
+  async list(
+    tenantId: string,
+    params: PaginationParams & { status?: string },
+  ): Promise<PaginatedResult<any>> {
+    const { skip, take, page, pageSize } = parsePaginationParams(params);
+    const { search, status } = params;
+
+    const where: any = {
+      tenant_id: tenantId,
+      deleted_at: null,
+      ...(search
+        ? {
+            OR: [
+              { number: { contains: search, mode: 'insensitive' } },
+              { display_name: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(status ? { status } : {}),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where,
+        include: { payments: true, quotation: true },
+        orderBy: { [params.sortBy || 'created_at']: params.sortOrder || 'desc' },
+        skip,
+        take,
+      }),
+      this.prisma.invoice.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    };
   }
 
   async get(tenantId: string, id: string) {
     const invoice = await this.prisma.invoice.findFirst({
-      where: { id, tenant_id: tenantId },
+      where: { id, tenant_id: tenantId, deleted_at: null },
       include: { payments: true, quotation: true },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
@@ -114,7 +154,7 @@ export class InvoicesService {
     },
   ) {
     const invoice = await this.prisma.invoice.findFirst({
-      where: { id: invoiceId, tenant_id: tenantId },
+      where: { id: invoiceId, tenant_id: tenantId, deleted_at: null },
       include: {
         quotation: {
           select: { conversation_id: true },

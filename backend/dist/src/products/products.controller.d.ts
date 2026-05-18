@@ -8,33 +8,7 @@ import { UploadProductImageDto } from './dtos/upload-product-image.dto';
 export declare class ProductsController {
     private readonly productsService;
     constructor(productsService: ProductsService);
-    findAll(user: AuthenticatedUser, query: ProductsQueryDto): Promise<({
-        category: {
-            name: string;
-            id: string;
-            created_at: Date;
-            updated_at: Date;
-            tenant_id: string;
-        };
-    } & {
-        name: string;
-        unit: string;
-        id: string;
-        created_at: Date;
-        updated_at: Date;
-        tenant_id: string;
-        status: string;
-        sku: string;
-        category_id: string;
-        price: number;
-        cost: number;
-        stock: number;
-        reorder_level: number;
-        hsn: string | null;
-        gst_percent: number;
-        description: string | null;
-        image_url: string | null;
-    })[]>;
+    findAll(user: AuthenticatedUser, query: ProductsQueryDto, page?: string, pageSize?: string, sortBy?: string, sortOrder?: string): Promise<import("../common/utils/pagination.util").PaginatedResult<any>>;
     exportCsv(user: AuthenticatedUser, query: ProductsQueryDto, res: Response): Promise<Response<any, Record<string, any>>>;
     getCategories(user: AuthenticatedUser): Promise<{
         name: string;
@@ -61,14 +35,15 @@ export declare class ProductsController {
         status: string;
         sku: string;
         category_id: string;
-        price: number;
-        cost: number;
+        price: import("@prisma/client-runtime-utils").Decimal;
+        cost: import("@prisma/client-runtime-utils").Decimal;
         stock: number;
         reorder_level: number;
         hsn: string | null;
-        gst_percent: number;
+        gst_percent: import("@prisma/client-runtime-utils").Decimal;
         description: string | null;
         image_url: string | null;
+        deleted_at: Date | null;
     }>;
     create(user: AuthenticatedUser, body: CreateProductDto): Promise<{
         category: {
@@ -88,14 +63,15 @@ export declare class ProductsController {
         status: string;
         sku: string;
         category_id: string;
-        price: number;
-        cost: number;
+        price: import("@prisma/client-runtime-utils").Decimal;
+        cost: import("@prisma/client-runtime-utils").Decimal;
         stock: number;
         reorder_level: number;
         hsn: string | null;
-        gst_percent: number;
+        gst_percent: import("@prisma/client-runtime-utils").Decimal;
         description: string | null;
         image_url: string | null;
+        deleted_at: Date | null;
     }>;
     update(id: string, user: AuthenticatedUser, body: UpdateProductDto): Promise<{
         category: {
@@ -115,14 +91,15 @@ export declare class ProductsController {
         status: string;
         sku: string;
         category_id: string;
-        price: number;
-        cost: number;
+        price: import("@prisma/client-runtime-utils").Decimal;
+        cost: import("@prisma/client-runtime-utils").Decimal;
         stock: number;
         reorder_level: number;
         hsn: string | null;
-        gst_percent: number;
+        gst_percent: import("@prisma/client-runtime-utils").Decimal;
         description: string | null;
         image_url: string | null;
+        deleted_at: Date | null;
     }>;
     remove(id: string, user: AuthenticatedUser): Promise<{
         message: string;
@@ -145,13 +122,14 @@ export declare class ProductsController {
         status: string;
         sku: string;
         category_id: string;
-        price: number;
-        cost: number;
+        price: import("@prisma/client-runtime-utils").Decimal;
+        cost: import("@prisma/client-runtime-utils").Decimal;
         stock: number;
         reorder_level: number;
         hsn: string | null;
-        gst_percent: number;
+        gst_percent: import("@prisma/client-runtime-utils").Decimal;
         description: string | null;
         image_url: string | null;
+        deleted_at: Date | null;
     }>;
 }

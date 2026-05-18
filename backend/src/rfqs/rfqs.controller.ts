@@ -31,12 +31,20 @@ export class RfqsController {
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: RfqsQueryDto,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
     return this.rfqsService.findAll(user.tenant_id, {
       search: query.search,
       status: query.status,
       channel: query.channel,
       limit: query.limit,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
     });
   }
 

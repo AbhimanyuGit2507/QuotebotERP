@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { EmailService } from '../email/email.service';
 import { EmailTemplatesService } from '../email-templates/email-templates.service';
+import { PaginationParams, PaginatedResult } from '../common/utils/pagination.util';
 interface QuotationItemInput {
     product_id: string;
     product_name: string;
@@ -24,96 +25,24 @@ export declare class QuotationsService {
     private generateNumber;
     private computeTotals;
     private createVersion;
-    findAll(tenantId: string, query: {
-        search?: string;
+    findAll(tenantId: string, params: PaginationParams & {
         status?: string;
-    }): Promise<({
-        items: {
-            product_name: string;
-            quantity: number;
-            unit: string;
-            notes: string | null;
-            id: string;
-            total: number;
-            quotation_id: string;
-            product_id: string;
-            unit_price: number;
-            tax_percent: number;
-            availability: string | null;
-            available_quantity: number | null;
-        }[];
-        client: {
-            name: string;
-            id: string;
-            created_at: Date;
-            updated_at: Date;
-            email: string;
-            tenant_id: string;
-            state: string | null;
-            tier: string;
-            type: string;
-            phone: string | null;
-            website: string | null;
-            address: string | null;
-            city: string | null;
-            gst: string | null;
-            pan: string | null;
-            total_orders: number;
-            total_value: number;
-            last_order_date: Date | null;
-        };
-        rfq: {
-            number: string;
-            id: string;
-            created_at: Date;
-            updated_at: Date;
-            tenant_id: string;
-            status: string;
-            client_id: string;
-            display_name: string | null;
-            search_tokens: Prisma.JsonValue | null;
-            conversation_id: string | null;
-            quotation_id: string | null;
-            channel: string;
-            priority: string;
-            confidence_score: number;
-            due_date: Date | null;
-        } | null;
-    } & {
-        number: string;
-        id: string;
-        created_at: Date;
-        updated_at: Date;
-        tenant_id: string;
-        status: string;
-        client_id: string;
-        display_name: string | null;
-        search_tokens: Prisma.JsonValue | null;
-        date: string;
-        valid_until: string;
-        subtotal: number;
-        tax: number;
-        total: number;
-        terms_conditions: string | null;
-        conversation_id: string | null;
-        sent_email_subject: string | null;
-        sent_email_body: string | null;
-        sent_at: Date | null;
-    })[]>;
+    }): Promise<PaginatedResult<any>>;
     findOne(id: string, tenantId: string): Promise<{
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
-            total: number;
+            deleted_at: Date | null;
+            total: Prisma.Decimal;
             quotation_id: string;
             product_id: string;
-            unit_price: number;
-            tax_percent: number;
+            unit_price: Prisma.Decimal;
+            tax_percent: Prisma.Decimal;
             availability: string | null;
-            available_quantity: number | null;
+            available_quantity: Prisma.Decimal | null;
         }[];
         client: {
             name: string;
@@ -122,6 +51,7 @@ export declare class QuotationsService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -132,7 +62,7 @@ export declare class QuotationsService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         };
         versions: {
@@ -149,6 +79,7 @@ export declare class QuotationsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
@@ -166,19 +97,24 @@ export declare class QuotationsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        valid_until: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        valid_until: Date | null;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         terms_conditions: string | null;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
+        approval_status: string;
+        approved_by: string | null;
+        approved_at: Date | null;
+        rejection_reason: string | null;
     }>;
     create(tenantId: string, body: {
         client_id: string;
@@ -190,17 +126,18 @@ export declare class QuotationsService {
     }): Promise<{
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
-            total: number;
+            deleted_at: Date | null;
+            total: Prisma.Decimal;
             quotation_id: string;
             product_id: string;
-            unit_price: number;
-            tax_percent: number;
+            unit_price: Prisma.Decimal;
+            tax_percent: Prisma.Decimal;
             availability: string | null;
-            available_quantity: number | null;
+            available_quantity: Prisma.Decimal | null;
         }[];
         client: {
             name: string;
@@ -209,6 +146,7 @@ export declare class QuotationsService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -219,7 +157,7 @@ export declare class QuotationsService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         };
         rfq: {
@@ -229,6 +167,7 @@ export declare class QuotationsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
@@ -246,19 +185,24 @@ export declare class QuotationsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        valid_until: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        valid_until: Date | null;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         terms_conditions: string | null;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
+        approval_status: string;
+        approved_by: string | null;
+        approved_at: Date | null;
+        rejection_reason: string | null;
     }>;
     update(id: string, tenantId: string, body: Partial<{
         client_id: string;
@@ -270,17 +214,18 @@ export declare class QuotationsService {
     }>): Promise<{
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
-            total: number;
+            deleted_at: Date | null;
+            total: Prisma.Decimal;
             quotation_id: string;
             product_id: string;
-            unit_price: number;
-            tax_percent: number;
+            unit_price: Prisma.Decimal;
+            tax_percent: Prisma.Decimal;
             availability: string | null;
-            available_quantity: number | null;
+            available_quantity: Prisma.Decimal | null;
         }[];
         client: {
             name: string;
@@ -289,6 +234,7 @@ export declare class QuotationsService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -299,7 +245,7 @@ export declare class QuotationsService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         };
         versions: {
@@ -316,6 +262,7 @@ export declare class QuotationsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
@@ -333,19 +280,24 @@ export declare class QuotationsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        valid_until: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        valid_until: Date | null;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         terms_conditions: string | null;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
+        approval_status: string;
+        approved_by: string | null;
+        approved_at: Date | null;
+        rejection_reason: string | null;
     }>;
     remove(id: string, tenantId: string, options?: {
         forceDeleteLinkedRfq?: boolean;
@@ -355,17 +307,18 @@ export declare class QuotationsService {
     duplicate(id: string, tenantId: string): Promise<{
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
-            total: number;
+            deleted_at: Date | null;
+            total: Prisma.Decimal;
             quotation_id: string;
             product_id: string;
-            unit_price: number;
-            tax_percent: number;
+            unit_price: Prisma.Decimal;
+            tax_percent: Prisma.Decimal;
             availability: string | null;
-            available_quantity: number | null;
+            available_quantity: Prisma.Decimal | null;
         }[];
         client: {
             name: string;
@@ -374,6 +327,7 @@ export declare class QuotationsService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -384,7 +338,7 @@ export declare class QuotationsService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         };
         rfq: {
@@ -394,6 +348,7 @@ export declare class QuotationsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
@@ -411,19 +366,24 @@ export declare class QuotationsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        valid_until: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        valid_until: Date | null;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         terms_conditions: string | null;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
+        approval_status: string;
+        approved_by: string | null;
+        approved_at: Date | null;
+        rejection_reason: string | null;
     }>;
     sendByEmail(id: string, tenantId: string, body: {
         to?: string[];
@@ -442,17 +402,18 @@ export declare class QuotationsService {
     updateStatus(id: string, tenantId: string, status: string): Promise<({
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
-            total: number;
+            deleted_at: Date | null;
+            total: Prisma.Decimal;
             quotation_id: string;
             product_id: string;
-            unit_price: number;
-            tax_percent: number;
+            unit_price: Prisma.Decimal;
+            tax_percent: Prisma.Decimal;
             availability: string | null;
-            available_quantity: number | null;
+            available_quantity: Prisma.Decimal | null;
         }[];
         client: {
             name: string;
@@ -461,6 +422,7 @@ export declare class QuotationsService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -471,7 +433,7 @@ export declare class QuotationsService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         };
         versions: {
@@ -488,6 +450,7 @@ export declare class QuotationsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
@@ -505,19 +468,24 @@ export declare class QuotationsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        valid_until: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        valid_until: Date | null;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         terms_conditions: string | null;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
+        approval_status: string;
+        approved_by: string | null;
+        approved_at: Date | null;
+        rejection_reason: string | null;
     }) | {
         invoice: {
             number: string;
@@ -526,34 +494,37 @@ export declare class QuotationsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             currency: string;
+            total: Prisma.Decimal;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            date: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            subtotal: Prisma.Decimal;
+            tax: Prisma.Decimal;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
             quotation_id: string | null;
-            due_date: string | null;
-            paid_amount: number;
+            due_date: Date | null;
+            payment_status: string;
+            paid_amount: Prisma.Decimal;
         };
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
-            total: number;
+            deleted_at: Date | null;
+            total: Prisma.Decimal;
             quotation_id: string;
             product_id: string;
-            unit_price: number;
-            tax_percent: number;
+            unit_price: Prisma.Decimal;
+            tax_percent: Prisma.Decimal;
             availability: string | null;
-            available_quantity: number | null;
+            available_quantity: Prisma.Decimal | null;
         }[];
         client: {
             name: string;
@@ -562,6 +533,7 @@ export declare class QuotationsService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -572,7 +544,7 @@ export declare class QuotationsService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         };
         versions: {
@@ -589,6 +561,7 @@ export declare class QuotationsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
@@ -605,19 +578,24 @@ export declare class QuotationsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        valid_until: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        valid_until: Date | null;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         terms_conditions: string | null;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
+        approval_status: string;
+        approved_by: string | null;
+        approved_at: Date | null;
+        rejection_reason: string | null;
     }>;
     private generateInvoiceNumber;
     createInvoiceFromQuotation(quotationId: string, tenantId: string): Promise<{
@@ -627,37 +605,40 @@ export declare class QuotationsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         currency: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
         quotation_id: string | null;
-        due_date: string | null;
-        paid_amount: number;
+        due_date: Date | null;
+        payment_status: string;
+        paid_amount: Prisma.Decimal;
     }>;
     getPrintable(id: string, tenantId: string): Promise<{
         message: string;
         quotation: {
             items: {
                 product_name: string;
-                quantity: number;
+                quantity: Prisma.Decimal;
                 unit: string;
                 notes: string | null;
                 id: string;
-                total: number;
+                deleted_at: Date | null;
+                total: Prisma.Decimal;
                 quotation_id: string;
                 product_id: string;
-                unit_price: number;
-                tax_percent: number;
+                unit_price: Prisma.Decimal;
+                tax_percent: Prisma.Decimal;
                 availability: string | null;
-                available_quantity: number | null;
+                available_quantity: Prisma.Decimal | null;
             }[];
             client: {
                 name: string;
@@ -666,6 +647,7 @@ export declare class QuotationsService {
                 updated_at: Date;
                 email: string;
                 tenant_id: string;
+                deleted_at: Date | null;
                 state: string | null;
                 tier: string;
                 type: string;
@@ -676,7 +658,7 @@ export declare class QuotationsService {
                 gst: string | null;
                 pan: string | null;
                 total_orders: number;
-                total_value: number;
+                total_value: Prisma.Decimal;
                 last_order_date: Date | null;
             };
             versions: {
@@ -693,6 +675,7 @@ export declare class QuotationsService {
                 updated_at: Date;
                 tenant_id: string;
                 status: string;
+                deleted_at: Date | null;
                 client_id: string;
                 display_name: string | null;
                 search_tokens: Prisma.JsonValue | null;
@@ -710,23 +693,27 @@ export declare class QuotationsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
+            total: Prisma.Decimal;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            date: string;
-            valid_until: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            valid_until: Date | null;
+            subtotal: Prisma.Decimal;
+            tax: Prisma.Decimal;
             terms_conditions: string | null;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
+            approval_status: string;
+            approved_by: string | null;
+            approved_at: Date | null;
+            rejection_reason: string | null;
         };
     }>;
-    exportCsv(tenantId: string, query: {
-        search?: string;
+    exportCsv(tenantId: string, params: PaginationParams & {
         status?: string;
     }): Promise<string>;
     generatePdfBuffer(id: string, tenantId: string): Promise<Buffer<ArrayBufferLike>>;
@@ -735,7 +722,7 @@ export declare class QuotationsService {
             number: string;
             id: string;
             status: string;
-            total: number;
+            total: Prisma.Decimal;
         } | null;
         conversation: {
             id: string;
@@ -773,20 +760,22 @@ export declare class QuotationsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         currency: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
         quotation_id: string | null;
-        due_date: string | null;
-        paid_amount: number;
+        due_date: Date | null;
+        payment_status: string;
+        paid_amount: Prisma.Decimal;
     })[]>;
 }
 export {};

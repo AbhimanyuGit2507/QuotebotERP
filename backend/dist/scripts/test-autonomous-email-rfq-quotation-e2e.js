@@ -242,9 +242,9 @@ async function main() {
             items: rfq.items.map((item) => ({
                 product_id: item.product_id,
                 product_name: item.product_name,
-                quantity: item.quantity,
+                quantity: Number(item.quantity),
                 unit: item.unit,
-                unit_price: products.find((p) => p.id === item.product_id)?.price || 0,
+                unit_price: Number(products.find((p) => p.id === item.product_id)?.price || 0),
                 tax_percent: 18,
             })),
         });

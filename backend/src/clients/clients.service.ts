@@ -6,39 +6,66 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { recordsToCsv } from '../common/utils/export.util';
+import {
+  PaginationParams,
+  PaginatedResult,
+  parsePaginationParams,
+} from '../common/utils/pagination.util';
 
 @Injectable()
 export class ClientsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(tenantId: string, query: { search?: string; tier?: string }) {
-    const { search, tier } = query;
+  async findAll(
+    tenantId: string,
+    params: PaginationParams & { tier?: string },
+  ): Promise<PaginatedResult<any>> {
+    const { skip, take, page, pageSize } = parsePaginationParams(params);
+    const { search, tier } = params;
 
-    return this.prisma.client.findMany({
-      where: {
-        tenant_id: tenantId,
-        OR: [{ rfqs: { some: {} } }, { quotations: { some: {} } }],
-        ...(search
-          ? {
-              AND: [
-                {
-                  OR: [
-                    { name: { contains: search, mode: 'insensitive' } },
-                    { email: { contains: search, mode: 'insensitive' } },
-                  ],
-                },
-              ],
-            }
-          : {}),
-        ...(tier ? { tier } : {}),
+    const where: any = {
+      tenant_id: tenantId,
+      deleted_at: null,
+      OR: [{ rfqs: { some: {} } }, { quotations: { some: {} } }],
+      ...(search
+        ? {
+            AND: [
+              {
+                OR: [
+                  { name: { contains: search, mode: 'insensitive' } },
+                  { email: { contains: search, mode: 'insensitive' } },
+                ],
+              },
+            ],
+          }
+        : {}),
+      ...(tier ? { tier } : {}),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.client.findMany({
+        where,
+        orderBy: { [params.sortBy || 'created_at']: params.sortOrder || 'desc' },
+        skip,
+        take,
+      }),
+      this.prisma.client.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
       },
-      orderBy: { created_at: 'desc' },
-    });
+    };
   }
 
   async findOne(id: string, tenantId: string) {
     const client = await this.prisma.client.findFirst({
-      where: { id, tenant_id: tenantId },
+      where: { id, tenant_id: tenantId, deleted_at: null },
     });
 
     if (!client) {
@@ -105,6 +132,15 @@ export class ClientsService {
 
   async remove(id: string, tenantId: string) {
     await this.findOne(id, tenantId);
+    await this.prisma.client.update({
+      where: { id },
+      data: { deleted_at: new Date() },
+    });
+    return { message: 'Client deleted successfully' };
+  }
+
+  async forceDelete(id: string, tenantId: string) {
+    await this.findOne(id, tenantId);
     try {
       await this.prisma.client.delete({ where: { id } });
     } catch (error) {
@@ -118,13 +154,13 @@ export class ClientsService {
       }
       throw error;
     }
-    return { message: 'Client deleted successfully' };
+    return { message: 'Client permanently deleted' };
   }
 
   async transactions(id: string, tenantId: string) {
     await this.findOne(id, tenantId);
     return this.prisma.quotation.findMany({
-      where: { client_id: id, tenant_id: tenantId },
+      where: { client_id: id, tenant_id: tenantId, deleted_at: null },
       orderBy: { created_at: 'desc' },
       include: { items: true },
       take: 10,
@@ -136,10 +172,10 @@ export class ClientsService {
   }
 
   async exportCsv(tenantId: string, query: { search?: string; tier?: string }) {
-    const clients = await this.findAll(tenantId, query);
+    const result = await this.findAll(tenantId, { ...query, pageSize: 10000 });
 
     return recordsToCsv(
-      clients.map((client) => ({
+      result.data.map((client: any) => ({
         name: client.name,
         type: client.type,
         email: client.email,

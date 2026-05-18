@@ -56,8 +56,8 @@ async function main() {
                         product_name: product.name,
                         quantity: 1,
                         unit: product.unit,
-                        unit_price: product.price,
-                        tax_percent: product.gst_percent || 18,
+                        unit_price: Number(product.price),
+                        tax_percent: Number(product.gst_percent) || 18,
                     },
                 ],
             });

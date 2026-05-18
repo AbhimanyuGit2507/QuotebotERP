@@ -1,12 +1,21 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, BadRequestException } from '@nestjs/common';
+import { ValidationPipe, BadRequestException, Logger } from '@nestjs/common';
 import { json, urlencoded } from 'express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { AppLoggerService } from './common/logger/app-logger.service';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Structured logging
+  const logger = new AppLoggerService();
+  app.useLogger(logger);
+
+  // Global exception filter
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   app.use(helmet());
 
@@ -77,14 +86,16 @@ async function bootstrap() {
   const port = process.env.PORT || process.env.API_PORT || 3001;
   await app.listen(port);
 
-  console.log('\n═══════════════════════════════════════════════════');
-  console.log(`✅ Quotebot Backend API running on port ${port}`);
-  console.log(`📍 API Prefix: /${process.env.API_PREFIX || 'api'}`);
-  console.log(`🔗 Base URL: http://localhost:${port}/api`);
-  console.log('═══════════════════════════════════════════════════\n');
+  const startupLogger = new Logger('Bootstrap');
+  startupLogger.log('═══════════════════════════════════════════════════');
+  startupLogger.log(`✅ Quotebot Backend API running on port ${port}`);
+  startupLogger.log(`📍 API Prefix: /${process.env.API_PREFIX || 'api'}`);
+  startupLogger.log(`🔗 Base URL: http://localhost:${port}/api`);
+  startupLogger.log('═══════════════════════════════════════════════════');
 }
 
 bootstrap().catch((err) => {
-  console.error('❌ Failed to start server:', err);
+  const errorLogger = new Logger('Bootstrap');
+  errorLogger.error('❌ Failed to start server:', err instanceof Error ? err.stack : String(err));
   process.exit(1);
 });

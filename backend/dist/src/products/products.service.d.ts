@@ -1,38 +1,13 @@
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { PaginationParams, PaginatedResult } from '../common/utils/pagination.util';
 export declare class ProductsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    findAll(tenantId: string, query: {
-        search?: string;
+    findAll(tenantId: string, params: PaginationParams & {
         category?: string;
         status?: string;
-    }): Promise<({
-        category: {
-            name: string;
-            id: string;
-            created_at: Date;
-            updated_at: Date;
-            tenant_id: string;
-        };
-    } & {
-        name: string;
-        unit: string;
-        id: string;
-        created_at: Date;
-        updated_at: Date;
-        tenant_id: string;
-        status: string;
-        sku: string;
-        category_id: string;
-        price: number;
-        cost: number;
-        stock: number;
-        reorder_level: number;
-        hsn: string | null;
-        gst_percent: number;
-        description: string | null;
-        image_url: string | null;
-    })[]>;
+    }): Promise<PaginatedResult<any>>;
     getCategories(tenantId: string): Promise<{
         name: string;
         id: string;
@@ -58,14 +33,15 @@ export declare class ProductsService {
         status: string;
         sku: string;
         category_id: string;
-        price: number;
-        cost: number;
+        price: Prisma.Decimal;
+        cost: Prisma.Decimal;
         stock: number;
         reorder_level: number;
         hsn: string | null;
-        gst_percent: number;
+        gst_percent: Prisma.Decimal;
         description: string | null;
         image_url: string | null;
+        deleted_at: Date | null;
     }>;
     create(tenantId: string, body: {
         sku: string;
@@ -99,14 +75,15 @@ export declare class ProductsService {
         status: string;
         sku: string;
         category_id: string;
-        price: number;
-        cost: number;
+        price: Prisma.Decimal;
+        cost: Prisma.Decimal;
         stock: number;
         reorder_level: number;
         hsn: string | null;
-        gst_percent: number;
+        gst_percent: Prisma.Decimal;
         description: string | null;
         image_url: string | null;
+        deleted_at: Date | null;
     }>;
     update(id: string, tenantId: string, body: Partial<{
         sku: string;
@@ -140,16 +117,20 @@ export declare class ProductsService {
         status: string;
         sku: string;
         category_id: string;
-        price: number;
-        cost: number;
+        price: Prisma.Decimal;
+        cost: Prisma.Decimal;
         stock: number;
         reorder_level: number;
         hsn: string | null;
-        gst_percent: number;
+        gst_percent: Prisma.Decimal;
         description: string | null;
         image_url: string | null;
+        deleted_at: Date | null;
     }>;
     remove(id: string, tenantId: string): Promise<{
+        message: string;
+    }>;
+    forceDelete(id: string, tenantId: string): Promise<{
         message: string;
     }>;
     uploadImage(id: string, tenantId: string, imageUrl: string): Promise<{
@@ -170,14 +151,15 @@ export declare class ProductsService {
         status: string;
         sku: string;
         category_id: string;
-        price: number;
-        cost: number;
+        price: Prisma.Decimal;
+        cost: Prisma.Decimal;
         stock: number;
         reorder_level: number;
         hsn: string | null;
-        gst_percent: number;
+        gst_percent: Prisma.Decimal;
         description: string | null;
         image_url: string | null;
+        deleted_at: Date | null;
     }>;
     exportCsv(tenantId: string, query: {
         search?: string;

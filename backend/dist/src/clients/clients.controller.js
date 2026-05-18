@@ -25,12 +25,19 @@ let ClientsController = class ClientsController {
     constructor(clientsService) {
         this.clientsService = clientsService;
     }
-    findAll(user, search, tier) {
+    findAll(user, search, tier, page, pageSize, sortBy, sortOrder) {
         const allowedTiers = ['new', 'regular', 'top'];
         if (tier && !allowedTiers.includes(tier)) {
             throw new common_1.BadRequestException('Invalid tier filter');
         }
-        return this.clientsService.findAll(user.tenant_id, { search, tier });
+        return this.clientsService.findAll(user.tenant_id, {
+            search,
+            tier,
+            page: page ? Number(page) : undefined,
+            pageSize: pageSize ? Number(pageSize) : undefined,
+            sortBy,
+            sortOrder: sortOrder,
+        });
     }
     async exportCsv(user, search, tier, res) {
         const csv = await this.clientsService.exportCsv(user.tenant_id, {
@@ -66,8 +73,12 @@ __decorate([
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('search')),
     __param(2, (0, common_1.Query)('tier')),
+    __param(3, (0, common_1.Query)('page')),
+    __param(4, (0, common_1.Query)('pageSize')),
+    __param(5, (0, common_1.Query)('sortBy')),
+    __param(6, (0, common_1.Query)('sortOrder')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:paramtypes", [Object, String, String, String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], ClientsController.prototype, "findAll", null);
 __decorate([

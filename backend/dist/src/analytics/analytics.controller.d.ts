@@ -5,8 +5,8 @@ export declare class AnalyticsController {
     private readonly analyticsService;
     constructor(analyticsService: AnalyticsService);
     salesTrends(user: AuthenticatedUser): Promise<{
-        date: string;
-        total: number;
+        date: Date;
+        total: import("@prisma/client-runtime-utils").Decimal;
         status: string;
     }[]>;
     rfqAnalysis(user: AuthenticatedUser): Promise<{
@@ -29,7 +29,7 @@ export declare class AnalyticsController {
         category: string;
         quoteCount: number;
         stock: number;
-        price: number;
+        price: import("@prisma/client-runtime-utils").Decimal;
     }[]>;
     clientInsights(user: AuthenticatedUser): Promise<{
         name: string;
@@ -38,6 +38,7 @@ export declare class AnalyticsController {
         updated_at: Date;
         email: string;
         tenant_id: string;
+        deleted_at: Date | null;
         state: string | null;
         tier: string;
         type: string;
@@ -48,7 +49,7 @@ export declare class AnalyticsController {
         gst: string | null;
         pan: string | null;
         total_orders: number;
-        total_value: number;
+        total_value: import("@prisma/client-runtime-utils").Decimal;
         last_order_date: Date | null;
     }[]>;
     channelBreakdown(user: AuthenticatedUser): Promise<Record<string, number>>;

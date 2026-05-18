@@ -28,12 +28,16 @@ let RfqsController = class RfqsController {
     constructor(rfqsService) {
         this.rfqsService = rfqsService;
     }
-    findAll(user, query) {
+    findAll(user, query, page, pageSize, sortBy, sortOrder) {
         return this.rfqsService.findAll(user.tenant_id, {
             search: query.search,
             status: query.status,
             channel: query.channel,
             limit: query.limit,
+            page: page ? Number(page) : undefined,
+            pageSize: pageSize ? Number(pageSize) : undefined,
+            sortBy,
+            sortOrder: sortOrder,
         });
     }
     async exportCsv(user, query, res) {
@@ -83,8 +87,12 @@ __decorate([
     (0, common_1.Get)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Query)('page')),
+    __param(3, (0, common_1.Query)('pageSize')),
+    __param(4, (0, common_1.Query)('sortBy')),
+    __param(5, (0, common_1.Query)('sortOrder')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, rfqs_query_dto_1.RfqsQueryDto]),
+    __metadata("design:paramtypes", [Object, rfqs_query_dto_1.RfqsQueryDto, String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], RfqsController.prototype, "findAll", null);
 __decorate([

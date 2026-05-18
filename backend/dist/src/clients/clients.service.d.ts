@@ -1,31 +1,12 @@
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { PaginationParams, PaginatedResult } from '../common/utils/pagination.util';
 export declare class ClientsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    findAll(tenantId: string, query: {
-        search?: string;
+    findAll(tenantId: string, params: PaginationParams & {
         tier?: string;
-    }): Promise<{
-        name: string;
-        id: string;
-        created_at: Date;
-        updated_at: Date;
-        email: string;
-        tenant_id: string;
-        state: string | null;
-        tier: string;
-        type: string;
-        phone: string | null;
-        website: string | null;
-        address: string | null;
-        city: string | null;
-        gst: string | null;
-        pan: string | null;
-        total_orders: number;
-        total_value: number;
-        last_order_date: Date | null;
-    }[]>;
+    }): Promise<PaginatedResult<any>>;
     findOne(id: string, tenantId: string): Promise<{
         name: string;
         id: string;
@@ -33,6 +14,7 @@ export declare class ClientsService {
         updated_at: Date;
         email: string;
         tenant_id: string;
+        deleted_at: Date | null;
         state: string | null;
         tier: string;
         type: string;
@@ -43,7 +25,7 @@ export declare class ClientsService {
         gst: string | null;
         pan: string | null;
         total_orders: number;
-        total_value: number;
+        total_value: Prisma.Decimal;
         last_order_date: Date | null;
     }>;
     create(tenantId: string, body: {
@@ -65,6 +47,7 @@ export declare class ClientsService {
         updated_at: Date;
         email: string;
         tenant_id: string;
+        deleted_at: Date | null;
         state: string | null;
         tier: string;
         type: string;
@@ -75,7 +58,7 @@ export declare class ClientsService {
         gst: string | null;
         pan: string | null;
         total_orders: number;
-        total_value: number;
+        total_value: Prisma.Decimal;
         last_order_date: Date | null;
     }>;
     update(id: string, tenantId: string, body: Partial<{
@@ -97,6 +80,7 @@ export declare class ClientsService {
         updated_at: Date;
         email: string;
         tenant_id: string;
+        deleted_at: Date | null;
         state: string | null;
         tier: string;
         type: string;
@@ -107,26 +91,30 @@ export declare class ClientsService {
         gst: string | null;
         pan: string | null;
         total_orders: number;
-        total_value: number;
+        total_value: Prisma.Decimal;
         last_order_date: Date | null;
     }>;
     remove(id: string, tenantId: string): Promise<{
         message: string;
     }>;
+    forceDelete(id: string, tenantId: string): Promise<{
+        message: string;
+    }>;
     transactions(id: string, tenantId: string): Promise<({
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
-            total: number;
+            deleted_at: Date | null;
+            total: Prisma.Decimal;
             quotation_id: string;
             product_id: string;
-            unit_price: number;
-            tax_percent: number;
+            unit_price: Prisma.Decimal;
+            tax_percent: Prisma.Decimal;
             availability: string | null;
-            available_quantity: number | null;
+            available_quantity: Prisma.Decimal | null;
         }[];
     } & {
         number: string;
@@ -135,19 +123,24 @@ export declare class ClientsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        valid_until: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        valid_until: Date | null;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         terms_conditions: string | null;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
+        approval_status: string;
+        approved_by: string | null;
+        approved_at: Date | null;
+        rejection_reason: string | null;
     })[]>;
     updateTier(id: string, tenantId: string, tier: string): Promise<{
         name: string;
@@ -156,6 +149,7 @@ export declare class ClientsService {
         updated_at: Date;
         email: string;
         tenant_id: string;
+        deleted_at: Date | null;
         state: string | null;
         tier: string;
         type: string;
@@ -166,7 +160,7 @@ export declare class ClientsService {
         gst: string | null;
         pan: string | null;
         total_orders: number;
-        total_value: number;
+        total_value: Prisma.Decimal;
         last_order_date: Date | null;
     }>;
     exportCsv(tenantId: string, query: {

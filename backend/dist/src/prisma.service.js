@@ -5,6 +5,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var PrismaService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PrismaService = void 0;
 require("dotenv/config");
@@ -22,7 +23,8 @@ const prismaClientSingleton = () => {
 const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 if (process.env.NODE_ENV !== 'production')
     globalThis.prismaGlobal = prisma;
-let PrismaService = class PrismaService {
+let PrismaService = PrismaService_1 = class PrismaService {
+    logger = new common_1.Logger(PrismaService_1.name);
     prismaClient = prisma;
     get user() {
         return this.prismaClient.user;
@@ -128,29 +130,29 @@ let PrismaService = class PrismaService {
     }
     async onModuleInit() {
         await this.prismaClient.$connect();
-        console.log('✅ Prisma connected to database');
+        this.logger.log('✅ Prisma connected to database');
     }
     async onModuleDestroy() {
         try {
             await this.prismaClient.$disconnect();
-            console.log('✅ Prisma disconnected from database');
+            this.logger.log('✅ Prisma disconnected from database');
         }
         catch (err) {
-            console.warn('Prisma disconnect error:', err);
+            this.logger.warn(`Prisma disconnect error: ${err instanceof Error ? err.message : String(err)}`);
         }
         try {
             if (pool && typeof pool.end === 'function') {
                 await pool.end();
-                console.log('✅ Postgres pool ended');
+                this.logger.log('✅ Postgres pool ended');
             }
         }
         catch (err) {
-            console.warn('Postgres pool end error:', err);
+            this.logger.warn(`Postgres pool end error: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
 };
 exports.PrismaService = PrismaService;
-exports.PrismaService = PrismaService = __decorate([
+exports.PrismaService = PrismaService = PrismaService_1 = __decorate([
     (0, common_1.Injectable)()
 ], PrismaService);
 //# sourceMappingURL=prisma.service.js.map

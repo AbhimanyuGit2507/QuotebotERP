@@ -28,11 +28,18 @@ let InvoicesController = class InvoicesController {
             throw new common_2.BadRequestException('Missing tenant id');
         return this.invoicesService.create(tenantId, body);
     }
-    async list(req, status) {
+    async list(req, status, search, page, pageSize, sortBy, sortOrder) {
         const tenantId = req.user?.tenant_id;
         if (!tenantId)
             throw new common_2.BadRequestException('Missing tenant id');
-        return this.invoicesService.list(tenantId, status);
+        return this.invoicesService.list(tenantId, {
+            status,
+            search,
+            page: page ? Number(page) : undefined,
+            pageSize: pageSize ? Number(pageSize) : undefined,
+            sortBy,
+            sortOrder: sortOrder,
+        });
     }
     async get(req, id) {
         const tenantId = req.user?.tenant_id;
@@ -72,8 +79,13 @@ __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Query)('status')),
+    __param(2, (0, common_1.Query)('search')),
+    __param(3, (0, common_1.Query)('page')),
+    __param(4, (0, common_1.Query)('pageSize')),
+    __param(5, (0, common_1.Query)('sortBy')),
+    __param(6, (0, common_1.Query)('sortOrder')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, String, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], InvoicesController.prototype, "list", null);
 __decorate([

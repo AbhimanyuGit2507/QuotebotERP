@@ -30,6 +30,10 @@ export class ClientsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('search') search?: string,
     @Query('tier') tier?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
     const allowedTiers = ['new', 'regular', 'top'];
 
@@ -37,7 +41,14 @@ export class ClientsController {
       throw new BadRequestException('Invalid tier filter');
     }
 
-    return this.clientsService.findAll(user.tenant_id, { search, tier });
+    return this.clientsService.findAll(user.tenant_id, {
+      search,
+      tier,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
+    });
   }
 
   @Get('export/csv')

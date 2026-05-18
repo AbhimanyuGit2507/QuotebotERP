@@ -9,6 +9,11 @@ import { PrismaService } from '../prisma.service';
 import { EmailService } from '../email/email.service';
 import { EmailTemplatesService } from '../email-templates/email-templates.service';
 import { recordsToCsv } from '../common/utils/export.util';
+import {
+  PaginationParams,
+  PaginatedResult,
+  parsePaginationParams,
+} from '../common/utils/pagination.util';
 
 interface QuotationItemInput {
   product_id: string;
@@ -62,6 +67,7 @@ export class QuotationsService {
       where: {
         tenant_id: tenantId,
         client_id: clientId,
+        deleted_at: null,
       },
     });
 
@@ -124,30 +130,53 @@ export class QuotationsService {
     });
   }
 
-  async findAll(tenantId: string, query: { search?: string; status?: string }) {
-    const { search, status } = query;
+  async findAll(
+    tenantId: string,
+    params: PaginationParams & { status?: string },
+  ): Promise<PaginatedResult<any>> {
+    const { skip, take, page, pageSize } = parsePaginationParams(params);
+    const { search, status } = params;
 
-    return this.prisma.quotation.findMany({
-      where: {
-        tenant_id: tenantId,
-        ...(search
-          ? {
-              OR: [
-                { number: { contains: search, mode: 'insensitive' } },
-                { client: { name: { contains: search, mode: 'insensitive' } } },
-              ],
-            }
-          : {}),
-        ...(status ? { status } : {}),
+    const where: any = {
+      tenant_id: tenantId,
+      deleted_at: null,
+      ...(search
+        ? {
+            OR: [
+              { number: { contains: search, mode: 'insensitive' } },
+              { display_name: { contains: search, mode: 'insensitive' } },
+              { client: { name: { contains: search, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+      ...(status ? { status } : {}),
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.quotation.findMany({
+        where,
+        include: { client: true, items: true, rfq: true },
+        orderBy: { [params.sortBy || 'created_at']: params.sortOrder || 'desc' },
+        skip,
+        take,
+      }),
+      this.prisma.quotation.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
       },
-      include: { client: true, items: true, rfq: true },
-      orderBy: { created_at: 'desc' },
-    });
+    };
   }
 
   async findOne(id: string, tenantId: string) {
     const quotation = await this.prisma.quotation.findFirst({
-      where: { id, tenant_id: tenantId },
+      where: { id, tenant_id: tenantId, deleted_at: null },
       include: { client: true, items: true, versions: true, rfq: true },
     });
 
@@ -191,12 +220,11 @@ export class QuotationsService {
         display_name: display,
         search_tokens: tokens as unknown as Prisma.InputJsonValue,
         client_id: body.client_id,
-        date: body.date ?? new Date().toISOString().split('T')[0],
+        date: body.date ? new Date(body.date) : new Date(),
         valid_until:
-          body.valid_until ??
-          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .split('T')[0],
+          body.valid_until
+            ? new Date(body.valid_until)
+            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: body.status ?? 'draft',
         terms_conditions: body.terms_conditions,
         subtotal: totals.subtotal,
@@ -266,8 +294,8 @@ export class QuotationsService {
       where: { id },
       data: {
         ...(body.client_id ? { client_id: body.client_id } : {}),
-        ...(body.date ? { date: body.date } : {}),
-        ...(body.valid_until ? { valid_until: body.valid_until } : {}),
+        ...(body.date ? { date: new Date(body.date) } : {}),
+        ...(body.valid_until ? { valid_until: new Date(body.valid_until) } : {}),
         ...(body.status ? { status: body.status } : {}),
         ...(body.terms_conditions !== undefined
           ? { terms_conditions: body.terms_conditions }
@@ -354,13 +382,13 @@ export class QuotationsService {
 
     if (linkedRfq && options?.forceDeleteLinkedRfq) {
       try {
-        await this.prisma.rFQ.delete({ where: { id: linkedRfq.id } });
+        await this.prisma.rFQ.update({ where: { id: linkedRfq.id }, data: { deleted_at: new Date() } });
       } catch (err) {
-        console.warn('Failed to delete linked RFQ:', (err as Error).message);
+        console.warn('Failed to soft-delete linked RFQ:', (err as Error).message);
       }
     }
 
-    await this.prisma.quotation.delete({ where: { id } });
+    await this.prisma.quotation.update({ where: { id }, data: { deleted_at: new Date() } });
     return { message: 'Quotation deleted successfully' };
   }
 
@@ -369,16 +397,18 @@ export class QuotationsService {
     return this.create(tenantId, {
       client_id: quotation.client_id,
       date: new Date().toISOString().split('T')[0],
-      valid_until: quotation.valid_until,
+      valid_until: quotation.valid_until
+        ? quotation.valid_until.toISOString().split('T')[0]
+        : undefined,
       status: 'draft',
       terms_conditions: quotation.terms_conditions ?? undefined,
       items: quotation.items.map((item) => ({
         product_id: item.product_id,
         product_name: item.product_name,
-        quantity: item.quantity,
+        quantity: Number(item.quantity),
         unit: item.unit,
-        unit_price: item.unit_price,
-        tax_percent: item.tax_percent,
+        unit_price: Number(item.unit_price),
+        tax_percent: Number(item.tax_percent),
       })),
     });
   }
@@ -457,8 +487,8 @@ export class QuotationsService {
     const itemDetails = quotation.items
       .map((item, index) => {
         const availabilityStatus = item.availability || 'in_stock';
-        const availableQty = item.available_quantity || 0;
-        const requestedQty = item.quantity;
+        const availableQty = Number(item.available_quantity || 0);
+        const requestedQty = Number(item.quantity);
 
         let statusText = '';
         if (availabilityStatus === 'out_of_stock') {
@@ -471,7 +501,7 @@ export class QuotationsService {
           statusText = ` [PARTIAL AVAILABILITY: ${availableQty}/${requestedQty} available]`;
         }
 
-        return `${index + 1}. ${item.product_name} - Qty: ${item.quantity} ${item.unit} @ INR ${item.unit_price}/unit = INR ${item.total}${statusText}`;
+        return `${index + 1}. ${item.product_name} - Qty: ${Number(item.quantity)} ${item.unit} @ INR ${Number(item.unit_price)}/unit = INR ${Number(item.total)}${statusText}`;
        })
        .join('\n');
 
@@ -483,8 +513,8 @@ export class QuotationsService {
       })
       .map((item, index) => {
         const status = item.availability || 'in_stock';
-        const availableQty = item.available_quantity || 0;
-        const requestedQty = item.quantity;
+        const availableQty = Number(item.available_quantity || 0);
+        const requestedQty = Number(item.quantity);
         
         let message = '';
         if (status === 'out_of_stock') {
@@ -519,13 +549,21 @@ export class QuotationsService {
       maximumFractionDigits: 2,
     });
 
+    // Format dates for template
+    const quotationDateStr = quotation.date instanceof Date
+      ? quotation.date.toISOString().split('T')[0]
+      : String(quotation.date);
+    const validUntilStr = quotation.valid_until instanceof Date
+      ? quotation.valid_until.toISOString().split('T')[0]
+      : String(quotation.valid_until || '');
+
      // Template variables
      const variables = {
        client_name: quotation.client.name,
        company_name: tenant?.company_name || 'Quotebot',
        quotation_number: quotation.number,
-       quotation_date: quotation.date,
-       valid_until: quotation.valid_until,
+       quotation_date: quotationDateStr,
+       valid_until: validUntilStr,
        currency: 'INR',
        subtotal_amount: quotedSubtotal,
        tax_amount: quotedTax,
@@ -625,10 +663,7 @@ export class QuotationsService {
         return { ...quotation, invoice };
       } catch (err) {
         // don't fail the status update if invoice creation errors; log and continue
-        console.warn(
-          'Failed to create invoice for quotation:',
-          (err as Error).message,
-        );
+        console.warn('Failed to create invoice for quotation:', (err as Error).message);
         return quotation;
       }
     }
@@ -659,12 +694,12 @@ export class QuotationsService {
         tenant_id: tenantId,
         quotation_id: quotation.id,
         number,
-        date: new Date().toISOString().split('T')[0],
+        date: new Date(),
         due_date: undefined,
         currency: companySettings?.currency ?? 'INR',
-        subtotal: quotation.subtotal ?? 0,
-        tax: quotation.tax ?? 0,
-        total: quotation.total ?? 0,
+        subtotal: Number(quotation.subtotal) || 0,
+        tax: Number(quotation.tax) || 0,
+        total: Number(quotation.total) || 0,
         status: 'open',
       },
     });
@@ -682,16 +717,20 @@ export class QuotationsService {
 
   async exportCsv(
     tenantId: string,
-    query: { search?: string; status?: string },
+    params: PaginationParams & { status?: string },
   ) {
-    const quotations = await this.findAll(tenantId, query);
+    const result = await this.findAll(tenantId, { ...params, pageSize: 10000 });
 
     return recordsToCsv(
-      quotations.map((quotation) => ({
+      result.data.map((quotation: any) => ({
         number: quotation.number,
         client: quotation.client.name,
-        date: quotation.date,
-        valid_until: quotation.valid_until,
+        date: quotation.date instanceof Date
+          ? quotation.date.toISOString().split('T')[0]
+          : quotation.date,
+        valid_until: quotation.valid_until instanceof Date
+          ? quotation.valid_until.toISOString().split('T')[0]
+          : quotation.valid_until,
         status: quotation.status,
         subtotal: quotation.subtotal,
         tax: quotation.tax,
@@ -710,6 +749,14 @@ export class QuotationsService {
       where: { id: tenantId },
       select: { company_name: true },
     });
+
+    // Format dates for PDF
+    const dateStr = quotation.date instanceof Date
+      ? quotation.date.toISOString().split('T')[0]
+      : String(quotation.date);
+    const validUntilStr = quotation.valid_until instanceof Date
+      ? quotation.valid_until.toISOString().split('T')[0]
+      : String(quotation.valid_until || '');
 
     return new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({ 
@@ -774,10 +821,10 @@ export class QuotationsService {
       doc.font('Helvetica').text(quotation.number, rightX + 110, startY);
       
       doc.font('Helvetica-Bold').text('Date:', rightX, doc.y + 5);
-      doc.font('Helvetica').text(quotation.date, rightX + 110, doc.y - 12);
+      doc.font('Helvetica').text(dateStr, rightX + 110, doc.y - 12);
       
       doc.font('Helvetica-Bold').text('Valid Until:', rightX, doc.y + 5);
-      doc.font('Helvetica').text(quotation.valid_until, rightX + 110, doc.y - 12);
+      doc.font('Helvetica').text(validUntilStr, rightX + 110, doc.y - 12);
       
       doc.font('Helvetica-Bold').text('Status:', rightX, doc.y + 5);
       doc.font('Helvetica').fillColor(
@@ -827,10 +874,10 @@ export class QuotationsService {
           .fontSize(9)
           .fillColor(darkGray)
           .text(item.product_name, tableLeft + 5, rowTop, { width: 200, lineBreak: false, ellipsis: true })
-          .text(`${item.quantity} ${item.unit}`, tableLeft + 210, rowTop, { width: 50, align: 'center' })
-          .text(item.unit_price.toLocaleString('en-IN', {maximumFractionDigits: 2}), tableLeft + 270, rowTop, { width: 70, align: 'right' })
-          .text(`${item.tax_percent}%`, tableLeft + 350, rowTop, { width: 50, align: 'right' })
-          .text(item.total.toLocaleString('en-IN', {maximumFractionDigits: 2}), tableLeft + 410, rowTop, { width: 80, align: 'right' });
+          .text(`${Number(item.quantity)} ${item.unit}`, tableLeft + 210, rowTop, { width: 50, align: 'center' })
+          .text(Number(item.unit_price).toLocaleString('en-IN', {maximumFractionDigits: 2}), tableLeft + 270, rowTop, { width: 70, align: 'right' })
+          .text(`${Number(item.tax_percent)}%`, tableLeft + 350, rowTop, { width: 50, align: 'right' })
+          .text(Number(item.total).toLocaleString('en-IN', {maximumFractionDigits: 2}), tableLeft + 410, rowTop, { width: 80, align: 'right' });
 
         rowTop += 20;
       });
@@ -855,7 +902,7 @@ export class QuotationsService {
         .fillColor(darkGray)
         .text('Subtotal:', summaryLeft, summaryTop, { width: 80 })
         .text(
-          `₹ ${quotation.subtotal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+          `₹ ${Number(quotation.subtotal).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
           summaryLeft + 80,
           summaryTop,
           { width: 95, align: 'right' }
@@ -864,7 +911,7 @@ export class QuotationsService {
       doc
         .text('Tax/GST:', summaryLeft, doc.y + 5, { width: 80 })
         .text(
-          `₹ ${quotation.tax.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+          `₹ ${Number(quotation.tax).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
           summaryLeft + 80,
           doc.y - 12,
           { width: 95, align: 'right' }
@@ -883,7 +930,7 @@ export class QuotationsService {
         .font('Helvetica-Bold')
         .text('Total:', summaryLeft + 5, totalY + 3, { width: 80 })
         .text(
-          `₹ ${quotation.total.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
+          `₹ ${Number(quotation.total).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`,
           summaryLeft + 80,
           totalY + 3,
           { width: 90, align: 'right' }

@@ -53,6 +53,7 @@ export declare class AuthService {
             company_name: string;
             trading_name: string | null;
             plan: string;
+            allow_public_registration: boolean;
             updated_at: Date;
         };
     } & {
@@ -80,6 +81,7 @@ export declare class AuthService {
             company_name: string;
             trading_name: string | null;
             plan: string;
+            allow_public_registration: boolean;
             updated_at: Date;
         };
     } & {

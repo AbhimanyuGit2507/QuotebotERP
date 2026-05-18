@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { EmailService } from '../email/email.service';
+import { PaginationParams, PaginatedResult } from '../common/utils/pagination.util';
 interface RfqItemInput {
     product_id: string;
     product_name: string;
@@ -33,6 +34,7 @@ type CreateRfqInput = {
 export declare class RfqsService {
     private readonly prisma;
     private readonly emailService;
+    private readonly logger;
     constructor(prisma: PrismaService, emailService: EmailService);
     private normalizeProductName;
     private formatShortDate;
@@ -62,86 +64,19 @@ export declare class RfqsService {
         unmatched_items: RejectedRfqItem[];
         summary: string;
     }>;
-    findAll(tenantId: string, query: {
-        search?: string;
+    findAll(tenantId: string, query: PaginationParams & {
         status?: string;
         channel?: string;
         limit?: number;
-    }): Promise<({
-        items: {
-            product_name: string;
-            quantity: number;
-            unit: string;
-            notes: string | null;
-            id: string;
-            product_id: string;
-            rfq_id: string;
-        }[];
-        client: {
-            name: string;
-            id: string;
-            created_at: Date;
-            updated_at: Date;
-            email: string;
-            tenant_id: string;
-            state: string | null;
-            tier: string;
-            type: string;
-            phone: string | null;
-            website: string | null;
-            address: string | null;
-            city: string | null;
-            gst: string | null;
-            pan: string | null;
-            total_orders: number;
-            total_value: number;
-            last_order_date: Date | null;
-        };
-        quotation: {
-            number: string;
-            id: string;
-            created_at: Date;
-            updated_at: Date;
-            tenant_id: string;
-            status: string;
-            client_id: string;
-            display_name: string | null;
-            search_tokens: Prisma.JsonValue | null;
-            date: string;
-            valid_until: string;
-            subtotal: number;
-            tax: number;
-            total: number;
-            terms_conditions: string | null;
-            conversation_id: string | null;
-            sent_email_subject: string | null;
-            sent_email_body: string | null;
-            sent_at: Date | null;
-        } | null;
-    } & {
-        number: string;
-        id: string;
-        created_at: Date;
-        updated_at: Date;
-        tenant_id: string;
-        status: string;
-        client_id: string;
-        display_name: string | null;
-        search_tokens: Prisma.JsonValue | null;
-        conversation_id: string | null;
-        quotation_id: string | null;
-        channel: string;
-        priority: string;
-        confidence_score: number;
-        due_date: Date | null;
-    })[]>;
+    }): Promise<PaginatedResult<any>>;
     findOne(id: string, tenantId: string): Promise<{
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
+            deleted_at: Date | null;
             product_id: string;
             rfq_id: string;
         }[];
@@ -152,6 +87,7 @@ export declare class RfqsService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -162,7 +98,7 @@ export declare class RfqsService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         };
         quotation: {
@@ -172,19 +108,24 @@ export declare class RfqsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
+            total: Prisma.Decimal;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            date: string;
-            valid_until: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            valid_until: Date | null;
+            subtotal: Prisma.Decimal;
+            tax: Prisma.Decimal;
             terms_conditions: string | null;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
+            approval_status: string;
+            approved_by: string | null;
+            approved_at: Date | null;
+            rejection_reason: string | null;
         } | null;
     } & {
         number: string;
@@ -193,6 +134,7 @@ export declare class RfqsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
@@ -207,10 +149,11 @@ export declare class RfqsService {
     create(tenantId: string, body: CreateRfqInput): Promise<{
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
+            deleted_at: Date | null;
             product_id: string;
             rfq_id: string;
         }[];
@@ -221,6 +164,7 @@ export declare class RfqsService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -231,7 +175,7 @@ export declare class RfqsService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         };
         quotation: {
@@ -241,19 +185,24 @@ export declare class RfqsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
+            total: Prisma.Decimal;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            date: string;
-            valid_until: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            valid_until: Date | null;
+            subtotal: Prisma.Decimal;
+            tax: Prisma.Decimal;
             terms_conditions: string | null;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
+            approval_status: string;
+            approved_by: string | null;
+            approved_at: Date | null;
+            rejection_reason: string | null;
         } | null;
     } & {
         number: string;
@@ -262,6 +211,7 @@ export declare class RfqsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
@@ -282,10 +232,11 @@ export declare class RfqsService {
         quotation_id: string;
         items?: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
+            deleted_at: Date | null;
             product_id: string;
             rfq_id: string;
         }[] | undefined;
@@ -296,6 +247,7 @@ export declare class RfqsService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -306,7 +258,7 @@ export declare class RfqsService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         } | undefined;
         quotation?: {
@@ -316,19 +268,24 @@ export declare class RfqsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
+            total: Prisma.Decimal;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            date: string;
-            valid_until: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            valid_until: Date | null;
+            subtotal: Prisma.Decimal;
+            tax: Prisma.Decimal;
             terms_conditions: string | null;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
+            approval_status: string;
+            approved_by: string | null;
+            approved_at: Date | null;
+            rejection_reason: string | null;
         } | null | undefined;
         number?: string | undefined;
         id?: string | undefined;
@@ -336,6 +293,7 @@ export declare class RfqsService {
         updated_at?: Date | undefined;
         tenant_id?: string | undefined;
         status?: string | undefined;
+        deleted_at?: Date | null | undefined;
         client_id?: string | undefined;
         display_name?: string | null | undefined;
         search_tokens?: Prisma.JsonValue | undefined;
@@ -356,10 +314,11 @@ export declare class RfqsService {
     }>): Promise<{
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
+            deleted_at: Date | null;
             product_id: string;
             rfq_id: string;
         }[];
@@ -370,6 +329,7 @@ export declare class RfqsService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -380,7 +340,7 @@ export declare class RfqsService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         };
         quotation: {
@@ -390,19 +350,24 @@ export declare class RfqsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
+            total: Prisma.Decimal;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            date: string;
-            valid_until: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            valid_until: Date | null;
+            subtotal: Prisma.Decimal;
+            tax: Prisma.Decimal;
             terms_conditions: string | null;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
+            approval_status: string;
+            approved_by: string | null;
+            approved_at: Date | null;
+            rejection_reason: string | null;
         } | null;
     } & {
         number: string;
@@ -411,6 +376,7 @@ export declare class RfqsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
@@ -429,10 +395,11 @@ export declare class RfqsService {
     updateStatus(id: string, tenantId: string, status: string): Promise<{
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
+            deleted_at: Date | null;
             product_id: string;
             rfq_id: string;
         }[];
@@ -443,6 +410,7 @@ export declare class RfqsService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -453,7 +421,7 @@ export declare class RfqsService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         };
         quotation: {
@@ -463,19 +431,24 @@ export declare class RfqsService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
+            total: Prisma.Decimal;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            date: string;
-            valid_until: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            valid_until: Date | null;
+            subtotal: Prisma.Decimal;
+            tax: Prisma.Decimal;
             terms_conditions: string | null;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
+            approval_status: string;
+            approved_by: string | null;
+            approved_at: Date | null;
+            rejection_reason: string | null;
         } | null;
     } & {
         number: string;
@@ -484,6 +457,7 @@ export declare class RfqsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
@@ -512,17 +486,18 @@ export declare class RfqsService {
     convertToQuotation(id: string, tenantId: string): Promise<{
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
-            total: number;
+            deleted_at: Date | null;
+            total: Prisma.Decimal;
             quotation_id: string;
             product_id: string;
-            unit_price: number;
-            tax_percent: number;
+            unit_price: Prisma.Decimal;
+            tax_percent: Prisma.Decimal;
             availability: string | null;
-            available_quantity: number | null;
+            available_quantity: Prisma.Decimal | null;
         }[];
         client: {
             name: string;
@@ -531,6 +506,7 @@ export declare class RfqsService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -541,7 +517,7 @@ export declare class RfqsService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         };
     } & {
@@ -551,19 +527,24 @@ export declare class RfqsService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        valid_until: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        valid_until: Date | null;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         terms_conditions: string | null;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
+        approval_status: string;
+        approved_by: string | null;
+        approved_at: Date | null;
+        rejection_reason: string | null;
     }>;
     exportCsv(tenantId: string, query: {
         search?: string;

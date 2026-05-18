@@ -4,6 +4,7 @@ import { InboundEmailDto } from './dtos/inbound-email.dto';
 import { OutboundEmailUpdateDto } from './dtos/outbound-email-update.dto';
 export declare class EmailService {
     private prisma;
+    private readonly logger;
     constructor(prisma: PrismaService);
     private buildMimePart;
     private encodeMimeBase64;

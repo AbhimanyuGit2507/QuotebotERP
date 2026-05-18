@@ -11,6 +11,7 @@ export declare class SettingsService {
         currency: string;
         logo_url: string | null;
         profile_json: Prisma.JsonValue | null;
+        quotation_approval_threshold: Prisma.Decimal | null;
     }>;
     updateCompany(tenantId: string, body: Partial<{
         currency: string;
@@ -24,6 +25,7 @@ export declare class SettingsService {
         currency: string;
         logo_url: string | null;
         profile_json: Prisma.JsonValue | null;
+        quotation_approval_threshold: Prisma.Decimal | null;
     }>;
     getNotifications(tenantId: string): Promise<{
         id: string;

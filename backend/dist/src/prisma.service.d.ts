@@ -10,6 +10,7 @@ type AssistanceTicketDelegate = PrismaClient['assistanceTicket'];
 type AssistancePurchaseOrderDelegate = PrismaClient['assistancePurchaseOrder'];
 type EmailTemplateDelegate = PrismaClient['emailTemplate'];
 export declare class PrismaService implements OnModuleInit, OnModuleDestroy {
+    private readonly logger;
     private prismaClient;
     get user(): Prisma.UserDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;
     get tenant(): Prisma.TenantDelegate<import("@prisma/client/runtime/client").DefaultArgs, Prisma.PrismaClientOptions>;

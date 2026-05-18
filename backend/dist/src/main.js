@@ -9,8 +9,13 @@ const express_1 = require("express");
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const helmet_1 = __importDefault(require("helmet"));
 const app_module_1 = require("./app.module");
+const app_logger_service_1 = require("./common/logger/app-logger.service");
+const global_exception_filter_1 = require("./common/filters/global-exception.filter");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    const logger = new app_logger_service_1.AppLoggerService();
+    app.useLogger(logger);
+    app.useGlobalFilters(new global_exception_filter_1.GlobalExceptionFilter());
     app.use((0, helmet_1.default)());
     app.use((0, express_1.json)({ limit: '10mb' }));
     app.use((0, express_1.urlencoded)({ extended: true, limit: '10mb' }));
@@ -61,14 +66,16 @@ async function bootstrap() {
     }));
     const port = process.env.PORT || process.env.API_PORT || 3001;
     await app.listen(port);
-    console.log('\n═══════════════════════════════════════════════════');
-    console.log(`✅ Quotebot Backend API running on port ${port}`);
-    console.log(`📍 API Prefix: /${process.env.API_PREFIX || 'api'}`);
-    console.log(`🔗 Base URL: http://localhost:${port}/api`);
-    console.log('═══════════════════════════════════════════════════\n');
+    const startupLogger = new common_1.Logger('Bootstrap');
+    startupLogger.log('═══════════════════════════════════════════════════');
+    startupLogger.log(`✅ Quotebot Backend API running on port ${port}`);
+    startupLogger.log(`📍 API Prefix: /${process.env.API_PREFIX || 'api'}`);
+    startupLogger.log(`🔗 Base URL: http://localhost:${port}/api`);
+    startupLogger.log('═══════════════════════════════════════════════════');
 }
 bootstrap().catch((err) => {
-    console.error('❌ Failed to start server:', err);
+    const errorLogger = new common_1.Logger('Bootstrap');
+    errorLogger.error('❌ Failed to start server:', err instanceof Error ? err.stack : String(err));
     process.exit(1);
 });
 //# sourceMappingURL=main.js.map

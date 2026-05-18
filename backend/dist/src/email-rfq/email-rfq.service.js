@@ -494,11 +494,11 @@ let EmailRfqService = EmailRfqService_1 = class EmailRfqService {
                 quotation_id: quotationId,
                 conversation_id: conversationId,
                 number: this.generateInvoiceNumber(),
-                date: new Date().toISOString().split('T')[0],
+                date: new Date(),
                 currency: companySettings?.currency ?? 'INR',
-                subtotal: quotation.subtotal ?? 0,
-                tax: quotation.tax ?? 0,
-                total: quotation.total ?? 0,
+                subtotal: Number(quotation.subtotal) || 0,
+                tax: Number(quotation.tax) || 0,
+                total: Number(quotation.total) || 0,
                 status: 'open',
             },
         });
@@ -1602,11 +1602,11 @@ let EmailRfqService = EmailRfqService_1 = class EmailRfqService {
                             const template = await this.emailTemplatesService.findByType(entry.message.tenant_id, client_1.EmailTemplateType.INVOICE_EMAIL);
                             const itemDetails = fullInvoice?.quotation?.items
                                 ?.map((item, index) => {
-                                return `${index + 1}. ${item.product_name} - Qty: ${item.quantity} ${item.unit} @ INR ${item.unit_price}/unit = INR ${item.total}`;
+                                return `${index + 1}. ${item.product_name} - Qty: ${Number(item.quantity)} ${item.unit} @ INR ${Number(item.unit_price)}/unit = INR ${Number(item.total)}`;
                             })
                                 .join('\n') || '';
-                            const paidAmount = fullInvoice?.paid_amount || 0;
-                            const totalAmount = fullInvoice?.total || 0;
+                            const paidAmount = Number(fullInvoice?.paid_amount || 0);
+                            const totalAmount = Number(fullInvoice?.total || 0);
                             let paymentStatus = '';
                             if (paidAmount >= totalAmount) {
                                 paymentStatus = 'Status: PAID';
@@ -1617,12 +1617,18 @@ let EmailRfqService = EmailRfqService_1 = class EmailRfqService {
                             else {
                                 paymentStatus = 'Status: PENDING PAYMENT';
                             }
+                            const invoiceDateStr = fullInvoice?.date instanceof Date
+                                ? fullInvoice.date.toISOString().split('T')[0]
+                                : String(fullInvoice?.date || '');
+                            const dueDateStr = fullInvoice?.due_date instanceof Date
+                                ? fullInvoice.due_date.toISOString().split('T')[0]
+                                : String(fullInvoice?.due_date || '');
                             const variables = {
                                 client_name: fullInvoice?.quotation?.client?.name || 'Customer',
                                 company_name: tenant?.company_name || 'Quotebot',
                                 invoice_number: fullInvoice?.number || '',
-                                invoice_date: fullInvoice?.date || '',
-                                due_date: fullInvoice?.due_date || '',
+                                invoice_date: invoiceDateStr,
+                                due_date: dueDateStr,
                                 currency: fullInvoice?.currency || 'INR',
                                 total_amount: Number(totalAmount).toLocaleString('en-IN', {
                                     maximumFractionDigits: 2,

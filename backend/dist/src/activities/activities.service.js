@@ -12,17 +12,34 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ActivitiesService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma.service");
+const pagination_util_1 = require("../common/utils/pagination.util");
 let ActivitiesService = class ActivitiesService {
     prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async findAll(tenantId) {
-        return this.prisma.activity.findMany({
-            where: { tenant_id: tenantId },
-            include: { user: true },
-            orderBy: { created_at: 'desc' },
-        });
+    async findAll(tenantId, params = {}) {
+        const { skip, take, page, pageSize } = (0, pagination_util_1.parsePaginationParams)(params);
+        const where = { tenant_id: tenantId };
+        const [data, total] = await Promise.all([
+            this.prisma.activity.findMany({
+                where,
+                include: { user: true },
+                orderBy: { created_at: 'desc' },
+                skip,
+                take,
+            }),
+            this.prisma.activity.count({ where }),
+        ]);
+        return {
+            data,
+            meta: {
+                total,
+                page,
+                pageSize,
+                totalPages: Math.ceil(total / pageSize),
+            },
+        };
     }
     async findByEntity(tenantId, entityType, entityId) {
         return this.prisma.activity.findMany({

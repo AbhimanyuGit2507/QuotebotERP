@@ -31,10 +31,25 @@ export class InvoicesController {
   }
 
   @Get()
-  async list(@Req() req: AuthRequest, @Query('status') status?: string) {
+  async list(
+    @Req() req: AuthRequest,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
+  ) {
     const tenantId = req.user?.tenant_id;
     if (!tenantId) throw new BadRequestException('Missing tenant id');
-    return this.invoicesService.list(tenantId, status);
+    return this.invoicesService.list(tenantId, {
+      status,
+      search,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
+    });
   }
 
   @Get(':id')

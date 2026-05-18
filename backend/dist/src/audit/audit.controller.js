@@ -22,8 +22,11 @@ let AuditController = class AuditController {
     constructor(auditService) {
         this.auditService = auditService;
     }
-    findAll(user) {
-        return this.auditService.findAll(user.tenant_id);
+    findAll(user, page, pageSize) {
+        return this.auditService.findAll(user.tenant_id, {
+            page: page ? Number(page) : undefined,
+            pageSize: pageSize ? Number(pageSize) : undefined,
+        });
     }
     findByEntity(entityType, entityId, user) {
         return this.auditService.findByEntity(user.tenant_id, entityType, entityId);
@@ -33,8 +36,10 @@ exports.AuditController = AuditController;
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('pageSize')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", void 0)
 ], AuditController.prototype, "findAll", null);
 __decorate([

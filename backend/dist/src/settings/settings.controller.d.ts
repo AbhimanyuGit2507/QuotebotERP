@@ -17,6 +17,7 @@ export declare class SettingsController {
         currency: string;
         logo_url: string | null;
         profile_json: import("@prisma/client/runtime/client").JsonValue | null;
+        quotation_approval_threshold: import("@prisma/client-runtime-utils").Decimal | null;
     }>;
     updateCompany(user: AuthenticatedUser, body: UpdateCompanySettingsDto): Promise<{
         id: string;
@@ -26,6 +27,7 @@ export declare class SettingsController {
         currency: string;
         logo_url: string | null;
         profile_json: import("@prisma/client/runtime/client").JsonValue | null;
+        quotation_approval_threshold: import("@prisma/client-runtime-utils").Decimal | null;
     }>;
     getNotifications(user: AuthenticatedUser): Promise<{
         id: string;

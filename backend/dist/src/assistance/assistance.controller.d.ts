@@ -11,6 +11,7 @@ export declare class AssistanceController {
                 updated_at: Date;
                 email: string;
                 tenant_id: string;
+                deleted_at: Date | null;
                 state: string | null;
                 tier: string;
                 type: string;
@@ -21,7 +22,7 @@ export declare class AssistanceController {
                 gst: string | null;
                 pan: string | null;
                 total_orders: number;
-                total_value: number;
+                total_value: import("@prisma/client-runtime-utils").Decimal;
                 last_order_date: Date | null;
             };
         } & {
@@ -106,19 +107,24 @@ export declare class AssistanceController {
                 updated_at: Date;
                 tenant_id: string;
                 status: string;
+                deleted_at: Date | null;
                 client_id: string;
+                total: import("@prisma/client-runtime-utils").Decimal;
                 display_name: string | null;
                 search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
-                date: string;
-                valid_until: string;
-                subtotal: number;
-                tax: number;
-                total: number;
+                date: Date;
+                valid_until: Date | null;
+                subtotal: import("@prisma/client-runtime-utils").Decimal;
+                tax: import("@prisma/client-runtime-utils").Decimal;
                 terms_conditions: string | null;
                 conversation_id: string | null;
                 sent_email_subject: string | null;
                 sent_email_body: string | null;
                 sent_at: Date | null;
+                approval_status: string;
+                approved_by: string | null;
+                approved_at: Date | null;
+                rejection_reason: string | null;
             }[];
             messages: {
                 id: string;
@@ -157,6 +163,7 @@ export declare class AssistanceController {
                 updated_at: Date;
                 email: string;
                 tenant_id: string;
+                deleted_at: Date | null;
                 state: string | null;
                 tier: string;
                 type: string;
@@ -167,7 +174,7 @@ export declare class AssistanceController {
                 gst: string | null;
                 pan: string | null;
                 total_orders: number;
-                total_value: number;
+                total_value: import("@prisma/client-runtime-utils").Decimal;
                 last_order_date: Date | null;
             };
         } & {

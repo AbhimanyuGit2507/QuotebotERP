@@ -3,6 +3,7 @@ import { EmailService } from './email.service';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 export declare class EmailIntegrationsController {
     private emailService;
+    private readonly logger;
     constructor(emailService: EmailService);
     getEmailAccounts(req: Request & {
         user: AuthenticatedUser;

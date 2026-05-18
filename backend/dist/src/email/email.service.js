@@ -41,6 +41,7 @@ var __importStar = (this && this.__importStar) || (function () {
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var EmailService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EmailService = void 0;
 const common_1 = require("@nestjs/common");
@@ -50,8 +51,9 @@ const child_process_1 = require("child_process");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const prisma_service_1 = require("../prisma.service");
-let EmailService = class EmailService {
+let EmailService = EmailService_1 = class EmailService {
     prisma;
+    logger = new common_1.Logger(EmailService_1.name);
     constructor(prisma) {
         this.prisma = prisma;
     }
@@ -376,11 +378,7 @@ let EmailService = class EmailService {
     initiateGoogleOAuth(state) {
         const clientId = process.env.GMAIL_CLIENT_ID;
         const redirectUri = process.env.GMAIL_REDIRECT_URI;
-        console.log('[Backend][EmailService] initiateGoogleOAuth called', {
-            hasClientId: Boolean(clientId),
-            redirectUri,
-            stateLength: state?.length ?? 0,
-        });
+        this.logger.log(`initiateGoogleOAuth called hasClientId=${Boolean(clientId)} redirectUri=${redirectUri} stateLength=${state?.length ?? 0}`);
         if (!clientId || !redirectUri) {
             throw new common_1.BadRequestException('Missing GMAIL_CLIENT_ID or GMAIL_REDIRECT_URI environment variables');
         }
@@ -399,12 +397,7 @@ let EmailService = class EmailService {
         return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     }
     async handleGoogleOAuthCallback(code, state, tenantId, userId) {
-        console.log('[Backend][EmailService] handleGoogleOAuthCallback called', {
-            tenantId,
-            userId,
-            hasCode: Boolean(code),
-            hasState: Boolean(state),
-        });
+        this.logger.log(`handleGoogleOAuthCallback called tenantId=${tenantId} userId=${userId} hasCode=${Boolean(code)} hasState=${Boolean(state)}`);
         const clientId = process.env.GMAIL_CLIENT_ID;
         const clientSecret = process.env.GMAIL_CLIENT_SECRET;
         const redirectUri = process.env.GMAIL_REDIRECT_URI;
@@ -426,13 +419,7 @@ let EmailService = class EmailService {
             body: tokenBody,
         });
         const tokenPayload = await tokenResponse.json();
-        console.log('[Backend][EmailService] Token exchange response', {
-            ok: tokenResponse.ok,
-            status: tokenResponse.status,
-            payload: typeof tokenPayload === 'object'
-                ? JSON.stringify(tokenPayload).substring(0, 200)
-                : 'not object',
-        });
+        this.logger.log(`Token exchange response ok=${tokenResponse.ok} status=${tokenResponse.status}`);
         if (!tokenResponse.ok) {
             const errorMsg = typeof tokenPayload === 'object' && tokenPayload !== null
                 ? JSON.stringify(tokenPayload)
@@ -455,11 +442,7 @@ let EmailService = class EmailService {
             },
         });
         const profilePayload = await profileResponse.json();
-        console.log('[Backend][EmailService] Profile fetch response', {
-            ok: profileResponse.ok,
-            status: profileResponse.status,
-            payload: JSON.stringify(profilePayload).substring(0, 300),
-        });
+        this.logger.log(`Profile fetch response ok=${profileResponse.ok} status=${profileResponse.status}`);
         if (!profileResponse.ok) {
             const errorMsg = typeof profilePayload === 'object' && profilePayload !== null
                 ? JSON.stringify(profilePayload)
@@ -536,13 +519,7 @@ let EmailService = class EmailService {
                 provider: true,
             },
         });
-        console.log('[Backend][EmailService] Email account upserted', {
-            emailAccountId: emailAccount.id,
-            emailAddress: emailAccount.email_address,
-            provider: emailAccount.provider,
-            tenantId,
-            userId,
-        });
+        this.logger.log(`Email account upserted id=${emailAccount.id} email=${emailAccount.email_address} provider=${emailAccount.provider} tenantId=${tenantId}`);
         return emailAccount;
     }
     async getUserEmailAccounts(tenantId, userId) {
@@ -841,7 +818,7 @@ let EmailService = class EmailService {
                 }
                 catch (error) {
                     const message = error instanceof Error ? error.message : 'Unknown refresh error';
-                    console.error(`[Backend][EmailService] Failed to refresh access token for account ${email.email_account_id}: ${message}`);
+                    this.logger.error(`Failed to refresh access token for account ${email.email_account_id}: ${message}`);
                 }
             }
             tokenByAccountId.set(email.email_account_id, token);
@@ -897,13 +874,7 @@ let EmailService = class EmailService {
         return email;
     }
     async sendNow(tenantId, data) {
-        console.log('[EmailService] sendNow called', {
-            tenantId,
-            emailAccountId: data.email_account_id,
-            to: data.to,
-            subject: data.subject,
-            attachmentsCount: data.attachments?.length || 0,
-        });
+        this.logger.log(`sendNow called tenantId=${tenantId} emailAccountId=${data.email_account_id} to=${data.to?.join(',')} subject=${data.subject} attachments=${data.attachments?.length || 0}`);
         const account = await this.prisma.emailAccount.findFirst({
             where: {
                 id: data.email_account_id,
@@ -912,21 +883,12 @@ let EmailService = class EmailService {
             },
         });
         if (!account) {
-            console.error('[EmailService] Email account not found', {
-                emailAccountId: data.email_account_id,
-                tenantId,
-            });
+            this.logger.error(`Email account not found emailAccountId=${data.email_account_id} tenantId=${tenantId}`);
             throw new common_1.BadRequestException('Email account not found or not active');
         }
-        console.log('[EmailService] Email account found', {
-            id: account.id,
-            email: account.email_address,
-            provider: account.provider,
-        });
+        this.logger.log(`Email account found id=${account.id} email=${account.email_address} provider=${account.provider}`);
         if (account.provider !== 'gmail') {
-            console.error('[EmailService] Unsupported provider', {
-                provider: account.provider,
-            });
+            this.logger.error(`Unsupported provider: ${account.provider}`);
             throw new common_1.BadRequestException('Immediate send is only supported for Gmail accounts');
         }
         const credentials = this.readCredentials(account.credentials) || {};
@@ -945,22 +907,19 @@ let EmailService = class EmailService {
             return ts <= Date.now() + 60_000;
         };
         if (!accessToken || isExpired(expiresAt)) {
-            console.log('[EmailService] Access token expired or missing, refreshing...');
+            this.logger.log('Access token expired or missing, refreshing...');
             try {
                 const refreshed = await this.refreshEmailAccountAccessToken(account.id, tenantId);
                 accessToken = refreshed.access_token;
-                console.log('[EmailService] Access token refreshed successfully');
+                this.logger.log('Access token refreshed successfully');
             }
             catch (err) {
-                console.error('[EmailService] Failed to refresh access token:', {
-                    error: err instanceof Error ? err.message : String(err),
-                    accountId: account.id,
-                });
+                this.logger.error(`Failed to refresh access token: ${err instanceof Error ? err.message : String(err)} accountId=${account.id}`);
                 throw new common_1.BadRequestException('Could not refresh Gmail access token');
             }
         }
         else {
-            console.log('[EmailService] Using existing access token');
+            this.logger.log('Using existing access token');
         }
         const fromAddress = account.email_address;
         const rawMessage = this.buildRawMimeMessage({
@@ -977,12 +936,7 @@ let EmailService = class EmailService {
             .replace(/\//g, '_')
             .replace(/=+$/g, '');
         const sendUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
-        console.log('[EmailService] Sending email via Gmail API', {
-            url: sendUrl,
-            to: data.to,
-            from: fromAddress,
-            messageSize: rawMessage.length,
-        });
+        this.logger.log(`Sending email via Gmail API to=${data.to?.join(',')} from=${fromAddress} messageSize=${rawMessage.length}`);
         let sendResponse = null;
         try {
             sendResponse = await fetch(sendUrl, {
@@ -995,10 +949,7 @@ let EmailService = class EmailService {
             });
         }
         catch (err) {
-            console.error('[EmailService] Gmail send network error:', {
-                error: err instanceof Error ? err.message : String(err),
-                stack: err instanceof Error ? err.stack : undefined,
-            });
+            this.logger.error(`Gmail send network error: ${err instanceof Error ? err.message : String(err)}`, err instanceof Error ? err.stack : undefined);
         }
         const sent = Boolean(sendResponse &&
             typeof sendResponse === 'object' &&
@@ -1019,19 +970,12 @@ let EmailService = class EmailService {
                     }
                 }
                 catch (jsonErr) {
-                    console.error('[EmailService] Failed to parse Gmail API response:', jsonErr);
+                    this.logger.error(`Failed to parse Gmail API response: ${jsonErr instanceof Error ? jsonErr.message : String(jsonErr)}`);
                     providerResult = {};
                 }
             }
         }
-        console.log('[EmailService] Gmail API response', {
-            sent,
-            status: responseStatus,
-            statusText: responseStatusText,
-            hasError: !!providerResult.error,
-            errorDetails: providerResult.error,
-            messageId: providerResult.id,
-        });
+        this.logger.log(`Gmail API response sent=${sent} status=${responseStatus} statusText=${responseStatusText} messageId=${providerResult.id}`);
         const outbound = await this.prisma.outboundEmail.create({
             data: {
                 tenant_id: tenantId,
@@ -1048,19 +992,10 @@ let EmailService = class EmailService {
         });
         if (!sent) {
             const errorMessage = `Failed to send email via Gmail: ${JSON.stringify(providerResult)}`;
-            console.error('[EmailService] Email send failed', {
-                outboundId: outbound.id,
-                error: providerResult,
-                status: responseStatus,
-                statusText: responseStatusText,
-            });
+            this.logger.error(`Email send failed outboundId=${outbound.id} status=${responseStatus} statusText=${responseStatusText}`);
             throw new common_1.BadRequestException(errorMessage);
         }
-        console.log('[EmailService] ✓ Email sent successfully', {
-            outboundId: outbound.id,
-            messageId: providerResult.id,
-            to: data.to,
-        });
+        this.logger.log(`✓ Email sent successfully outboundId=${outbound.id} messageId=${providerResult.id} to=${data.to?.join(',')}`);
         return {
             success: true,
             outbound_id: outbound.id,
@@ -1069,7 +1004,7 @@ let EmailService = class EmailService {
     }
 };
 exports.EmailService = EmailService;
-exports.EmailService = EmailService = __decorate([
+exports.EmailService = EmailService = EmailService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService])
 ], EmailService);

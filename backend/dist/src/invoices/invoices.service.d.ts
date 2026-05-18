@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { PaginationParams, PaginatedResult } from '../common/utils/pagination.util';
 export declare class InvoicesService {
     private readonly prisma;
     constructor(prisma: PrismaService);
@@ -10,13 +11,19 @@ export declare class InvoicesService {
         date?: string;
     }): Promise<{
         payments: {
+            notes: string | null;
             method: string | null;
             id: string;
             created_at: Date;
+            updated_at: Date;
             tenant_id: string;
+            status: string;
+            deleted_at: Date | null;
             external_id: string | null;
             invoice_id: string;
-            amount: number;
+            amount: Prisma.Decimal;
+            payment_method: string | null;
+            reference_number: string | null;
             processed_at: Date | null;
         }[];
         quotation: {
@@ -26,19 +33,24 @@ export declare class InvoicesService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
+            total: Prisma.Decimal;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            date: string;
-            valid_until: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            valid_until: Date | null;
+            subtotal: Prisma.Decimal;
+            tax: Prisma.Decimal;
             terms_conditions: string | null;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
+            approval_status: string;
+            approved_by: string | null;
+            approved_at: Date | null;
+            rejection_reason: string | null;
         } | null;
     } & {
         number: string;
@@ -47,84 +59,41 @@ export declare class InvoicesService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         currency: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
         quotation_id: string | null;
-        due_date: string | null;
-        paid_amount: number;
+        due_date: Date | null;
+        payment_status: string;
+        paid_amount: Prisma.Decimal;
     }>;
-    list(tenantId: string, status?: string): Promise<({
-        payments: {
-            method: string | null;
-            id: string;
-            created_at: Date;
-            tenant_id: string;
-            external_id: string | null;
-            invoice_id: string;
-            amount: number;
-            processed_at: Date | null;
-        }[];
-        quotation: {
-            number: string;
-            id: string;
-            created_at: Date;
-            updated_at: Date;
-            tenant_id: string;
-            status: string;
-            client_id: string;
-            display_name: string | null;
-            search_tokens: Prisma.JsonValue | null;
-            date: string;
-            valid_until: string;
-            subtotal: number;
-            tax: number;
-            total: number;
-            terms_conditions: string | null;
-            conversation_id: string | null;
-            sent_email_subject: string | null;
-            sent_email_body: string | null;
-            sent_at: Date | null;
-        } | null;
-    } & {
-        number: string;
-        id: string;
-        created_at: Date;
-        updated_at: Date;
-        tenant_id: string;
-        status: string;
-        currency: string;
-        display_name: string | null;
-        search_tokens: Prisma.JsonValue | null;
-        date: string;
-        subtotal: number;
-        tax: number;
-        total: number;
-        conversation_id: string | null;
-        sent_email_subject: string | null;
-        sent_email_body: string | null;
-        sent_at: Date | null;
-        quotation_id: string | null;
-        due_date: string | null;
-        paid_amount: number;
-    })[]>;
+    list(tenantId: string, params: PaginationParams & {
+        status?: string;
+    }): Promise<PaginatedResult<any>>;
     get(tenantId: string, id: string): Promise<{
         payments: {
+            notes: string | null;
             method: string | null;
             id: string;
             created_at: Date;
+            updated_at: Date;
             tenant_id: string;
+            status: string;
+            deleted_at: Date | null;
             external_id: string | null;
             invoice_id: string;
-            amount: number;
+            amount: Prisma.Decimal;
+            payment_method: string | null;
+            reference_number: string | null;
             processed_at: Date | null;
         }[];
         quotation: {
@@ -134,19 +103,24 @@ export declare class InvoicesService {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
+            total: Prisma.Decimal;
             display_name: string | null;
             search_tokens: Prisma.JsonValue | null;
-            date: string;
-            valid_until: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            valid_until: Date | null;
+            subtotal: Prisma.Decimal;
+            tax: Prisma.Decimal;
             terms_conditions: string | null;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
+            approval_status: string;
+            approved_by: string | null;
+            approved_at: Date | null;
+            rejection_reason: string | null;
         } | null;
     } & {
         number: string;
@@ -155,20 +129,22 @@ export declare class InvoicesService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         currency: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
         quotation_id: string | null;
-        due_date: string | null;
-        paid_amount: number;
+        due_date: Date | null;
+        payment_status: string;
+        paid_amount: Prisma.Decimal;
     }>;
     recordPayment(tenantId: string, invoiceId: string, payload: {
         amount: number;
@@ -176,29 +152,36 @@ export declare class InvoicesService {
         external_id?: string;
         processed_at?: string;
     }): Promise<{
+        notes: string | null;
         method: string | null;
         id: string;
         created_at: Date;
+        updated_at: Date;
         tenant_id: string;
+        status: string;
+        deleted_at: Date | null;
         external_id: string | null;
         invoice_id: string;
-        amount: number;
+        amount: Prisma.Decimal;
+        payment_method: string | null;
+        reference_number: string | null;
         processed_at: Date | null;
     }>;
     getRelatedQuotation(tenantId: string, invoiceId: string): Promise<({
         items: {
             product_name: string;
-            quantity: number;
+            quantity: Prisma.Decimal;
             unit: string;
             notes: string | null;
             id: string;
-            total: number;
+            deleted_at: Date | null;
+            total: Prisma.Decimal;
             quotation_id: string;
             product_id: string;
-            unit_price: number;
-            tax_percent: number;
+            unit_price: Prisma.Decimal;
+            tax_percent: Prisma.Decimal;
             availability: string | null;
-            available_quantity: number | null;
+            available_quantity: Prisma.Decimal | null;
         }[];
         client: {
             name: string;
@@ -207,6 +190,7 @@ export declare class InvoicesService {
             updated_at: Date;
             email: string;
             tenant_id: string;
+            deleted_at: Date | null;
             state: string | null;
             tier: string;
             type: string;
@@ -217,7 +201,7 @@ export declare class InvoicesService {
             gst: string | null;
             pan: string | null;
             total_orders: number;
-            total_value: number;
+            total_value: Prisma.Decimal;
             last_order_date: Date | null;
         };
     } & {
@@ -227,19 +211,24 @@ export declare class InvoicesService {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
+        total: Prisma.Decimal;
         display_name: string | null;
         search_tokens: Prisma.JsonValue | null;
-        date: string;
-        valid_until: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        valid_until: Date | null;
+        subtotal: Prisma.Decimal;
+        tax: Prisma.Decimal;
         terms_conditions: string | null;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
+        approval_status: string;
+        approved_by: string | null;
+        approved_at: Date | null;
+        rejection_reason: string | null;
     }) | null>;
     getRelatedPurchaseOrders(tenantId: string, invoiceId: string): Promise<({
         quotation: {

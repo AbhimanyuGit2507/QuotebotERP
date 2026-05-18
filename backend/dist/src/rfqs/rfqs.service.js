@@ -8,15 +8,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var RfqsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RfqsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma.service");
 const export_util_1 = require("../common/utils/export.util");
 const email_service_1 = require("../email/email.service");
-let RfqsService = class RfqsService {
+const pagination_util_1 = require("../common/utils/pagination.util");
+let RfqsService = RfqsService_1 = class RfqsService {
     prisma;
     emailService;
+    logger = new common_1.Logger(RfqsService_1.name);
     constructor(prisma, emailService) {
         this.prisma = prisma;
         this.emailService = emailService;
@@ -84,7 +87,7 @@ let RfqsService = class RfqsService {
             });
         }
         catch (error) {
-            console.warn('ParseRun logging skipped:', error.message);
+            this.logger.warn(`ParseRun logging skipped: ${error.message}`);
         }
     }
     looksLikeConversationText(value) {
@@ -312,29 +315,47 @@ let RfqsService = class RfqsService {
         };
     }
     async findAll(tenantId, query) {
+        const { skip, take, page, pageSize } = (0, pagination_util_1.parsePaginationParams)(query);
         const { search, status, channel, limit } = query;
-        return this.prisma.rFQ.findMany({
-            where: {
-                tenant_id: tenantId,
-                ...(search
-                    ? {
-                        OR: [
-                            { number: { contains: search, mode: 'insensitive' } },
-                            { client: { name: { contains: search, mode: 'insensitive' } } },
-                        ],
-                    }
-                    : {}),
-                ...(status ? { status } : {}),
-                ...(channel ? { channel } : {}),
+        const where = {
+            tenant_id: tenantId,
+            deleted_at: null,
+            ...(search
+                ? {
+                    OR: [
+                        { number: { contains: search, mode: 'insensitive' } },
+                        { display_name: { contains: search, mode: 'insensitive' } },
+                        { client: { name: { contains: search, mode: 'insensitive' } } },
+                    ],
+                }
+                : {}),
+            ...(status ? { status } : {}),
+            ...(channel ? { channel } : {}),
+        };
+        const effectiveTake = limit ? Math.min(limit, take) : take;
+        const [data, total] = await Promise.all([
+            this.prisma.rFQ.findMany({
+                where,
+                include: { client: true, items: true, quotation: true },
+                orderBy: { [query.sortBy || 'created_at']: query.sortOrder || 'desc' },
+                skip,
+                take: effectiveTake,
+            }),
+            this.prisma.rFQ.count({ where }),
+        ]);
+        return {
+            data,
+            meta: {
+                total,
+                page,
+                pageSize: effectiveTake,
+                totalPages: Math.ceil(total / effectiveTake),
             },
-            include: { client: true, items: true, quotation: true },
-            orderBy: { created_at: 'desc' },
-            ...(limit ? { take: limit } : {}),
-        });
+        };
     }
     async findOne(id, tenantId) {
         const rfq = await this.prisma.rFQ.findFirst({
-            where: { id, tenant_id: tenantId },
+            where: { id, tenant_id: tenantId, deleted_at: null },
             include: { client: true, items: true, quotation: true },
         });
         if (!rfq) {
@@ -607,7 +628,7 @@ let RfqsService = class RfqsService {
             });
         }
         catch (err) {
-            console.warn('Failed to update source message payload:', err.message);
+            this.logger.warn(`Failed to update source message payload: ${err.message}`);
         }
         await this.recordParseRun({
             tenantId,
@@ -670,15 +691,16 @@ let RfqsService = class RfqsService {
         }
         if (linkedQuotationId && options?.forceDeleteLinkedQuotation) {
             try {
-                await this.prisma.quotation.delete({
+                await this.prisma.quotation.update({
                     where: { id: linkedQuotationId },
+                    data: { deleted_at: new Date() },
                 });
             }
             catch (err) {
-                console.warn('Failed to delete linked quotation:', err.message);
+                this.logger.warn(`Failed to soft-delete linked quotation: ${err.message}`);
             }
         }
-        await this.prisma.rFQ.delete({ where: { id } });
+        await this.prisma.rFQ.update({ where: { id }, data: { deleted_at: new Date() } });
         return { message: 'RFQ deleted successfully' };
     }
     async updateStatus(id, tenantId, status) {
@@ -769,10 +791,11 @@ let RfqsService = class RfqsService {
         const productMap = new Map(products.map((product) => [product.id, product]));
         const quotationItems = rfq.items.map((item) => {
             const matchedProduct = productMap.get(item.product_id);
-            const unitPrice = matchedProduct?.price ?? 0;
-            const taxPercent = matchedProduct?.gst_percent ?? 18;
+            const unitPrice = Number(matchedProduct?.price ?? 0);
+            const taxPercent = Number(matchedProduct?.gst_percent ?? 18);
             const availableStock = matchedProduct?.stock ?? 0;
-            const lineSubtotal = item.quantity * unitPrice;
+            const qty = Number(item.quantity);
+            const lineSubtotal = qty * unitPrice;
             const lineTax = (lineSubtotal * taxPercent) / 100;
             const lineTotal = lineSubtotal + lineTax;
             let availability = undefined;
@@ -781,7 +804,7 @@ let RfqsService = class RfqsService {
                 availability = 'out_of_stock';
                 available_quantity = 0;
             }
-            else if (item.quantity > availableStock) {
+            else if (qty > availableStock) {
                 availability = 'insufficient_stock';
                 available_quantity = availableStock;
             }
@@ -792,7 +815,7 @@ let RfqsService = class RfqsService {
             return {
                 product_id: item.product_id,
                 product_name: item.product_name,
-                quantity: item.quantity,
+                quantity: qty,
                 unit: item.unit,
                 unit_price: unitPrice,
                 tax_percent: taxPercent,
@@ -820,10 +843,8 @@ let RfqsService = class RfqsService {
                 client_id: rfq.client_id,
                 display_name: this.buildDisplayAndTokens('QT', rfq.client?.name || '', rfq.items.map((i) => i.product_name)).display,
                 search_tokens: this.buildDisplayAndTokens('QT', rfq.client?.name || '', rfq.items.map((i) => i.product_name)).tokens,
-                date: new Date().toISOString().split('T')[0],
-                valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-                    .toISOString()
-                    .split('T')[0],
+                date: new Date(),
+                valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                 status: 'draft',
                 terms_conditions: quotationTermsConditions,
                 subtotal,
@@ -856,8 +877,8 @@ let RfqsService = class RfqsService {
         });
     }
     async exportCsv(tenantId, query) {
-        const rfqs = await this.findAll(tenantId, query);
-        return (0, export_util_1.recordsToCsv)(rfqs.map((rfq) => ({
+        const result = await this.findAll(tenantId, { ...query, pageSize: 10000 });
+        return (0, export_util_1.recordsToCsv)(result.data.map((rfq) => ({
             number: rfq.number,
             client: rfq.client.name,
             channel: rfq.channel,
@@ -871,7 +892,7 @@ let RfqsService = class RfqsService {
     }
 };
 exports.RfqsService = RfqsService;
-exports.RfqsService = RfqsService = __decorate([
+exports.RfqsService = RfqsService = RfqsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         email_service_1.EmailService])

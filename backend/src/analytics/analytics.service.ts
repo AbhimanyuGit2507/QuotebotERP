@@ -58,11 +58,11 @@ export class AnalyticsService {
         ? (accepted / quotations.length) * 100
         : 0,
       totalValue: quotations.reduce(
-        (sum, quotation) => sum + quotation.total,
+        (sum, quotation) => sum + Number(quotation.total),
         0,
       ),
       averageValue:
-        quotations.reduce((sum, quotation) => sum + quotation.total, 0) /
+        quotations.reduce((sum, quotation) => sum + Number(quotation.total), 0) /
         (quotations.length || 1),
     };
   }

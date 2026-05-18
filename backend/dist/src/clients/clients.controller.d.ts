@@ -7,41 +7,23 @@ import { UpdateClientTierDto } from './dtos/update-client-tier.dto';
 export declare class ClientsController {
     private readonly clientsService;
     constructor(clientsService: ClientsService);
-    findAll(user: AuthenticatedUser, search?: string, tier?: string): Promise<{
-        name: string;
-        id: string;
-        created_at: Date;
-        updated_at: Date;
-        email: string;
-        tenant_id: string;
-        state: string | null;
-        tier: string;
-        type: string;
-        phone: string | null;
-        website: string | null;
-        address: string | null;
-        city: string | null;
-        gst: string | null;
-        pan: string | null;
-        total_orders: number;
-        total_value: number;
-        last_order_date: Date | null;
-    }[]>;
+    findAll(user: AuthenticatedUser, search?: string, tier?: string, page?: string, pageSize?: string, sortBy?: string, sortOrder?: string): Promise<import("../common/utils/pagination.util").PaginatedResult<any>>;
     exportCsv(user: AuthenticatedUser, search: string | undefined, tier: string | undefined, res: Response): Promise<Response<any, Record<string, any>>>;
     transactions(id: string, user: AuthenticatedUser): Promise<({
         items: {
             product_name: string;
-            quantity: number;
+            quantity: import("@prisma/client-runtime-utils").Decimal;
             unit: string;
             notes: string | null;
             id: string;
-            total: number;
+            deleted_at: Date | null;
+            total: import("@prisma/client-runtime-utils").Decimal;
             quotation_id: string;
             product_id: string;
-            unit_price: number;
-            tax_percent: number;
+            unit_price: import("@prisma/client-runtime-utils").Decimal;
+            tax_percent: import("@prisma/client-runtime-utils").Decimal;
             availability: string | null;
-            available_quantity: number | null;
+            available_quantity: import("@prisma/client-runtime-utils").Decimal | null;
         }[];
     } & {
         number: string;
@@ -50,19 +32,24 @@ export declare class ClientsController {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         client_id: string;
+        total: import("@prisma/client-runtime-utils").Decimal;
         display_name: string | null;
         search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
-        date: string;
-        valid_until: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        valid_until: Date | null;
+        subtotal: import("@prisma/client-runtime-utils").Decimal;
+        tax: import("@prisma/client-runtime-utils").Decimal;
         terms_conditions: string | null;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
+        approval_status: string;
+        approved_by: string | null;
+        approved_at: Date | null;
+        rejection_reason: string | null;
     })[]>;
     updateTier(id: string, user: AuthenticatedUser, body: UpdateClientTierDto): Promise<{
         name: string;
@@ -71,6 +58,7 @@ export declare class ClientsController {
         updated_at: Date;
         email: string;
         tenant_id: string;
+        deleted_at: Date | null;
         state: string | null;
         tier: string;
         type: string;
@@ -81,7 +69,7 @@ export declare class ClientsController {
         gst: string | null;
         pan: string | null;
         total_orders: number;
-        total_value: number;
+        total_value: import("@prisma/client-runtime-utils").Decimal;
         last_order_date: Date | null;
     }>;
     findOne(id: string, user: AuthenticatedUser): Promise<{
@@ -91,6 +79,7 @@ export declare class ClientsController {
         updated_at: Date;
         email: string;
         tenant_id: string;
+        deleted_at: Date | null;
         state: string | null;
         tier: string;
         type: string;
@@ -101,7 +90,7 @@ export declare class ClientsController {
         gst: string | null;
         pan: string | null;
         total_orders: number;
-        total_value: number;
+        total_value: import("@prisma/client-runtime-utils").Decimal;
         last_order_date: Date | null;
     }>;
     create(user: AuthenticatedUser, body: CreateClientDto): Promise<{
@@ -111,6 +100,7 @@ export declare class ClientsController {
         updated_at: Date;
         email: string;
         tenant_id: string;
+        deleted_at: Date | null;
         state: string | null;
         tier: string;
         type: string;
@@ -121,7 +111,7 @@ export declare class ClientsController {
         gst: string | null;
         pan: string | null;
         total_orders: number;
-        total_value: number;
+        total_value: import("@prisma/client-runtime-utils").Decimal;
         last_order_date: Date | null;
     }>;
     update(id: string, user: AuthenticatedUser, body: UpdateClientDto): Promise<{
@@ -131,6 +121,7 @@ export declare class ClientsController {
         updated_at: Date;
         email: string;
         tenant_id: string;
+        deleted_at: Date | null;
         state: string | null;
         tier: string;
         type: string;
@@ -141,7 +132,7 @@ export declare class ClientsController {
         gst: string | null;
         pan: string | null;
         total_orders: number;
-        total_value: number;
+        total_value: import("@prisma/client-runtime-utils").Decimal;
         last_order_date: Date | null;
     }>;
     remove(id: string, user: AuthenticatedUser): Promise<{

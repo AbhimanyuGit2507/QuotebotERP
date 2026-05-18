@@ -101,7 +101,8 @@ export class PoMatcherService {
       }
 
       // amount match: extract numeric amounts from message and compare with quotation.total
-      if (quotation?.total) {
+      const quotationTotal = Number(quotation?.total || 0);
+      if (quotationTotal > 0) {
         const numbers = Array.from(
           String(messageBody || '').matchAll(
             /\b(\d{1,3}(?:[,\d]{0,}|)\.?\d{0,2})\b/g,
@@ -112,9 +113,8 @@ export class PoMatcherService {
         if (numbers.length > 0) {
           // take largest number as candidate
           const candidate = Math.max(...numbers);
-          const diff = Math.abs(candidate - (quotation.total || 0));
-          const rel =
-            (quotation.total || 1) > 0 ? diff / (quotation.total || 1) : 1;
+          const diff = Math.abs(candidate - quotationTotal);
+          const rel = quotationTotal > 0 ? diff / quotationTotal : 1;
           amountMatch = rel <= 0.02 ? 1 : rel <= 0.1 ? 0.6 : 0;
         }
       }

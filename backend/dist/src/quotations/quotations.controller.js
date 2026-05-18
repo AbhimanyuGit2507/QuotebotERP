@@ -26,8 +26,15 @@ let QuotationsController = class QuotationsController {
     constructor(quotationsService) {
         this.quotationsService = quotationsService;
     }
-    findAll(user, query) {
-        return this.quotationsService.findAll(user.tenant_id, query);
+    findAll(user, query, page, pageSize, sortBy, sortOrder) {
+        return this.quotationsService.findAll(user.tenant_id, {
+            search: query.search,
+            status: query.status,
+            page: page ? Number(page) : undefined,
+            pageSize: pageSize ? Number(pageSize) : undefined,
+            sortBy,
+            sortOrder: sortOrder,
+        });
     }
     async exportCsv(user, query, res) {
         const csv = await this.quotationsService.exportCsv(user.tenant_id, query);
@@ -81,8 +88,12 @@ __decorate([
     (0, common_1.Get)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Query)('page')),
+    __param(3, (0, common_1.Query)('pageSize')),
+    __param(4, (0, common_1.Query)('sortBy')),
+    __param(5, (0, common_1.Query)('sortOrder')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, quotations_query_dto_1.QuotationsQueryDto]),
+    __metadata("design:paramtypes", [Object, quotations_query_dto_1.QuotationsQueryDto, String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], QuotationsController.prototype, "findAll", null);
 __decorate([

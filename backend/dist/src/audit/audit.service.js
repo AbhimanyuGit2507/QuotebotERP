@@ -12,17 +12,34 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuditService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma.service");
+const pagination_util_1 = require("../common/utils/pagination.util");
 let AuditService = class AuditService {
     prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async findAll(tenantId) {
-        return this.prisma.auditLog.findMany({
-            where: { tenant_id: tenantId },
-            include: { user: true },
-            orderBy: { created_at: 'desc' },
-        });
+    async findAll(tenantId, params = {}) {
+        const { skip, take, page, pageSize } = (0, pagination_util_1.parsePaginationParams)(params);
+        const where = { tenant_id: tenantId };
+        const [data, total] = await Promise.all([
+            this.prisma.auditLog.findMany({
+                where,
+                include: { user: true },
+                orderBy: { created_at: 'desc' },
+                skip,
+                take,
+            }),
+            this.prisma.auditLog.count({ where }),
+        ]);
+        return {
+            data,
+            meta: {
+                total,
+                page,
+                pageSize,
+                totalPages: Math.ceil(total / pageSize),
+            },
+        };
     }
     async findByEntity(tenantId, entityType, entityId) {
         return this.prisma.auditLog.findMany({

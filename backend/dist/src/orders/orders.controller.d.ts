@@ -6,13 +6,19 @@ export declare class OrdersController {
     findAll(req: any, status?: string): Promise<({
         invoice: ({
             payments: {
+                notes: string | null;
                 method: string | null;
                 id: string;
                 created_at: Date;
+                updated_at: Date;
                 tenant_id: string;
+                status: string;
+                deleted_at: Date | null;
                 external_id: string | null;
                 invoice_id: string;
-                amount: number;
+                amount: import("@prisma/client-runtime-utils").Decimal;
+                payment_method: string | null;
+                reference_number: string | null;
                 processed_at: Date | null;
             }[];
         } & {
@@ -22,35 +28,38 @@ export declare class OrdersController {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             currency: string;
+            total: import("@prisma/client-runtime-utils").Decimal;
             display_name: string | null;
             search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
-            date: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            subtotal: import("@prisma/client-runtime-utils").Decimal;
+            tax: import("@prisma/client-runtime-utils").Decimal;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
             quotation_id: string | null;
-            due_date: string | null;
-            paid_amount: number;
+            due_date: Date | null;
+            payment_status: string;
+            paid_amount: import("@prisma/client-runtime-utils").Decimal;
         }) | null;
         quotation: ({
             items: {
                 product_name: string;
-                quantity: number;
+                quantity: import("@prisma/client-runtime-utils").Decimal;
                 unit: string;
                 notes: string | null;
                 id: string;
-                total: number;
+                deleted_at: Date | null;
+                total: import("@prisma/client-runtime-utils").Decimal;
                 quotation_id: string;
                 product_id: string;
-                unit_price: number;
-                tax_percent: number;
+                unit_price: import("@prisma/client-runtime-utils").Decimal;
+                tax_percent: import("@prisma/client-runtime-utils").Decimal;
                 availability: string | null;
-                available_quantity: number | null;
+                available_quantity: import("@prisma/client-runtime-utils").Decimal | null;
             }[];
         } & {
             number: string;
@@ -59,19 +68,24 @@ export declare class OrdersController {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
+            total: import("@prisma/client-runtime-utils").Decimal;
             display_name: string | null;
             search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
-            date: string;
-            valid_until: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            valid_until: Date | null;
+            subtotal: import("@prisma/client-runtime-utils").Decimal;
+            tax: import("@prisma/client-runtime-utils").Decimal;
             terms_conditions: string | null;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
+            approval_status: string;
+            approved_by: string | null;
+            approved_at: Date | null;
+            rejection_reason: string | null;
         }) | null;
         conversation: {
             client: {
@@ -81,6 +95,7 @@ export declare class OrdersController {
                 updated_at: Date;
                 email: string;
                 tenant_id: string;
+                deleted_at: Date | null;
                 state: string | null;
                 tier: string;
                 type: string;
@@ -91,7 +106,7 @@ export declare class OrdersController {
                 gst: string | null;
                 pan: string | null;
                 total_orders: number;
-                total_value: number;
+                total_value: import("@prisma/client-runtime-utils").Decimal;
                 last_order_date: Date | null;
             };
         } & {
@@ -133,13 +148,19 @@ export declare class OrdersController {
     findOne(req: any, id: string): Promise<{
         invoice: ({
             payments: {
+                notes: string | null;
                 method: string | null;
                 id: string;
                 created_at: Date;
+                updated_at: Date;
                 tenant_id: string;
+                status: string;
+                deleted_at: Date | null;
                 external_id: string | null;
                 invoice_id: string;
-                amount: number;
+                amount: import("@prisma/client-runtime-utils").Decimal;
+                payment_method: string | null;
+                reference_number: string | null;
                 processed_at: Date | null;
             }[];
         } & {
@@ -149,35 +170,38 @@ export declare class OrdersController {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             currency: string;
+            total: import("@prisma/client-runtime-utils").Decimal;
             display_name: string | null;
             search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
-            date: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            subtotal: import("@prisma/client-runtime-utils").Decimal;
+            tax: import("@prisma/client-runtime-utils").Decimal;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
             quotation_id: string | null;
-            due_date: string | null;
-            paid_amount: number;
+            due_date: Date | null;
+            payment_status: string;
+            paid_amount: import("@prisma/client-runtime-utils").Decimal;
         }) | null;
         quotation: ({
             items: {
                 product_name: string;
-                quantity: number;
+                quantity: import("@prisma/client-runtime-utils").Decimal;
                 unit: string;
                 notes: string | null;
                 id: string;
-                total: number;
+                deleted_at: Date | null;
+                total: import("@prisma/client-runtime-utils").Decimal;
                 quotation_id: string;
                 product_id: string;
-                unit_price: number;
-                tax_percent: number;
+                unit_price: import("@prisma/client-runtime-utils").Decimal;
+                tax_percent: import("@prisma/client-runtime-utils").Decimal;
                 availability: string | null;
-                available_quantity: number | null;
+                available_quantity: import("@prisma/client-runtime-utils").Decimal | null;
             }[];
         } & {
             number: string;
@@ -186,19 +210,24 @@ export declare class OrdersController {
             updated_at: Date;
             tenant_id: string;
             status: string;
+            deleted_at: Date | null;
             client_id: string;
+            total: import("@prisma/client-runtime-utils").Decimal;
             display_name: string | null;
             search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
-            date: string;
-            valid_until: string;
-            subtotal: number;
-            tax: number;
-            total: number;
+            date: Date;
+            valid_until: Date | null;
+            subtotal: import("@prisma/client-runtime-utils").Decimal;
+            tax: import("@prisma/client-runtime-utils").Decimal;
             terms_conditions: string | null;
             conversation_id: string | null;
             sent_email_subject: string | null;
             sent_email_body: string | null;
             sent_at: Date | null;
+            approval_status: string;
+            approved_by: string | null;
+            approved_at: Date | null;
+            rejection_reason: string | null;
         }) | null;
         conversation: {
             messages: {
@@ -238,6 +267,7 @@ export declare class OrdersController {
                 updated_at: Date;
                 email: string;
                 tenant_id: string;
+                deleted_at: Date | null;
                 state: string | null;
                 tier: string;
                 type: string;
@@ -248,7 +278,7 @@ export declare class OrdersController {
                 gst: string | null;
                 pan: string | null;
                 total_orders: number;
-                total_value: number;
+                total_value: import("@prisma/client-runtime-utils").Decimal;
                 last_order_date: Date | null;
             };
         } & {
@@ -312,20 +342,22 @@ export declare class OrdersController {
         updated_at: Date;
         tenant_id: string;
         status: string;
+        deleted_at: Date | null;
         currency: string;
+        total: import("@prisma/client-runtime-utils").Decimal;
         display_name: string | null;
         search_tokens: import("@prisma/client/runtime/client").JsonValue | null;
-        date: string;
-        subtotal: number;
-        tax: number;
-        total: number;
+        date: Date;
+        subtotal: import("@prisma/client-runtime-utils").Decimal;
+        tax: import("@prisma/client-runtime-utils").Decimal;
         conversation_id: string | null;
         sent_email_subject: string | null;
         sent_email_body: string | null;
         sent_at: Date | null;
         quotation_id: string | null;
-        due_date: string | null;
-        paid_amount: number;
+        due_date: Date | null;
+        payment_status: string;
+        paid_amount: import("@prisma/client-runtime-utils").Decimal;
     }>;
     markInvoiceSent(req: any, id: string): Promise<{
         confidence: number | null;
@@ -348,13 +380,19 @@ export declare class OrdersController {
         method?: string;
         external_id?: string;
     }): Promise<{
+        notes: string | null;
         method: string | null;
         id: string;
         created_at: Date;
+        updated_at: Date;
         tenant_id: string;
+        status: string;
+        deleted_at: Date | null;
         external_id: string | null;
         invoice_id: string;
-        amount: number;
+        amount: import("@prisma/client-runtime-utils").Decimal;
+        payment_method: string | null;
+        reference_number: string | null;
         processed_at: Date | null;
     }>;
     markCompleted(req: any, id: string): Promise<{

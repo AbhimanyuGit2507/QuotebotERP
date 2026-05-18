@@ -30,8 +30,19 @@ export class QuotationsController {
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: QuotationsQueryDto,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
   ) {
-    return this.quotationsService.findAll(user.tenant_id, query);
+    return this.quotationsService.findAll(user.tenant_id, {
+      search: query.search,
+      status: query.status,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
+    });
   }
 
   @Get('export/csv')

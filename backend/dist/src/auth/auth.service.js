@@ -90,6 +90,9 @@ let AuthService = class AuthService {
         if (!tenant) {
             throw new common_1.BadRequestException('Invalid tenant ID');
         }
+        if (!tenant.allow_public_registration) {
+            throw new common_1.BadRequestException('Public registration is disabled for this tenant');
+        }
         const userRole = await this.prisma.role.findUnique({
             where: { name: 'user' },
         });

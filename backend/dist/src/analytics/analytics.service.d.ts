@@ -3,8 +3,8 @@ export declare class AnalyticsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     salesTrends(tenantId: string): Promise<{
-        date: string;
-        total: number;
+        date: Date;
+        total: import("@prisma/client-runtime-utils").Decimal;
         status: string;
     }[]>;
     rfqAnalysis(tenantId: string): Promise<{
@@ -27,7 +27,7 @@ export declare class AnalyticsService {
         category: string;
         quoteCount: number;
         stock: number;
-        price: number;
+        price: import("@prisma/client-runtime-utils").Decimal;
     }[]>;
     clientInsights(tenantId: string): Promise<{
         name: string;
@@ -36,6 +36,7 @@ export declare class AnalyticsService {
         updated_at: Date;
         email: string;
         tenant_id: string;
+        deleted_at: Date | null;
         state: string | null;
         tier: string;
         type: string;
@@ -46,7 +47,7 @@ export declare class AnalyticsService {
         gst: string | null;
         pan: string | null;
         total_orders: number;
-        total_value: number;
+        total_value: import("@prisma/client-runtime-utils").Decimal;
         last_order_date: Date | null;
     }[]>;
     channelBreakdown(tenantId: string): Promise<Record<string, number>>;

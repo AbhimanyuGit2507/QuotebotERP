@@ -52,6 +52,15 @@ jobs:
           npx prisma migrate deploy
           npm run db:seed || true
 
+      - name: Lint backend
+        run: cd backend && npx eslint src/ --max-warnings 0 || true
+
+      - name: Build frontend
+        run: cd frontend && CI=true npm install --legacy-peer-deps && npm run build
+
+      - name: Security audit
+        run: cd backend && npm audit --audit-level=high || true
+
       - name: Build backend
         run: cd backend && npm run build
 
