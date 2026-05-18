@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import PageLayout from '../components/common/PageLayout';
-import { apiRequest } from '../services/api';
+import { apiRequest, unwrapPaginated } from '../services/api';
 import { useApp } from '../context/AppContext';
-import { useAuth } from '../context/AuthContext';
 
 type Payment = {
   id: string;
@@ -44,7 +43,6 @@ const formatMoney = (amount: number, currency: string) =>
 
 const Invoices: React.FC = () => {
   const { showToast, companySettings, quotes, clients, addClient } = useApp();
-  const { authFetch } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -117,19 +115,12 @@ const Invoices: React.FC = () => {
     setLoadingRelated(true);
     try {
       const [quotationResponse, posResponse] = await Promise.all([
-        authFetch(`/invoices/${invoiceId}/quotation`),
-        authFetch(`/invoices/${invoiceId}/purchase-orders`),
+        apiRequest<any>(`/invoices/${invoiceId}/quotation`),
+        apiRequest<any[]>(`/invoices/${invoiceId}/purchase-orders`),
       ]);
-      
-      if (quotationResponse.ok) {
-        const quotation = await quotationResponse.json();
-        setRelatedQuotation(quotation);
-      }
-      
-      if (posResponse.ok) {
-        const pos = await posResponse.json();
-        setRelatedPOs(pos);
-      }
+
+      setRelatedQuotation(quotationResponse);
+      setRelatedPOs(unwrapPaginated(posResponse));
     } catch (error) {
       console.error('Error fetching related entities:', error);
     } finally {
@@ -140,8 +131,8 @@ const Invoices: React.FC = () => {
   const loadInvoices = useCallback(async () => {
     try {
       const query = statusFilter !== 'all' ? `?status=${statusFilter}` : '';
-      const data = await apiRequest<Invoice[]>(`/invoices${query}`);
-      setInvoices(data || []);
+      const response = await apiRequest<Invoice[] | { data: Invoice[]; meta: unknown }>(`/invoices${query}`);
+      setInvoices(unwrapPaginated(response));
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to load invoices', 'error');
     }

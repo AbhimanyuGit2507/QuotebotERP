@@ -10,7 +10,7 @@ FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 EXTRA_BACKEND_PORT="${EXTRA_BACKEND_PORT:-3002}"
 
 API_BASE_URL="${API_BASE_URL:-http://localhost:${BACKEND_PORT}/api}"
-ENABLE_SYNC_SCHEDULER="${ENABLE_SYNC_SCHEDULER:-true}"
+ENABLE_SYNC_SCHEDULER="${ENABLE_SYNC_SCHEDULER:-false}"
 FOLLOW_LOGS="${FOLLOW_LOGS:-true}"
 
 mkdir -p "$LOG_DIR"
@@ -132,9 +132,9 @@ open_frontend() {
 
 start_all() {
   start_backend
-  start_frontend
-
   wait_for_port "$BACKEND_PORT" "backend" 50 || true
+
+  start_frontend
   if [[ "$ENABLE_SYNC_SCHEDULER" == "true" ]]; then
     sleep 2 && start_sync_scheduler
   else
@@ -173,7 +173,7 @@ Commands:
 Environment overrides:
   BACKEND_PORT, FRONTEND_PORT, EXTRA_BACKEND_PORT
   API_BASE_URL
-  ENABLE_SYNC_SCHEDULER=true (optional)
+  ENABLE_SYNC_SCHEDULER=false (optional)
   FOLLOW_LOGS=true (stream logs after start)
 EOF
 }

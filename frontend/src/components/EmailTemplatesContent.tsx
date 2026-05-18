@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../services/api';
 
 interface EmailTemplate {
   id: string;
@@ -39,7 +39,6 @@ const TEMPLATE_TYPES = [
 ];
 
 export default function EmailTemplatesContent() {
-  const { authFetch } = useAuth();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [selectedType, setSelectedType] = useState<string>('QUOTATION_EMAIL');
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
@@ -54,15 +53,12 @@ export default function EmailTemplatesContent() {
 
   const fetchTemplates = async () => {
     try {
-      const response = await authFetch('/email-templates');
-      if (response.ok) {
-        const data = await response.json();
-        setTemplates(data);
-        
-        // If no templates exist, initialize defaults
-        if (data.length === 0) {
-          await initializeDefaults();
-        }
+      const data = await apiRequest<EmailTemplate[]>('/email-templates');
+      setTemplates(data);
+
+      // If no templates exist, initialize defaults
+      if (data.length === 0) {
+        await initializeDefaults();
       }
     } catch (error) {
       console.error('Error fetching templates:', error);
@@ -73,10 +69,10 @@ export default function EmailTemplatesContent() {
 
   const initializeDefaults = async () => {
     try {
-      const response = await authFetch('/email-templates/initialize', {
+      const response = await apiRequest('/email-templates/initialize', {
         method: 'POST',
       });
-      if (response.ok) {
+      if (response !== undefined) {
         fetchTemplates();
       }
     } catch (error) {
@@ -100,7 +96,7 @@ export default function EmailTemplatesContent() {
 
     setSaving(true);
     try {
-      const response = await authFetch('/email-templates', {
+      await apiRequest('/email-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -112,12 +108,8 @@ export default function EmailTemplatesContent() {
         }),
       });
 
-      if (response.ok) {
-        await fetchTemplates();
-        setEditingTemplate(null);
-      } else {
-        alert('Failed to save template');
-      }
+      await fetchTemplates();
+      setEditingTemplate(null);
     } catch (error) {
       console.error('Error saving template:', error);
       alert('Error saving template');

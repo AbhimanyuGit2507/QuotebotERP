@@ -8,6 +8,8 @@ import React, {
 } from 'react';
 import {
   apiRequest,
+  getApiBaseUrl,
+  getStoredToken,
 } from '../services/api';
 
 interface AuthUser {
@@ -27,6 +29,7 @@ interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isInitializing: boolean;
+  authFetch: (path: string, options?: RequestInit) => Promise<Response>;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, name: string, password: string, tenantId: string) => Promise<void>;
   setSession: (response: LoginResponse) => void;
@@ -40,6 +43,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+
+  const authFetch = useCallback((path: string, options: RequestInit = {}) => {
+    const headers = new Headers(options.headers || {});
+    headers.set('X-Requested-With', 'XMLHttpRequest');
+
+    const token = getStoredToken();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    if (!headers.has('Content-Type') && options.body && !(options.body instanceof FormData)) {
+      headers.set('Content-Type', 'application/json');
+    }
+
+    return fetch(`${getApiBaseUrl()}${path}`, {
+      ...options,
+      headers,
+      credentials: 'include',
+    });
+  }, []);
 
   const logout = useCallback(() => {
     void apiRequest('/auth/logout', { method: 'POST' }).catch(() => undefined);
@@ -105,12 +128,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       user,
       isAuthenticated: Boolean(user),
       isInitializing,
+      authFetch,
       login,
       signup,
       setSession,
       logout,
     }),
-    [isInitializing, login, signup, setSession, logout, user],
+    [authFetch, isInitializing, login, signup, setSession, logout, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

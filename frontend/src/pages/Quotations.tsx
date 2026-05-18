@@ -2,12 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import PageLayout from '../components/common/PageLayout';
 import { useApp, Quote, QuoteItem } from '../context/AppContext';
-import { apiRequest } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { apiRequest, unwrapPaginated } from '../services/api';
 
 const Quotations: React.FC = () => {
   const { quotes, addQuote, updateQuote, deleteQuote, showConfirmModal, showToast, refreshData, clients, products, rfqs, downloadQuotationPdf, downloadQuotationsCsv, addClient } = useApp();
-  const { authFetch } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
@@ -75,19 +73,12 @@ const Quotations: React.FC = () => {
     setLoadingRelated(true);
     try {
       const [posResponse, invoicesResponse] = await Promise.all([
-        authFetch(`/quotations/${quotationId}/purchase-orders`),
-        authFetch(`/quotations/${quotationId}/invoices`),
+        apiRequest<any[]>(`/quotations/${quotationId}/purchase-orders`),
+        apiRequest<any[]>(`/quotations/${quotationId}/invoices`),
       ]);
-      
-      if (posResponse.ok) {
-        const pos = await posResponse.json();
-        setRelatedPOs(pos);
-      }
-      
-      if (invoicesResponse.ok) {
-        const invoices = await invoicesResponse.json();
-        setRelatedInvoices(invoices);
-      }
+
+      setRelatedPOs(unwrapPaginated(posResponse));
+      setRelatedInvoices(unwrapPaginated(invoicesResponse));
     } catch (error) {
       console.error('Error fetching related entities:', error);
     } finally {
