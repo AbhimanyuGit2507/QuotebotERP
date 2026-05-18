@@ -91,6 +91,18 @@ type RfqDbClient = Pick<
   | 'quotationItem'
 >;
 
+/** Allowed sortable columns for RFQs list */
+const RFQ_SORTABLE_FIELDS = new Set([
+  'created_at',
+  'number',
+  'status',
+  'channel',
+  'priority',
+  'confidence_score',
+  'due_date',
+  'updated_at',
+]);
+
 @Injectable()
 export class RfqsService {
   private readonly logger = new Logger(RfqsService.name);
@@ -247,6 +259,7 @@ export class RfqsService {
       productCandidatesCache = await this.prisma.product.findMany({
         where: {
           tenant_id: tenantId,
+          deleted_at: null,
         },
         select: {
           id: true,
@@ -280,6 +293,7 @@ export class RfqsService {
           where: {
             id: rawItem.product_id,
             tenant_id: tenantId,
+            deleted_at: null,
           },
           select: {
             id: true,
@@ -323,6 +337,7 @@ export class RfqsService {
           where: {
             tenant_id: tenantId,
             name: { equals: productName, mode: 'insensitive' },
+            deleted_at: null,
           },
           select: {
             id: true,
@@ -521,7 +536,10 @@ export class RfqsService {
       this.prisma.rFQ.findMany({
         where,
         include: { client: true, items: true, quotation: true },
-        orderBy: { [query.sortBy || 'created_at']: query.sortOrder || 'desc' },
+        orderBy: {
+          [query.sortBy && RFQ_SORTABLE_FIELDS.has(query.sortBy) ? query.sortBy : 'created_at']:
+            query.sortOrder || 'desc',
+        },
         skip,
         take: effectiveTake,
       }),
@@ -1145,6 +1163,7 @@ export class RfqsService {
           where: {
             tenant_id: tenantId,
             id: { in: productIds },
+            deleted_at: null,
           },
           select: {
             id: true,
@@ -1218,6 +1237,24 @@ export class RfqsService {
     );
     const total = Number((subtotal + tax).toFixed(2));
 
+    // Determine approval status based on configured threshold
+    let approvalStatus = 'not_required';
+    const companySettings = await db.quotation.findFirst({
+      // We can't query settingsCompany directly via the db transaction client
+      // when it only has a subset of models. Use the full prisma client instead.
+      where: { id: 'nonexistent' }, // dummy query to satisfy type
+    }).catch(() => null);
+    // Use main prisma instance for settings lookup (not part of the transaction subset)
+    const settings = await this.prisma.settingsCompany.findUnique({
+      where: { tenant_id: tenantId },
+    });
+    if (
+      settings?.quotation_approval_threshold &&
+      total > Number(settings.quotation_approval_threshold)
+    ) {
+      approvalStatus = 'pending';
+    }
+
     const quotation = await db.quotation.create({
       data: {
         tenant_id: tenantId,
@@ -1236,6 +1273,7 @@ export class RfqsService {
         date: new Date(),
         valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: 'draft',
+        approval_status: approvalStatus,
         terms_conditions: quotationTermsConditions,
         subtotal,
         tax,

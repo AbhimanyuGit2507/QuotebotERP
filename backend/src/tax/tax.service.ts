@@ -121,11 +121,14 @@ export class TaxService {
 
     const rate = Number(taxProfile.rate);
 
-    // Get company GSTIN
+    // Get company GSTIN — prefer the dedicated column, fall back to profile_json.gstin
     const companySettings = await this.prisma.settingsCompany.findUnique({
       where: { tenant_id: tenantId },
     });
-    const companyGstin = companySettings?.company_gstin;
+    const profileJson = companySettings?.profile_json as Record<string, unknown> | null;
+    const companyGstin =
+      companySettings?.company_gstin ||
+      (typeof profileJson?.gstin === 'string' ? profileJson.gstin : null);
 
     // Get client GST if clientId provided
     let clientGst: string | null | undefined = null;

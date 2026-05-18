@@ -11,6 +11,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { EmailService } from './email.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -22,6 +23,7 @@ import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.
  * Note: OAuth callback endpoint is public (called by Google)
  * Other endpoints require JWT authentication
  */
+@SkipThrottle()
 @Controller('email-integrations')
 export class EmailIntegrationsController {
   private readonly logger = new Logger(EmailIntegrationsController.name);

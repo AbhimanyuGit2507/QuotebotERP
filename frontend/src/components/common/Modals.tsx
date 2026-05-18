@@ -409,11 +409,14 @@ export const PromptModal: React.FC<PromptModalProps> = ({
   confirmLabel = 'OK',
 }) => {
   const [value, setValue] = React.useState(defaultValue);
+  const prevIsOpen = React.useRef(isOpen);
 
   React.useEffect(() => {
-    if (isOpen) {
+    // Only reset when the modal transitions from closed to open
+    if (isOpen && !prevIsOpen.current) {
       setValue(defaultValue);
     }
+    prevIsOpen.current = isOpen;
   }, [isOpen, defaultValue]);
 
   const handleConfirm = () => {

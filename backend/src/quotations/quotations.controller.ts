@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -149,13 +150,11 @@ export class QuotationsController {
   }
 
   @Post(':id/approve')
-  @UseGuards(JwtAuthGuard)
   approve(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.quotationsService.approve(id, user.tenant_id, user.id);
   }
 
   @Post(':id/reject')
-  @UseGuards(JwtAuthGuard)
   reject(
     @Param('id') id: string,
     @Body('reason') reason: string,
@@ -173,6 +172,9 @@ export class QuotationsController {
   ) {
     const forceFlag = Boolean(force === 'true' || force === '1');
     if (forceDelete === 'true') {
+      if (user.role !== 'admin') {
+        throw new ForbiddenException('Only admin users can permanently delete records');
+      }
       return this.quotationsService.forceDelete(id, user.tenant_id, {
         forceDeleteLinkedRfq: forceFlag,
       });

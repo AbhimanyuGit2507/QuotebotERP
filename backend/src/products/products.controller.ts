@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -102,6 +103,9 @@ export class ProductsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     if (forceDelete === 'true') {
+      if (user.role !== 'admin') {
+        throw new ForbiddenException('Only admin users can permanently delete records');
+      }
       return this.productsService.forceDelete(id, user.tenant_id);
     }
     return this.productsService.remove(id, user.tenant_id);

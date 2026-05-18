@@ -34,6 +34,14 @@ export class SettingsService {
     if (body.profile_json !== undefined)
       updateData.profile_json = body.profile_json as Prisma.InputJsonValue;
 
+    // Sync company_gstin from profile_json.gstin for the tax engine
+    if (body.profile_json && typeof body.profile_json === 'object') {
+      const gstin = (body.profile_json as Record<string, unknown>).gstin;
+      if (typeof gstin === 'string') {
+        (updateData as any).company_gstin = gstin || null;
+      }
+    }
+
     return this.prisma.settingsCompany.upsert({
       where: { tenant_id: tenantId },
       update: updateData as unknown as Prisma.SettingsCompanyUpdateInput,
@@ -42,6 +50,9 @@ export class SettingsService {
         currency: body.currency ?? 'INR',
         logo_url: body.logo_url ?? null,
         profile_json: (body.profile_json ?? undefined) as Prisma.InputJsonValue,
+        ...(body.profile_json && typeof body.profile_json === 'object' && typeof (body.profile_json as any).gstin === 'string'
+          ? { company_gstin: (body.profile_json as any).gstin || null }
+          : {}),
       },
     });
   }

@@ -12,6 +12,17 @@ import {
   parsePaginationParams,
 } from '../common/utils/pagination.util';
 
+/** Allowed sortable columns for clients list */
+const CLIENT_SORTABLE_FIELDS = new Set([
+  'created_at',
+  'name',
+  'email',
+  'tier',
+  'total_orders',
+  'total_value',
+  'updated_at',
+]);
+
 @Injectable()
 export class ClientsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -45,7 +56,10 @@ export class ClientsService {
     const [data, total] = await Promise.all([
       this.prisma.client.findMany({
         where,
-        orderBy: { [params.sortBy || 'created_at']: params.sortOrder || 'desc' },
+        orderBy: {
+          [params.sortBy && CLIENT_SORTABLE_FIELDS.has(params.sortBy) ? params.sortBy : 'created_at']:
+            params.sortOrder || 'desc',
+        },
         skip,
         take,
       }),

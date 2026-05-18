@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import {
   PaginationParams,
@@ -7,19 +7,39 @@ import {
 } from '../common/utils/pagination.util';
 import { RecordPaymentDto } from './dtos/record-payment.dto';
 
+/** Allowed sortable columns for payments list */
+const PAYMENT_SORTABLE_FIELDS = new Set([
+  'created_at',
+  'amount',
+  'payment_method',
+  'status',
+  'updated_at',
+]);
+
 @Injectable()
 export class PaymentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async recordPayment(tenantId: string, dto: RecordPaymentDto) {
-    // Validate invoice exists and belongs to tenant
-    const invoice = await this.prisma.invoice.findFirst({
-      where: { id: dto.invoice_id, tenant_id: tenantId, deleted_at: null },
-    });
-    if (!invoice) throw new NotFoundException('Invoice not found');
-
-    // Use a Prisma transaction for atomicity
+    // All reads and writes happen inside the transaction to prevent race conditions
     return this.prisma.$transaction(async (tx) => {
+      // Validate invoice exists and belongs to tenant
+      const invoice = await tx.invoice.findFirst({
+        where: { id: dto.invoice_id, tenant_id: tenantId, deleted_at: null },
+      });
+      if (!invoice) throw new NotFoundException('Invoice not found');
+
+      // Validate payment amount doesn't exceed remaining balance
+      const currentPaid = Number(invoice.paid_amount || 0);
+      const total = Number(invoice.total || 0);
+      const remaining = total - currentPaid;
+
+      if (dto.amount > remaining) {
+        throw new BadRequestException(
+          `Payment amount (${dto.amount}) exceeds remaining balance (${Math.round(remaining * 100) / 100})`,
+        );
+      }
+
       // Create payment record
       const payment = await tx.payment.create({
         data: {
@@ -33,24 +53,28 @@ export class PaymentsService {
       });
 
       // Calculate new paid amount and payment status
-      const newPaidAmount = Number(invoice.paid_amount || 0) + dto.amount;
-      const total = Number(invoice.total || 0);
+      const newPaidAmount = currentPaid + dto.amount;
 
       let paymentStatus: string;
+      let invoiceStatus: string;
       if (newPaidAmount >= total) {
         paymentStatus = 'paid';
+        invoiceStatus = 'paid';
       } else if (newPaidAmount > 0) {
         paymentStatus = 'partial';
+        invoiceStatus = 'partial';
       } else {
         paymentStatus = 'unpaid';
+        invoiceStatus = 'open';
       }
 
-      // Update invoice
+      // Update invoice — both payment_status and status for consistency
       await tx.invoice.update({
         where: { id: dto.invoice_id },
         data: {
           paid_amount: newPaidAmount,
           payment_status: paymentStatus,
+          status: invoiceStatus,
         },
       });
 
@@ -69,6 +93,7 @@ export class PaymentsService {
       where: {
         tenant_id: tenantId,
         invoice_id: invoiceId,
+        deleted_at: null,
       },
       orderBy: { created_at: 'desc' },
     });
@@ -80,15 +105,22 @@ export class PaymentsService {
   ): Promise<PaginatedResult<any>> {
     const { skip, take, page, pageSize } = parsePaginationParams(params);
 
+    // Validate sortBy against allowed fields
+    const sortBy =
+      params.sortBy && PAYMENT_SORTABLE_FIELDS.has(params.sortBy)
+        ? params.sortBy
+        : 'created_at';
+
     const where: any = {
       tenant_id: tenantId,
+      deleted_at: null,
     };
 
     const [data, total] = await Promise.all([
       this.prisma.payment.findMany({
         where,
         include: { invoice: true },
-        orderBy: { [params.sortBy || 'created_at']: params.sortOrder || 'desc' },
+        orderBy: { [sortBy]: params.sortOrder || 'desc' },
         skip,
         take,
       }),

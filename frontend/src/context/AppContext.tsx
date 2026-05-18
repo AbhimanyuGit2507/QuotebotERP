@@ -815,13 +815,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         backendInvoices,
       ] =
         await Promise.all([
-          apiRequest<any>('/products').then(unwrapPaginated),
+          apiRequest<any>('/products?pageSize=1000').then(unwrapPaginated),
           apiRequest<any[]>('/products/categories'),
-          apiRequest<any>('/clients').then(unwrapPaginated),
-          apiRequest<any>('/rfqs').then(unwrapPaginated),
-          apiRequest<any>('/quotations').then(unwrapPaginated),
+          apiRequest<any>('/clients?pageSize=1000').then(unwrapPaginated),
+          apiRequest<any>('/rfqs?pageSize=1000').then(unwrapPaginated),
+          apiRequest<any>('/quotations?pageSize=1000').then(unwrapPaginated),
           apiRequest<any[]>('/inbox/messages'),
-          apiRequest<any>('/invoices').then(unwrapPaginated),
+          apiRequest<any>('/invoices?pageSize=1000').then(unwrapPaginated),
         ]);
 
       const [backendCompany, backendNotifications, backendTemplates, backendAutomationRules] =

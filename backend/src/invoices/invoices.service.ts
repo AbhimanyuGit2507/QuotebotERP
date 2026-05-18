@@ -7,6 +7,19 @@ import {
   parsePaginationParams,
 } from '../common/utils/pagination.util';
 
+/** Allowed sortable columns for invoices list */
+const INVOICE_SORTABLE_FIELDS = new Set([
+  'created_at',
+  'number',
+  'date',
+  'due_date',
+  'total',
+  'status',
+  'payment_status',
+  'paid_amount',
+  'updated_at',
+]);
+
 @Injectable()
 export class InvoicesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -116,7 +129,10 @@ export class InvoicesService {
       this.prisma.invoice.findMany({
         where,
         include: { payments: true, quotation: true },
-        orderBy: { [params.sortBy || 'created_at']: params.sortOrder || 'desc' },
+        orderBy: {
+          [params.sortBy && INVOICE_SORTABLE_FIELDS.has(params.sortBy) ? params.sortBy : 'created_at']:
+            params.sortOrder || 'desc',
+        },
         skip,
         take,
       }),
@@ -177,11 +193,23 @@ export class InvoicesService {
     });
 
     const paid = Number(invoice.paid_amount || 0) + Number(payment.amount || 0);
-    const status = paid >= Number(invoice.total || 0) ? 'paid' : 'partial';
+    const total = Number(invoice.total || 0);
+    let status: string;
+    let paymentStatus: string;
+    if (paid >= total) {
+      status = 'paid';
+      paymentStatus = 'paid';
+    } else if (paid > 0) {
+      status = 'partial';
+      paymentStatus = 'partial';
+    } else {
+      status = 'open';
+      paymentStatus = 'unpaid';
+    }
 
     await this.prisma.invoice.update({
       where: { id: invoiceId },
-      data: { paid_amount: paid, status },
+      data: { paid_amount: paid, status, payment_status: paymentStatus },
     });
 
     // Update conversation stage to PAID if full payment received

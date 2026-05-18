@@ -12,6 +12,18 @@ import {
   parsePaginationParams,
 } from '../common/utils/pagination.util';
 
+/** Allowed sortable columns for products list */
+const PRODUCT_SORTABLE_FIELDS = new Set([
+  'created_at',
+  'name',
+  'sku',
+  'price',
+  'cost',
+  'stock',
+  'status',
+  'updated_at',
+]);
+
 @Injectable()
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -42,7 +54,10 @@ export class ProductsService {
       this.prisma.product.findMany({
         where,
         include: { category: true },
-        orderBy: { [params.sortBy || 'created_at']: params.sortOrder || 'desc' },
+        orderBy: {
+          [params.sortBy && PRODUCT_SORTABLE_FIELDS.has(params.sortBy) ? params.sortBy : 'created_at']:
+            params.sortOrder || 'desc',
+        },
         skip,
         take,
       }),

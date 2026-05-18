@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, EmailTemplateType } from '@prisma/client';
@@ -14,6 +15,20 @@ import {
   PaginatedResult,
   parsePaginationParams,
 } from '../common/utils/pagination.util';
+
+/** Allowed sortable columns for quotations list */
+const QUOTATION_SORTABLE_FIELDS = new Set([
+  'created_at',
+  'number',
+  'date',
+  'valid_until',
+  'subtotal',
+  'tax',
+  'total',
+  'status',
+  'approval_status',
+  'updated_at',
+]);
 
 interface QuotationItemInput {
   product_id: string;
@@ -29,6 +44,8 @@ interface QuotationItemInput {
 
 @Injectable()
 export class QuotationsService {
+  private readonly logger = new Logger(QuotationsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
@@ -156,7 +173,10 @@ export class QuotationsService {
       this.prisma.quotation.findMany({
         where,
         include: { client: true, items: true, rfq: true },
-        orderBy: { [params.sortBy || 'created_at']: params.sortOrder || 'desc' },
+        orderBy: {
+          [params.sortBy && QUOTATION_SORTABLE_FIELDS.has(params.sortBy) ? params.sortBy : 'created_at']:
+            params.sortOrder || 'desc',
+        },
         skip,
         take,
       }),
@@ -398,7 +418,7 @@ export class QuotationsService {
       try {
         await this.prisma.rFQ.update({ where: { id: linkedRfq.id }, data: { deleted_at: new Date() } });
       } catch (err) {
-        console.warn('Failed to soft-delete linked RFQ:', (err as Error).message);
+        this.logger.warn(`Failed to soft-delete linked RFQ: ${(err as Error).message}`);
       }
     }
 
@@ -471,6 +491,8 @@ export class QuotationsService {
       data: {
         approval_status: 'rejected',
         rejection_reason: reason,
+        approved_by: userId,
+        approved_at: new Date(),
       },
       include: { client: true, items: true, rfq: true },
     });
@@ -753,7 +775,7 @@ export class QuotationsService {
         return { ...quotation, invoice };
       } catch (err) {
         // don't fail the status update if invoice creation errors; log and continue
-        console.warn('Failed to create invoice for quotation:', (err as Error).message);
+        this.logger.warn(`Failed to create invoice for quotation: ${(err as Error).message}`);
         return quotation;
       }
     }

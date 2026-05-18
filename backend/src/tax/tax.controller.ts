@@ -8,6 +8,7 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { TaxService } from './tax.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -15,6 +16,7 @@ import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.
 import { CreateTaxProfileDto } from './dtos/create-tax-profile.dto';
 import { CalculateTaxDto } from './dtos/calculate-tax.dto';
 
+@ApiTags('Tax')
 @UseGuards(JwtAuthGuard)
 @Controller('tax-profiles')
 export class TaxController {
