@@ -342,6 +342,14 @@ function httpRequest(options, data = null) {
   });
 }
 
+function chunkArray(items, chunkSize) {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
+
 async function main() {
   console.log('🔄 Starting Gmail sync...');
   console.log(`📍 Backend: ${config.apiBaseUrl}`);
@@ -412,7 +420,117 @@ async function main() {
     let totalSynced = 0;
     let totalDuplicates = 0;
     let totalFailed = 0;
+    let totalProcessedMessages = 0;
     const accountFailures = [];
+    const messageBatchConcurrency = Math.max(
+      2,
+      Math.min(6, Number.parseInt(process.env.GMAIL_SYNC_MESSAGE_CONCURRENCY || '4', 10) || 4),
+    );
+
+    const publishProgress = (overrides = {}) => {
+      setSyncStatus({
+        phase: 'processing_messages',
+        progressPercent: getProgressPercent({
+          ...syncStatus,
+          accountsTotal: accounts.length,
+          accountsProcessed: syncStatus.accountsProcessed,
+          totalMessages: syncStatus.totalMessages,
+          processedMessages: totalProcessedMessages,
+          synced: totalSynced,
+          duplicates: totalDuplicates,
+          failed: totalFailed,
+          ...overrides,
+        }),
+        accountsTotal: accounts.length,
+        accountsProcessed: syncStatus.accountsProcessed,
+        totalMessages: syncStatus.totalMessages,
+        processedMessages: totalProcessedMessages,
+        synced: totalSynced,
+        duplicates: totalDuplicates,
+        failed: totalFailed,
+        ...overrides,
+      });
+    };
+
+    const processMessageRef = async (account, msgRef) => {
+      const fullRes = await httpRequest({
+        url: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgRef.id}`,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${account.access_token}`,
+        },
+      });
+
+      if (fullRes.status !== 200) {
+        console.log(`    ❌ Failed to get message ${msgRef.id}`);
+        totalFailed += 1;
+        totalProcessedMessages += 1;
+        publishProgress({
+          message: `Processing ${account.email_address || account.id}...`,
+        });
+        return;
+      }
+
+      const headers = fullRes.data.payload?.headers || [];
+      const getHeader = (name) => headers.find(h => h.name === name)?.value || '';
+      const from = getHeader('From');
+      const match = from.match(/^(.*)<([^>]+)>$/);
+      const senderEmail = (match ? match[2] : from).trim().replace(/^"|"$/g, '');
+      const senderName = (match ? match[1] : senderEmail).trim().replace(/^"|"$/g, '') || senderEmail;
+
+      const { plainBody, htmlBody, processingBody } = extractMessageBodies(fullRes.data);
+
+      const internalDateRaw =
+        typeof fullRes.data.internalDate === 'string'
+          ? Number.parseInt(fullRes.data.internalDate, 10)
+          : Number.NaN;
+      const receivedAt = Number.isFinite(internalDateRaw)
+        ? new Date(internalDateRaw).toISOString()
+        : new Date().toISOString();
+
+      const emailData = {
+        email_account_id: account.id,
+        external_id: fullRes.data.id,
+        thread_id: fullRes.data.threadId,
+        sender_email: senderEmail,
+        sender_name: senderName,
+        subject: getHeader('Subject'),
+        // Keep body parser-friendly; HTML is carried in raw_payload.
+        body: processingBody,
+        provider: 'gmail',
+        received_at: receivedAt,
+        raw_payload: {
+          body_text: plainBody || processingBody,
+          body_html: htmlBody,
+          headers,
+          gmail_payload: fullRes.data.payload || null,
+        },
+      };
+
+      // Send to backend
+      const ingestRes = await httpRequest({
+        url: `${config.apiBaseUrl}/internal/email/inbound`,
+        method: 'POST',
+      }, emailData);
+
+      if (ingestRes.status === 409 || ingestRes.data?.is_duplicate) {
+        const shortSubject = (emailData.subject || '(No subject)').substring(0, 40);
+        console.log(`    ⏭️  Duplicate: ${senderEmail} - ${shortSubject}`);
+        totalDuplicates += 1;
+      } else if (ingestRes.status === 201) {
+        const shortSubject = (emailData.subject || '(No subject)').substring(0, 40);
+        console.log(`    ✅ Synced: ${senderEmail} - ${shortSubject}`);
+        totalSynced += 1;
+      } else {
+        console.log(`    ⚠️  Ingest failed (${ingestRes.status}): ${senderEmail}`);
+        totalFailed += 1;
+      }
+
+      totalProcessedMessages += 1;
+      publishProgress({
+        message: `Processing ${account.email_address || account.id}...`,
+      });
+    };
 
     // 2. For each active account, sync recent emails
     for (const account of accounts) {
@@ -485,89 +603,9 @@ async function main() {
         continue;
       }
 
-      // 3. For each message, get full details and send to backend
-      for (const msgRef of messageList) {
-        const fullRes = await httpRequest({
-          url: `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgRef.id}`,
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${account.access_token}`,
-          },
-        });
-
-        if (fullRes.status !== 200) {
-          console.log(`    ❌ Failed to get message ${msgRef.id}`);
-          totalFailed += 1;
-          setSyncStatus({
-            failed: totalFailed,
-            processedMessages: syncStatus.processedMessages + 1,
-            phase: 'processing_messages',
-          });
-          continue;
-        }
-
-        const headers = fullRes.data.payload?.headers || [];
-        const getHeader = (name) => headers.find(h => h.name === name)?.value || '';
-        const from = getHeader('From');
-        const match = from.match(/^(.*)<([^>]+)>$/);
-        const senderEmail = (match ? match[2] : from).trim().replace(/^"|"$/g, '');
-        const senderName = (match ? match[1] : senderEmail).trim().replace(/^"|"$/g, '') || senderEmail;
-
-        const { plainBody, htmlBody, processingBody } = extractMessageBodies(fullRes.data);
-
-        const internalDateRaw =
-          typeof fullRes.data.internalDate === 'string'
-            ? Number.parseInt(fullRes.data.internalDate, 10)
-            : Number.NaN;
-        const receivedAt = Number.isFinite(internalDateRaw)
-          ? new Date(internalDateRaw).toISOString()
-          : new Date().toISOString();
-
-        const emailData = {
-          email_account_id: account.id,
-          external_id: fullRes.data.id,
-          thread_id: fullRes.data.threadId,
-          sender_email: senderEmail,
-          sender_name: senderName,
-          subject: getHeader('Subject'),
-          // Keep body parser-friendly; HTML is carried in raw_payload.
-          body: processingBody,
-          provider: 'gmail',
-          received_at: receivedAt,
-          raw_payload: {
-            body_text: plainBody || processingBody,
-            body_html: htmlBody,
-            headers,
-            gmail_payload: fullRes.data.payload || null,
-          },
-        };
-
-        // Send to backend
-        const ingestRes = await httpRequest({
-          url: `${config.apiBaseUrl}/internal/email/inbound`,
-          method: 'POST',
-        }, emailData);
-
-        if (ingestRes.status === 409 || ingestRes.data?.is_duplicate) {
-          const shortSubject = (emailData.subject || '(No subject)').substring(0, 40);
-          console.log(`    ⏭️  Duplicate: ${senderEmail} - ${shortSubject}`);
-          totalDuplicates++;
-          setSyncStatus({ duplicates: totalDuplicates });
-        } else if (ingestRes.status === 201) {
-          const shortSubject = (emailData.subject || '(No subject)').substring(0, 40);
-          console.log(`    ✅ Synced: ${senderEmail} - ${shortSubject}`);
-          totalSynced++;
-          setSyncStatus({ synced: totalSynced });
-        } else {
-          console.log(`    ⚠️  Ingest failed (${ingestRes.status}): ${senderEmail}`);
-          totalFailed++;
-          setSyncStatus({ failed: totalFailed });
-        }
-
-        setSyncStatus({
-          processedMessages: syncStatus.processedMessages + 1,
-          phase: 'processing_messages',
-        });
+      // 3. For each message, process in small batches so progress keeps moving.
+      for (const batch of chunkArray(messageList, messageBatchConcurrency)) {
+        await Promise.all(batch.map((msgRef) => processMessageRef(account, msgRef)));
       }
 
       setSyncStatus({
