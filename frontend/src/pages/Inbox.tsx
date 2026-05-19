@@ -3,11 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import PageLayout from '../components/common/PageLayout';
 import { useApp, InboxMessage } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { exportToCSV, prepareInboxMessagesForExport, getDateStamp } from '../utils/exportUtils';
 import {
   apiRequest,
   createRfqFromEmail,
   previewRfqFromEmail,
+  postItemIntelligenceFeedback,
   RfqFromEmailItemPayload,
   RfqPreviewFromEmailResponse,
   retryInboxMessage,
@@ -31,9 +33,9 @@ interface GmailSyncStatus {
 
 const Inbox: React.FC = () => {
   const { inboxMessages, updateInboxMessage, showToast, showConfirmModal, refreshData } = useApp();
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const emailHtmlFrameRef = useRef<HTMLIFrameElement | null>(null);
   
   const selectedId = useMemo(() => {
     if (!id || !inboxMessages.some((m) => m.id === id)) {
@@ -1207,6 +1209,26 @@ const Inbox: React.FC = () => {
     ),
   );
   const showAttachmentsTab = Boolean(selectedMessage?.attachments?.length);
+  // Configure DOMPurify to handle cid: URLs properly
+  const configureDOMPurify = useCallback(() => {
+    DOMPurify.addHook('beforeSanitizeAttributes', (node) => {
+      // Remove cid: URLs from src attributes
+      if (node.hasAttribute && node.hasAttribute('src')) {
+        const src = node.getAttribute('src') || '';
+        if (src.startsWith('cid:')) {
+          node.removeAttribute('src');
+        }
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    configureDOMPurify();
+    return () => {
+      DOMPurify.removeHook('beforeSanitizeAttributes');
+    };
+  }, [configureDOMPurify]);
+
   const sanitizedHtml = selectedMessage?.contentHtml
     ? DOMPurify.sanitize(selectedMessage.contentHtml, {
         USE_PROFILES: { html: true },
@@ -1245,54 +1267,6 @@ const Inbox: React.FC = () => {
     const percent = Math.round((processed / total) * 100);
     return Math.max(1, Math.min(99, percent));
   }, [syncStatus]);
-
-  useEffect(() => {
-    const iframe = emailHtmlFrameRef.current;
-    if (!iframe) return;
-
-    const resize = () => {
-      try {
-        const doc = iframe.contentDocument;
-        if (!doc) return;
-        const body = doc.body;
-        const html = doc.documentElement;
-        const height = Math.max(
-          body?.scrollHeight || 0,
-          body?.offsetHeight || 0,
-          html?.scrollHeight || 0,
-          html?.offsetHeight || 0,
-        );
-        iframe.style.height = `${Math.max(height, 180)}px`;
-      } catch {
-        iframe.style.height = '420px';
-      }
-    };
-
-    const timer = window.setTimeout(resize, 50);
-
-    const doc = iframe.contentDocument;
-    if (doc) {
-      const images = Array.from(doc.images || []);
-      images.forEach((image) => {
-        image.addEventListener('load', resize);
-        image.addEventListener('error', resize);
-      });
-
-      const cleanup = () => {
-        images.forEach((image) => {
-          image.removeEventListener('load', resize);
-          image.removeEventListener('error', resize);
-        });
-      };
-
-      return () => {
-        window.clearTimeout(timer);
-        cleanup();
-      };
-    }
-
-    return () => window.clearTimeout(timer);
-  }, [selectedMessage?.contentHtml, selectedMessage?.id]);
 
   useEffect(() => {
     if (activeTab === 'raw' || (activeTab === 'parsed' && showExtractedItemsTab) || (activeTab === 'attachments' && showAttachmentsTab)) {
@@ -1794,12 +1768,11 @@ const Inbox: React.FC = () => {
                     {sanitizedHtml ? (
                       <div className="isolate relative overflow-hidden rounded border border-[var(--erp-border)] bg-white">
                         <iframe
-                          ref={emailHtmlFrameRef}
                           title="Email content"
-                          sandbox="allow-same-origin"
+                          sandbox=""
                           className="block w-full bg-white"
                           style={{ minHeight: '220px', width: '100%', border: 0 }}
-                          srcDoc={`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1" /><base target="_blank" /><style>
+                          srcDoc={`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1" /><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src cid: data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none';" /><base target="_blank" /><style>
                             html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; font-family: Inter, Arial, sans-serif; }
                             body { padding: 16px; overflow-wrap: anywhere; }
                             img { max-width: 100%; height: auto; display: block; }
@@ -1808,22 +1781,6 @@ const Inbox: React.FC = () => {
                             a { word-break: break-word; }
                             * { box-sizing: border-box; }
                           </style></head><body>${sanitizedHtml}</body></html>`}
-                          onLoad={() => {
-                            const iframe = emailHtmlFrameRef.current;
-                            if (!iframe) return;
-                            try {
-                              const doc = iframe.contentDocument;
-                              if (!doc) return;
-                              const height = Math.max(
-                                doc.body.scrollHeight,
-                                doc.documentElement.scrollHeight,
-                                220,
-                              );
-                              iframe.style.height = `${height + 16}px`;
-                            } catch {
-                              iframe.style.height = '420px';
-                            }
-                          }}
                         />
                       </div>
                     ) : (
@@ -2148,7 +2105,69 @@ const Inbox: React.FC = () => {
                   {pendingCreatePreview.preview.unmatched_items.length > 0 ? (
                     pendingCreatePreview.preview.unmatched_items.map((item, index) => (
                       <div key={`${item.input_name || 'rejected'}-${index}`} className="rounded border border-amber-200 bg-white px-2 py-1">
-                        {(item.input_name || 'Unnamed line')} - {item.reason.replaceAll('_', ' ')}
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="font-medium">{(item.input_name || 'Unnamed line')}</div>
+                            <div className="text-[11px] text-[var(--erp-text-muted)]">{item.reason.replaceAll('_', ' ')}</div>
+                          </div>
+                        </div>
+                        {/* Show intelligence suggestions if provided in preview */}
+                        {pendingCreatePreview.preview.item_intelligence_suggestions?.length ? (
+                          <div className="mt-2 text-[12px]">
+                            {(() => {
+                              const s = pendingCreatePreview.preview.item_intelligence_suggestions?.find((si) => si.input_text === (item.input_name || ''));
+                              if (!s) return null;
+                              return (
+                                <div className="mt-1">
+                                  <div className="text-[12px] font-semibold">Suggestions</div>
+                                  {s.suggestions.map((cand: any, ci: number) => (
+                                    <div key={ci} className="flex items-center justify-between rounded border px-2 py-1 mt-1">
+                                      <div className="text-[12px]">{cand.product_name} {cand.product_id ? `(${cand.product_id})` : ''}</div>
+                                      <div className="flex gap-2">
+                                        <button
+                                          className="text-[12px] text-green-600"
+                                          onClick={async () => {
+                                            try {
+                                              await postItemIntelligenceFeedback({
+                                                tenant_id: user?.tenant_id,
+                                                input_id: item.input_name,
+                                                chosen_candidate_id: cand.product_id,
+                                                accepted: true,
+                                              });
+                                              showToast('Accepted suggestion', 'success');
+                                            } catch (e: any) {
+                                              showToast(e.message || 'Failed to send feedback', 'error');
+                                            }
+                                          }}
+                                        >
+                                          Accept
+                                        </button>
+                                        <button
+                                          className="text-[12px] text-red-600"
+                                          onClick={async () => {
+                                            try {
+                                              await postItemIntelligenceFeedback({
+                                                tenant_id: user?.tenant_id,
+                                                input_id: item.input_name,
+                                                chosen_candidate_id: cand.product_id,
+                                                accepted: false,
+                                              });
+                                              showToast('Rejected suggestion', 'success');
+                                            } catch (e: any) {
+                                              showToast(e.message || 'Failed to send feedback', 'error');
+                                            }
+                                          }}
+                                        >
+                                          Reject
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        ) : null}
                       </div>
                     ))
                   ) : (

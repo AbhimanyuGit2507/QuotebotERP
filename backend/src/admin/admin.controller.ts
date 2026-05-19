@@ -1,10 +1,11 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import { AdminService } from './admin.service';
+import { UpdateProcessingSettingsDto } from './dtos/update-processing-settings.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('admin')
@@ -30,5 +31,15 @@ export class AdminController {
   @Get('llms')
   llms(@CurrentUser() user: AuthenticatedUser) {
     return this.adminService.llms(user.tenant_id);
+  }
+
+  @Get('processing-settings')
+  processingSettings() {
+    return this.adminService.processingSettings();
+  }
+
+  @Put('processing-settings')
+  updateProcessingSettings(@Body() body: UpdateProcessingSettingsDto) {
+    return this.adminService.updateProcessingSettings(body);
   }
 }

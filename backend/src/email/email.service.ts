@@ -8,6 +8,13 @@ import { PrismaService } from '../prisma.service';
 import { InboundEmailDto } from './dtos/inbound-email.dto';
 import { OutboundEmailUpdateDto } from './dtos/outbound-email-update.dto';
 
+type GmailSyncMode = 'initial' | 'catchup' | 'manual' | 'webhook';
+
+interface GmailSyncTriggerOptions {
+  syncMode?: GmailSyncMode;
+  initialLookbackDays?: number;
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -137,6 +144,17 @@ export class EmailService {
     );
   }
 
+  private getDefaultGmailInitialLookbackDays() {
+    const configured = Number.parseInt(
+      process.env.GMAIL_SYNC_INITIAL_LOOKBACK_DAYS ||
+        process.env.GMAIL_SYNC_DAYS_BACK ||
+        '7',
+      10,
+    );
+
+    return Number.isFinite(configured) && configured > 0 ? configured : 7;
+  }
+
   private isStaleRunningSyncStatus(
     status: Record<string, unknown>,
     statusFile: string,
@@ -223,7 +241,10 @@ export class EmailService {
     }
   }
 
-  triggerImmediateGmailSync(tenantId: string) {
+  triggerImmediateGmailSync(
+    tenantId: string,
+    options: GmailSyncTriggerOptions = {},
+  ) {
     const currentStatus = this.getGmailSyncStatus(tenantId);
     if (currentStatus.status === 'running') {
       return {
@@ -249,6 +270,7 @@ export class EmailService {
         message: 'Sync queued',
         pid: process.pid,
         tenantId,
+        syncMode: options.syncMode || 'catchup',
         startedAt: new Date().toISOString(),
         endedAt: null,
         lastRunAt: null,
@@ -284,6 +306,10 @@ export class EmailService {
         ...process.env,
         SYNC_TENANT_ID: tenantId,
         GMAIL_SYNC_STATUS_FILE: statusFile,
+        GMAIL_SYNC_MODE: options.syncMode || 'catchup',
+        GMAIL_SYNC_INITIAL_LOOKBACK_DAYS: String(
+          options.initialLookbackDays || this.getDefaultGmailInitialLookbackDays(),
+        ),
       },
     });
 
@@ -292,6 +318,44 @@ export class EmailService {
     return {
       started: true,
       reason: 'Sync started',
+    };
+  }
+
+  async markEmailAccountSynced(
+    accountId: string,
+    tenantId: string,
+    syncedAt: Date = new Date(),
+  ) {
+    const account = await this.prisma.emailAccount.findFirst({
+      where: {
+        id: accountId,
+        tenant_id: tenantId,
+        is_active: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!account) {
+      throw new BadRequestException('Email account not found or inactive');
+    }
+
+    const updated = await this.prisma.emailAccount.update({
+      where: { id: account.id },
+      data: {
+        last_sync_at: syncedAt,
+        updated_at: new Date(),
+      },
+      select: {
+        id: true,
+        last_sync_at: true,
+      },
+    });
+
+    return {
+      id: updated.id,
+      last_sync_at: updated.last_sync_at?.toISOString() ?? null,
     };
   }
 
@@ -345,7 +409,9 @@ export class EmailService {
       select: {
         id: true,
         tenant_id: true,
+        email_address: true,
         credentials: true,
+        last_sync_at: true,
       },
       orderBy: [{ created_at: 'asc' }],
     });
@@ -357,6 +423,8 @@ export class EmailService {
 
       return {
         id: account.id,
+        email_address: account.email_address,
+        last_sync_at: account.last_sync_at?.toISOString() ?? null,
         access_token:
           typeof accessToken === 'string' && accessToken.trim().length > 0
             ? accessToken

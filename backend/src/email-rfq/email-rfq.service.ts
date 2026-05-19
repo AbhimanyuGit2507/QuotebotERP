@@ -21,6 +21,12 @@ import { ThreadResolverService } from './thread-resolver.service';
 import { PoMatcherService } from './po-matcher.service';
 import { EmailService } from '../email/email.service';
 import { EmailTemplatesService } from '../email-templates/email-templates.service';
+import {
+  EmailClassifierService,
+  BillDetection,
+} from '../email-classifier/email-classifier.service';
+import { BillsService } from '../bills/bills.service';
+import { ItemIntelligenceService } from '../item-intelligence/item-intelligence.service';
 
 type LlmItem = {
   product_name: string;
@@ -38,24 +44,31 @@ type LlmExtractionResult = {
 
 type BatchClassificationResult = {
   rfq_ids: string[];
-  non_rfq_ids: string[];
+  po_ids?: string[];
+  followup_ids?: string[];
+  bill_ids?: string[];
+  business_name_ids?: string[];
+  other_ids?: string[];
+  non_rfq_ids?: string[];
   reasons?: Record<string, string>;
+  bill_detections?: Record<string, unknown>;
+  routes?: Record<string, string>;
+  route_confidences?: Record<string, number>;
 };
+
+type MultiLabelItem = {
+  route: 'rfq' | 'po' | 'followup' | 'bill' | 'business_name' | 'other';
+  confidence: number; // 0..1
+  reason?: string;
+  billDetection?: Record<string, unknown> | null;
+};
+
+type MultiLabelBatchResult = Record<string, MultiLabelItem>;
 
 type BatchCandidateMessage = {
   id: string;
   subject: string;
   body: string;
-};
-
-type MessageWithConversation = Prisma.MessageGetPayload<{
-  include: { conversation: true };
-}>;
-
-type EligibleMessage = {
-  message: MessageWithConversation;
-  payload: Record<string, unknown>;
-  retryCount: number;
 };
 
 type ProviderRequestError = Error & {
@@ -70,71 +83,280 @@ type RegexClassificationResult = {
 };
 
 type PrimaryIntentResult = {
+  route: 'rfq' | 'po' | 'followup' | 'bill' | 'other';
   classification: MessageClassification;
   confidence: number;
   reason: string;
-  followupType?: FollowupType;
+  followupType?: FollowupType | null;
+  billDetection?: BillDetection | null;
 };
+
+type EligibleMessage = {
+  message: any;
+  payload: Record<string, unknown>;
+  retryCount: number;
+};
+
+type ProcessingQueueSettings = {
+  intervalMs: number;
+  runBatchLimit: number;
+  classifierBatchSize: number;
+  classifierBatchMaxBytes: number;
+  extractionDelayMs: number;
+  llmRateLimitPerMinute: number;
+};
+
+type ProcessingQueueSettingsRow = {
+  interval_ms?: number | null;
+  run_batch_limit?: number | null;
+  classifier_batch_size?: number | null;
+  classifier_batch_max_bytes?: number | null;
+  extraction_delay_ms?: number | null;
+  llm_rate_limit_per_minute?: number | null;
+} | null;
 
 @Injectable()
 export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
+  private readonly prisma: PrismaService;
+  private readonly rfqsService: RfqsService;
+  private readonly quotationsService: QuotationsService;
+  private readonly threadResolver: ThreadResolverService;
+  private readonly poMatcher: PoMatcherService;
+  private readonly emailService: EmailService;
+  private readonly emailTemplatesService: EmailTemplatesService;
+  private readonly emailClassifier: EmailClassifierService;
+  private readonly billsService: BillsService;
+  private readonly itemIntelligenceService: ItemIntelligenceService;
+
   private readonly logger = new Logger(EmailRfqService.name);
   private readonly enabled =
     process.env.BACKEND_RFQ_PIPELINE_ENABLED !== 'false';
-  private readonly intervalMs = Number(
-    process.env.BACKEND_RFQ_PIPELINE_INTERVAL_MS || 20000,
-  );
-  private readonly runBatchLimit = Math.min(
-    Math.max(Number(process.env.RFQ_PIPELINE_BATCH_LIMIT || 60), 10),
-    250,
-  );
-  private readonly classifierBatchSize = Math.min(
-    Math.max(Number(process.env.RFQ_CLASSIFIER_BATCH_SIZE || 8), 1),
-    25,
-  );
-  private readonly classifierSnippetHeadChars = Math.min(
-    Math.max(Number(process.env.RFQ_CLASSIFIER_SNIPPET_HEAD_CHARS || 200), 50),
-    1000,
-  );
-  private readonly classifierSnippetMaxChars = Math.min(
-    Math.max(Number(process.env.RFQ_CLASSIFIER_SNIPPET_MAX_CHARS || 600), 200),
-    3000,
-  );
-  private readonly classifierKeywordWindowChars = Math.min(
-    Math.max(Number(process.env.RFQ_CLASSIFIER_KEYWORD_WINDOW_CHARS || 40), 10),
-    200,
-  );
-  private readonly classifierMaxWindows = Math.min(
-    Math.max(Number(process.env.RFQ_CLASSIFIER_MAX_WINDOWS || 4), 1),
-    12,
-  );
-  private readonly classifierBatchMaxBytes = Math.min(
-    Math.max(Number(process.env.RFQ_CLASSIFIER_MAX_BATCH_BYTES || 26000), 8000),
-    30000,
-  );
-  private readonly extractionDelayMs = Math.min(
-    Math.max(Number(process.env.RFQ_EXTRACT_DELAY_MS || 50), 0),
-    1000,
-  );
   private timer: NodeJS.Timeout | null = null;
+  private isDestroyed = false;
   private isRunning = false;
-
-  // Rate limiting: max 10 LLM calls per minute to avoid hitting provider limits
-  private readonly llmRateLimitPerMinute = Number(
-    process.env.LLM_RATE_LIMIT_PER_MINUTE || 10,
-  );
+  private processingSettingsCache: ProcessingQueueSettings | null = null;
   private llmCallTimestamps: number[] = [];
-  private providerCooldownUntilMs = new Map<string, number>();
+  private readonly providerCooldownUntilMs = new Map<string, number>();
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly rfqsService: RfqsService,
-    private readonly quotationsService: QuotationsService,
-    private readonly threadResolver: ThreadResolverService,
-    private readonly poMatcher: PoMatcherService,
-    private readonly emailService: EmailService,
-    private readonly emailTemplatesService: EmailTemplatesService,
-  ) {}
+    prisma: PrismaService,
+    rfqsService: RfqsService,
+    quotationsService: QuotationsService,
+    threadResolver: ThreadResolverService,
+    poMatcher: PoMatcherService,
+    emailService: EmailService,
+    emailTemplatesService: EmailTemplatesService,
+    emailClassifier: EmailClassifierService,
+    billsService: BillsService,
+    itemIntelligenceService: ItemIntelligenceService,
+  ) {
+    this.prisma = prisma;
+    this.rfqsService = rfqsService;
+    this.quotationsService = quotationsService;
+    this.threadResolver = threadResolver;
+    this.poMatcher = poMatcher;
+    this.emailService = emailService;
+    this.emailTemplatesService = emailTemplatesService;
+    this.emailClassifier = emailClassifier;
+    this.billsService = billsService;
+    this.itemIntelligenceService = itemIntelligenceService;
+  }
+
+  private clampNumber(
+    value: unknown,
+    fallback: number,
+    min: number,
+    max: number,
+  ) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      return fallback;
+    }
+
+    return Math.min(Math.max(parsed, min), max);
+  }
+
+  private buildDefaultProcessingSettings(): ProcessingQueueSettings {
+    return {
+      intervalMs: this.clampNumber(
+        process.env.BACKEND_RFQ_PIPELINE_INTERVAL_MS || 20000,
+        20000,
+        1000,
+        300000,
+      ),
+      runBatchLimit: this.clampNumber(
+        process.env.RFQ_PIPELINE_BATCH_LIMIT || 60,
+        60,
+        1,
+        250,
+      ),
+      classifierBatchSize: this.clampNumber(
+        process.env.RFQ_CLASSIFIER_BATCH_SIZE || 8,
+        8,
+        1,
+        25,
+      ),
+      classifierBatchMaxBytes: this.clampNumber(
+        process.env.RFQ_CLASSIFIER_MAX_BATCH_BYTES || 26000,
+        26000,
+        1000,
+        30000,
+      ),
+      extractionDelayMs: this.clampNumber(
+        process.env.RFQ_EXTRACT_DELAY_MS || 50,
+        50,
+        0,
+        1000,
+      ),
+      llmRateLimitPerMinute: this.clampNumber(
+        process.env.LLM_RATE_LIMIT_PER_MINUTE || 10,
+        10,
+        1,
+        500,
+      ),
+    };
+  }
+
+  private getProcessingSettings(): ProcessingQueueSettings {
+    return (
+      this.processingSettingsCache || this.buildDefaultProcessingSettings()
+    );
+  }
+
+  private async refreshProcessingSettings(): Promise<ProcessingQueueSettings> {
+    try {
+      const settings = (await this.prisma.processingSettings.findUnique({
+        where: { id: 'global' },
+      })) as ProcessingQueueSettingsRow;
+      const defaults = this.buildDefaultProcessingSettings();
+
+      this.processingSettingsCache = {
+        intervalMs: this.clampNumber(
+          settings?.interval_ms,
+          defaults.intervalMs,
+          1000,
+          300000,
+        ),
+        runBatchLimit: this.clampNumber(
+          settings?.run_batch_limit,
+          defaults.runBatchLimit,
+          1,
+          250,
+        ),
+        classifierBatchSize: this.clampNumber(
+          settings?.classifier_batch_size,
+          defaults.classifierBatchSize,
+          1,
+          25,
+        ),
+        classifierBatchMaxBytes: this.clampNumber(
+          settings?.classifier_batch_max_bytes,
+          defaults.classifierBatchMaxBytes,
+          1000,
+          30000,
+        ),
+        extractionDelayMs: this.clampNumber(
+          settings?.extraction_delay_ms,
+          defaults.extractionDelayMs,
+          0,
+          1000,
+        ),
+        llmRateLimitPerMinute: this.clampNumber(
+          settings?.llm_rate_limit_per_minute,
+          defaults.llmRateLimitPerMinute,
+          1,
+          500,
+        ),
+      };
+    } catch (error) {
+      if (!this.processingSettingsCache) {
+        this.processingSettingsCache = this.buildDefaultProcessingSettings();
+      }
+      this.logger.debug(
+        `Falling back to env processing defaults: ${this.errorToMessage(error)}`,
+      );
+    }
+
+    return this.getProcessingSettings();
+  }
+
+  private async scheduleNextPipelineRun() {
+    if (this.isDestroyed || !this.enabled) {
+      return;
+    }
+
+    const settings = await this.refreshProcessingSettings();
+    this.timer = setTimeout(() => {
+      void (async () => {
+        try {
+          await this.processPendingMessages({ limit: settings.runBatchLimit });
+        } finally {
+          void this.scheduleNextPipelineRun();
+        }
+      })();
+    }, settings.intervalMs);
+  }
+
+  private get intervalMs() {
+    return this.getProcessingSettings().intervalMs;
+  }
+
+  private get runBatchLimit() {
+    return this.getProcessingSettings().runBatchLimit;
+  }
+
+  private get classifierBatchSize() {
+    return this.getProcessingSettings().classifierBatchSize;
+  }
+
+  private get classifierBatchMaxBytes() {
+    return this.getProcessingSettings().classifierBatchMaxBytes;
+  }
+
+  private get classifierSnippetHeadChars() {
+    return Math.min(
+      Math.max(
+        Number(process.env.RFQ_CLASSIFIER_SNIPPET_HEAD_CHARS || 200),
+        50,
+      ),
+      1000,
+    );
+  }
+
+  private get classifierSnippetMaxChars() {
+    return Math.min(
+      Math.max(
+        Number(process.env.RFQ_CLASSIFIER_SNIPPET_MAX_CHARS || 600),
+        200,
+      ),
+      3000,
+    );
+  }
+
+  private get classifierKeywordWindowChars() {
+    return Math.min(
+      Math.max(
+        Number(process.env.RFQ_CLASSIFIER_KEYWORD_WINDOW_CHARS || 40),
+        10,
+      ),
+      200,
+    );
+  }
+
+  private get classifierMaxWindows() {
+    return Math.min(
+      Math.max(Number(process.env.RFQ_CLASSIFIER_MAX_WINDOWS || 4), 1),
+      12,
+    );
+  }
+
+  private get extractionDelayMs() {
+    return this.getProcessingSettings().extractionDelayMs;
+  }
+
+  private get llmRateLimitPerMinute() {
+    return this.getProcessingSettings().llmRateLimitPerMinute;
+  }
 
   onModuleInit() {
     if (!this.enabled) {
@@ -144,26 +366,29 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const safeInterval =
-      Number.isFinite(this.intervalMs) && this.intervalMs >= 5000
-        ? this.intervalMs
-        : 20000;
-    this.logger.log(
-      `Backend RFQ pipeline enabled. Interval: ${safeInterval}ms, batchLimit: ${this.runBatchLimit}, classifierBatchSize: ${this.classifierBatchSize}, extractionDelayMs: ${this.extractionDelayMs}`,
-    );
-
-    this.timer = setInterval(() => {
-      void this.processPendingMessages({ limit: this.runBatchLimit });
-    }, safeInterval);
-
-    setTimeout(() => {
-      void this.processPendingMessages({ limit: this.runBatchLimit });
-    }, 1000);
+    void (async () => {
+      const settings = await this.refreshProcessingSettings();
+      this.logger.log(
+        `Backend RFQ pipeline enabled. Interval: ${settings.intervalMs}ms, batchLimit: ${settings.runBatchLimit}, classifierBatchSize: ${settings.classifierBatchSize}, extractionDelayMs: ${settings.extractionDelayMs}, llmRateLimitPerMinute: ${settings.llmRateLimitPerMinute}`,
+      );
+      this.timer = setTimeout(() => {
+        void (async () => {
+          try {
+            await this.processPendingMessages({
+              limit: settings.runBatchLimit,
+            });
+          } finally {
+            void this.scheduleNextPipelineRun();
+          }
+        })();
+      }, 1000);
+    })();
   }
 
   onModuleDestroy() {
+    this.isDestroyed = true;
     if (this.timer) {
-      clearInterval(this.timer);
+      clearTimeout(this.timer);
       this.timer = null;
     }
   }
@@ -625,15 +850,28 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
     const poSignals = this.detectPoSignals(subject, body, payload);
     if (poSignals.matched) {
       return {
+        route: 'po',
         classification: MessageClassification.PO,
         confidence: poSignals.confidence,
         reason: 'PO intent detected from attachment/body signals',
       };
     }
 
+    const billDetection = this.emailClassifier.detectBill(subject, body);
+    if (billDetection) {
+      return {
+        route: 'bill',
+        classification: MessageClassification.UNKNOWN,
+        confidence: billDetection.confidence,
+        reason: 'Bill/invoice indicators detected by canonical router',
+        billDetection,
+      };
+    }
+
     const regexDecision = this.classifyRfqByRegex(subject, body);
     if (regexDecision.verdict === 'rfq') {
       return {
+        route: 'rfq',
         classification: MessageClassification.RFQ,
         confidence: regexDecision.confidence === 'high' ? 0.92 : 0.78,
         reason: regexDecision.reason,
@@ -653,6 +891,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
     if (mentionsQuote && hasQuestionOrClarification) {
       const followupType = this.classifyFollowupType(subject, body);
       return {
+        route: 'followup',
         classification: MessageClassification.FOLLOWUP,
         confidence: 0.84,
         reason:
@@ -663,6 +902,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
 
     if (regexDecision.verdict === 'uncertain') {
       return {
+        route: 'rfq',
         classification: MessageClassification.RFQ,
         confidence: 0.6,
         reason: regexDecision.reason,
@@ -670,6 +910,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
     }
 
     return {
+      route: 'other',
       classification: MessageClassification.UNKNOWN,
       confidence: 0.35,
       reason: 'No strong RFQ/FOLLOWUP/PO intent signals detected',
@@ -682,6 +923,29 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       /\b(?:po\s*(?:number|no\.?|#)?\s*[:-]?\s*)([A-Z0-9/-]{4,})\b/i,
     );
     return poMatch?.[1]?.trim() || '';
+  }
+
+  private getDomainFromEmail(email: string): string {
+    if (!email) return '';
+    const lower = String(email).toLowerCase().trim();
+    const m = lower.match(/@([a-z0-9.\-]+)\>?$/i);
+    return m ? m[1] : '';
+  }
+
+  private getSenderDenylist(): string[] {
+    const raw =
+      process.env.EMAIL_SENDER_DENYLIST || process.env.SENDER_DENYLIST ||
+      'github.com,vercel.com,circleci.com,travis-ci.org,noreply.github.com,bitbucket.org';
+    return String(raw)
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  private isSenderDomainDenied(domain: string): boolean {
+    if (!domain) return false;
+    const deny = this.getSenderDenylist();
+    return deny.some((d) => domain === d || domain.endsWith('.' + d));
   }
 
   private generateInvoiceNumber() {
@@ -948,7 +1212,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
   ) {
     const schema =
       task === 'classifier'
-        ? '{"rfq_ids":["id1"],"non_rfq_ids":["id2"],"reasons":{"id1":"short reason"}}'
+        ? '{"rfq_ids":["id1"],"po_ids":["id2"],"followup_ids":["id3"],"bill_ids":["id4"],"business_name_ids":["id5"],"other_ids":["id6"],"reasons":{"id1":"short reason"}}'
         : '{"is_rfq":true|false,"confidence":"high|medium|low","reason":"string","items":[{"product_name":"string","quantity":1,"unit":"string","notes":"string"}]}';
 
     return [
@@ -973,7 +1237,16 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (task === 'classifier') {
-      return Array.isArray(parsed.rfq_ids) && Array.isArray(parsed.non_rfq_ids);
+      const hasArray = (k: string) => Array.isArray((parsed as any)[k]);
+      return (
+        hasArray('rfq_ids') ||
+        hasArray('po_ids') ||
+        hasArray('followup_ids') ||
+        hasArray('bill_ids') ||
+        hasArray('business_name_ids') ||
+        hasArray('other_ids') ||
+        hasArray('non_rfq_ids')
+      );
     }
 
     return typeof parsed.is_rfq === 'boolean' && Array.isArray(parsed.items);
@@ -1564,25 +1837,23 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
   private async classifyRfqBatch(
     messages: BatchCandidateMessage[],
   ): Promise<BatchClassificationResult> {
+    // New implementation: delegate to a multi-label batch classifier and
+    // map results back to the RFQ/non-RFQ shape for backward compatibility.
     if (messages.length === 0) {
       return { rfq_ids: [], non_rfq_ids: [] };
     }
 
+    // Reuse splitting logic to stay under provider payload limits
     const payloadJson = JSON.stringify(messages);
     const payloadSize = Buffer.byteLength(payloadJson, 'utf8');
     const maxPayloadBytes = 30 * 1024; // 30 KB limit for safety
 
-    // If batch is too large, split it in half and process recursively
     if (payloadSize > maxPayloadBytes) {
       if (messages.length === 1) {
         throw new Error(
           `Single message payload exceeds max size (${payloadSize} > ${maxPayloadBytes})`,
         );
       }
-
-      this.logger.warn(
-        `Batch RFQ classification payload too large (${payloadSize} bytes), splitting batch of ${messages.length} messages in half`,
-      );
 
       const midpoint = Math.ceil(messages.length / 2);
       const [firstHalf, secondHalf] = [
@@ -1597,7 +1868,10 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
 
       return {
         rfq_ids: [...firstResult.rfq_ids, ...secondResult.rfq_ids],
-        non_rfq_ids: [...firstResult.non_rfq_ids, ...secondResult.non_rfq_ids],
+        non_rfq_ids: [
+          ...(firstResult.non_rfq_ids || []),
+          ...(secondResult.non_rfq_ids || []),
+        ],
         reasons: {
           ...firstResult.reasons,
           ...secondResult.reasons,
@@ -1605,71 +1879,68 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
-    // Rate limit before calling LLM
+    // Call the new multi-label classifier
     await this.rateLimitLlmCall();
+    const multi = await this.classifyMessagesBatchMultiLabel(messages);
 
+    const rfqIds: string[] = [];
+    const nonRfqIds: string[] = [];
+    const reasons: Record<string, string> = {};
+
+    for (const msg of messages) {
+      const item = multi[msg.id];
+      if (!item) {
+        nonRfqIds.push(msg.id);
+        continue;
+      }
+
+      if (item.route === 'rfq') rfqIds.push(msg.id);
+      else nonRfqIds.push(msg.id);
+
+      if (item.reason) reasons[msg.id] = String(item.reason).slice(0, 500);
+    }
+
+    return { rfq_ids: rfqIds, non_rfq_ids: nonRfqIds, reasons };
+  }
+
+  private async classifyMessagesBatchMultiLabel(
+    messages: BatchCandidateMessage[],
+  ): Promise<MultiLabelBatchResult> {
+    const payloadJson = JSON.stringify(messages);
     const prompt = [
-      'TASK: Classify each email as RFQ or non-RFQ.',
-      'OUTPUT CONTRACT:',
-      '- Return exactly one valid JSON object and nothing else.',
-      '- No markdown, no code fences, no explanation, no Python, no comments.',
-      '- Use double quotes for all strings.',
-      '- Use the exact keys shown below and no extra keys.',
-      'Schema:',
-      '{"rfq_ids":["id1"],"non_rfq_ids":["id2"],"reasons":{"id1":"short reason"}}',
+      'TASK: For each input message, assign one primary route from the set [rfq, po, followup, bill, business_name, other].',
+      'RETURN: Exactly one JSON object mapping message ids to objects with keys: route, confidence (0..1), optional reason, optional billDetection (an object or null).',
+      'Schema example: {"msg-id-1":{"route":"rfq","confidence":0.92,"reason":"short reason"}}',
       'Rules:',
-      '- RFQ means a clear request for quote/pricing/proforma with purchasable intent.',
-      '- Non-RFQ includes newsletters, notifications, greetings, alerts, internal updates.',
-      '- Body may be a partial snippet; favor recall over precision.',
-      '- If unsure, mark as RFQ to avoid false negatives.',
-      '- Every input id must appear in either rfq_ids or non_rfq_ids.',
+      '- Choose the single most appropriate route per message (primary intent).',
+      "- Confidence must be a number between 0 and 1 where 1 is certain and 0 is none.",
+      '- For messages that appear to be invoices/bills include a billDetection object with any invoice_number, amount and confidence keys found; otherwise set billDetection to null.',
+      '- Use canonical routes only; do not output multiple routes per id.',
       `Input JSON: ${payloadJson}`,
     ].join('\n');
 
     const responseText = await this.callLlmWithFallbacks(prompt, 'classifier');
-
     const parsed = this.parseJsonFlexible(responseText);
-    if (!parsed) {
-      throw new Error('Batch classifier output invalid JSON');
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('Multi-label batch classifier output invalid JSON');
     }
 
-    const rfqIds = Array.isArray(parsed.rfq_ids)
-      ? parsed.rfq_ids.map((x) => this.asText(x, '')).filter(Boolean)
-      : [];
-    const nonRfqIds = Array.isArray(parsed.non_rfq_ids)
-      ? parsed.non_rfq_ids.map((x) => this.asText(x, '')).filter(Boolean)
-      : [];
+    const out: MultiLabelBatchResult = {};
+    for (const [id, value] of Object.entries(parsed)) {
+      if (!value || typeof value !== 'object') continue;
+      const v = value as Record<string, unknown>;
+      const route = String(v.route || 'other') as MultiLabelItem['route'];
+      const confidence = Math.max(0, Math.min(1, Number(v.confidence) || 0));
+      const reason = v.reason ? String(v.reason) : undefined;
+      const billDetection =
+        v.billDetection && typeof v.billDetection === 'object'
+          ? (v.billDetection as Record<string, unknown>)
+          : null;
 
-    const reasonsRaw =
-      parsed.reasons &&
-      typeof parsed.reasons === 'object' &&
-      !Array.isArray(parsed.reasons)
-        ? (parsed.reasons as Record<string, unknown>)
-        : {};
-
-    const reasons: Record<string, string> = {};
-    for (const [id, value] of Object.entries(reasonsRaw)) {
-      const normalized = this.asText(value, '').trim();
-      if (normalized) {
-        reasons[id] = normalized;
-      }
+      out[id] = { route, confidence, reason, billDetection };
     }
 
-    const inputIds = new Set(messages.map((message) => message.id));
-    const rfqSet = new Set(rfqIds.filter((id) => inputIds.has(id)));
-    const nonRfqSet = new Set(nonRfqIds.filter((id) => inputIds.has(id)));
-
-    for (const id of inputIds) {
-      if (!rfqSet.has(id) && !nonRfqSet.has(id)) {
-        nonRfqSet.add(id);
-      }
-    }
-
-    return {
-      rfq_ids: Array.from(rfqSet),
-      non_rfq_ids: Array.from(nonRfqSet),
-      reasons,
-    };
+    return out;
   }
 
   private async classifyRfqCandidatesInBatches(
@@ -1683,6 +1954,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       rfq_ids: [],
       non_rfq_ids: [],
       reasons: {},
+      bill_detections: {},
     };
 
     const batches: BatchCandidateMessage[][] = [];
@@ -1697,10 +1969,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
 
     for (const candidate of candidates) {
       const tentative = [...currentBatch, candidate];
-      const tentativeSize = Buffer.byteLength(
-        JSON.stringify(tentative),
-        'utf8',
-      );
+      const tentativeSize = Buffer.byteLength(JSON.stringify(tentative), 'utf8');
 
       if (
         currentBatch.length > 0 &&
@@ -1722,16 +1991,30 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       const batchIndex = index + 1;
       const batch = batches[index];
       const batchStart = Date.now();
-      const batchResult = await this.classifyRfqBatch(batch);
+
+      // Use multi-label classifier per batch
+      const multi = await this.classifyMessagesBatchMultiLabel(batch);
+
       const batchDurationMs = Date.now() - batchStart;
       const elapsedMs = Date.now() - runStart;
 
-      result.rfq_ids.push(...batchResult.rfq_ids);
-      result.non_rfq_ids.push(...batchResult.non_rfq_ids);
-      result.reasons = {
-        ...(result.reasons || {}),
-        ...(batchResult.reasons || {}),
-      };
+      for (const msg of batch) {
+        const item = multi[msg.id];
+        if (!item) {
+          result.non_rfq_ids!.push(msg.id);
+          continue;
+        }
+
+        if (item.route === 'rfq') result.rfq_ids.push(msg.id);
+        else result.non_rfq_ids!.push(msg.id);
+
+        if (item.reason) result.reasons![msg.id] = String(item.reason).slice(0, 500);
+        if (item.billDetection) result.bill_detections![msg.id] = item.billDetection;
+        if (!result.routes) result.routes = {};
+        if (!result.route_confidences) result.route_confidences = {};
+        result.routes[msg.id] = item.route;
+        result.route_confidences[msg.id] = Number(item.confidence || 0);
+      }
 
       this.logger.log(
         `[RFQ_TIMING] classify_batch ${batchIndex}/${totalBatches} size=${batch.length} took=${batchDurationMs}ms elapsed=${elapsedMs}ms avg_per_email=${Math.round(batchDurationMs / Math.max(batch.length, 1))}ms`,
@@ -1883,6 +2166,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       skipped: 0,
       followups: 0,
       po_detected: 0,
+      bills_detected: 0,
       unknown: 0,
     };
 
@@ -2078,6 +2362,271 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       }
 
       const llmRfqIdSet = new Set(classification.rfq_ids);
+      const handledIds = new Set<string>();
+
+      // Handle messages that the multi-label classifier routed as 'bill'
+      if (classification.routes) {
+        for (const [msgId, route] of Object.entries(classification.routes)) {
+          if (route !== 'bill') continue;
+          const entry = pendingById.get(msgId);
+          if (!entry) continue;
+
+          const candidate = {
+            id: entry.message.id,
+            subject: String(entry.message.conversation?.subject || ''),
+            body: this.asText(entry.payload.body_text, entry.message.body || ''),
+          } as BatchCandidateMessage;
+
+          const detectionRaw = classification.bill_detections?.[msgId] || null;
+          const detection = detectionRaw || this.emailClassifier.detectBill(candidate.subject, candidate.body) || null;
+
+          const reviewThreshold = Number(process.env.EMAIL_CLASSIFIER_BILL_CONFIDENCE_REVIEW || 0.6);
+          if (detection && Number((detection as any).confidence || 0) >= reviewThreshold) {
+            const created = await this.billsService.createBillIfThreshold({
+              tenantId: entry.message.tenant_id,
+              messageId: entry.message.id,
+              fromEmail: String(entry.message.sender_email || ''),
+              subject: candidate.subject,
+              extract: detection as any,
+              confidence: Number((detection as any).confidence || 0),
+            });
+
+            summary.bills_detected += 1;
+            handledIds.add(msgId);
+
+            await this.updateMessageProcessing(
+              msgId,
+              {
+                parsing_source: 'canonical_router',
+                parsing_confidence:
+                  (Number((detection as any).confidence || 0) >= 0.85
+                    ? 'high'
+                    : Number((detection as any).confidence || 0) >= 0.6
+                      ? 'medium'
+                      : 'low'),
+                parsing_error: classification.reasons?.[msgId] || '',
+                parsed_items: [],
+                auto_rfq_created: false,
+                pipeline_stage: 'bill_detected',
+                bill_id: created?.id || undefined,
+                canonical_route: 'bill',
+                canonical_route_confidence: Number((detection as any).confidence || 0),
+              },
+              {
+                status: 'parsed',
+                classification: MessageClassification.UNKNOWN,
+                classificationConfidence: Number((detection as any).confidence || 0),
+              },
+            );
+          }
+        }
+      }
+
+      // Handle messages routed as 'followup' or 'po' by the multi-label classifier
+      if (classification.routes) {
+        for (const [msgId, route] of Object.entries(classification.routes)) {
+          if (handledIds.has(msgId)) continue;
+          const entry = pendingById.get(msgId);
+          if (!entry) continue;
+
+          const candidate = {
+            id: entry.message.id,
+            subject: String(entry.message.conversation?.subject || ''),
+            body: this.asText(entry.payload.body_text, entry.message.body || ''),
+          } as BatchCandidateMessage;
+
+          const routeConfidence = Number((classification.route_confidences && classification.route_confidences[msgId]) || 0);
+
+          if (route === 'followup') {
+            const followupType = this.classifyFollowupType(candidate.subject, candidate.body) || FollowupType.GENERAL;
+
+            await this.createAssistanceTicketForFollowup({
+              tenantId: entry.message.tenant_id,
+              conversationId: entry.message.conversation_id,
+              messageId: entry.message.id,
+              type: followupType,
+            });
+
+            await this.prisma.conversation.update({
+              where: { id: entry.message.conversation_id },
+              data: { current_stage: ConversationStage.MANUAL_ASSISTANCE },
+            });
+
+            summary.followups += 1;
+            handledIds.add(msgId);
+
+            await this.updateMessageProcessing(
+              msgId,
+              {
+                parsing_source: 'backend_intent_router',
+                parsing_confidence: 'medium',
+                parsing_error: classification.reasons?.[msgId] || '',
+                parsed_items: [],
+                auto_rfq_created: false,
+                pipeline_stage: 'followup_ticket_created',
+                canonical_route: 'followup',
+                canonical_route_confidence: routeConfidence,
+              },
+              {
+                status: 'parsed',
+                classification: MessageClassification.FOLLOWUP,
+                classificationConfidence: routeConfidence,
+                followupType,
+              },
+            );
+
+            continue;
+          }
+
+          if (route === 'po') {
+            const senderEmail = String(entry.message.sender_email || '');
+            const senderDomain = this.getDomainFromEmail(senderEmail);
+
+            // Block known notification domains from auto-creating POs
+            if (this.isSenderDomainDenied(senderDomain)) {
+              summary.skipped += 1;
+              handledIds.add(msgId);
+              await this.updateMessageProcessing(
+                msgId,
+                {
+                  parsing_source: 'backend_intent_router',
+                  parsing_confidence: 'low',
+                  parsing_error: `PO detection blocked for sender domain: ${senderDomain}`,
+                  parsed_items: [],
+                  auto_rfq_created: false,
+                  pipeline_stage: 'po_denied_sender',
+                  canonical_route: 'po',
+                  canonical_route_confidence: routeConfidence,
+                },
+                {
+                  status: 'parsed',
+                  classification: MessageClassification.PO,
+                  classificationConfidence: routeConfidence,
+                },
+              );
+              continue;
+            }
+
+            const minCreateConfidence = Number(process.env.ORDER_MIN_CREATE_CONFIDENCE || 0.5);
+            if (routeConfidence < minCreateConfidence) {
+              summary.skipped += 1;
+              handledIds.add(msgId);
+              await this.updateMessageProcessing(
+                msgId,
+                {
+                  parsing_source: 'backend_intent_router',
+                  parsing_confidence: 'low',
+                  parsing_error: `PO detection confidence too low (${routeConfidence}). Minimum required: ${minCreateConfidence}`,
+                  parsed_items: [],
+                  auto_rfq_created: false,
+                  pipeline_stage: 'po_blocked_low_confidence',
+                  canonical_route: 'po',
+                  canonical_route_confidence: routeConfidence,
+                },
+                {
+                  status: 'parsed',
+                  classification: MessageClassification.PO,
+                  classificationConfidence: routeConfidence,
+                },
+              );
+              continue;
+            }
+
+            // Create or update PO record
+            const poRecord = await this.createOrUpdatePurchaseOrderRecord({
+              tenantId: entry.message.tenant_id,
+              conversationId: entry.message.conversation_id,
+              quotationId: entry.message.conversation?.quotation_id,
+              subject: candidate.subject,
+              body: candidate.body,
+              confidence: routeConfidence,
+              messageId: entry.message.id,
+            });
+
+            // Compute detailed PO match confidence
+            const match = await this.poMatcher.scorePurchaseOrder({
+              tenantId: entry.message.tenant_id,
+              conversationId: entry.message.conversation_id,
+              messageBody: candidate.body,
+              messageSubject: candidate.subject,
+              poRecordId: poRecord.id,
+              quotationId: entry.message.conversation?.quotation_id,
+            });
+
+            const percent = Number(match?.percent || 0);
+
+            // Decide status thresholds
+            let newStatus = poRecord.status;
+            if (percent >= 95) newStatus = PurchaseOrderStatus.APPROVED;
+            else if (percent >= 70) newStatus = PurchaseOrderStatus.REVIEW_PENDING;
+            else newStatus = PurchaseOrderStatus.DETECTED;
+
+            await this.prisma.assistancePurchaseOrder.update({
+              where: { id: poRecord.id },
+              data: { confidence: percent, status: newStatus },
+            });
+
+            // If high confidence and quotation present, auto-generate invoice
+            if (percent >= 95 && entry.message.conversation?.quotation_id) {
+              const invoice = await this.ensureInvoiceForQuotation(
+                entry.message.tenant_id,
+                entry.message.conversation.quotation_id,
+                entry.message.conversation_id,
+              );
+
+              if (invoice) {
+                await this.prisma.assistancePurchaseOrder.update({
+                  where: { id: poRecord.id },
+                  data: { invoice_id: invoice.id, status: PurchaseOrderStatus.INVOICE_GENERATED },
+                });
+              }
+
+              await this.prisma.conversation.update({
+                where: { id: entry.message.conversation_id },
+                data: {
+                  current_stage: invoice ? ConversationStage.INVOICE_SENT : ConversationStage.PO_VERIFIED,
+                },
+              });
+            } else if (newStatus === PurchaseOrderStatus.REVIEW_PENDING) {
+              await this.prisma.conversation.update({
+                where: { id: entry.message.conversation_id },
+                data: { current_stage: ConversationStage.PO_RECEIVED },
+              });
+            } else {
+              await this.prisma.conversation.update({
+                where: { id: entry.message.conversation_id },
+                data: { current_stage: ConversationStage.PO_RECEIVED },
+              });
+            }
+
+            summary.po_detected += 1;
+            handledIds.add(msgId);
+
+            await this.updateMessageProcessing(
+              msgId,
+              {
+                parsing_source: 'backend_intent_router',
+                parsing_confidence: 'medium',
+                parsing_error: classification.reasons?.[msgId] || '',
+                parsed_items: [],
+                auto_rfq_created: false,
+                pipeline_stage: 'po_detected',
+                po_match_percent: percent,
+                po_match_components: match?.components || {},
+                canonical_route: 'po',
+                canonical_route_confidence: routeConfidence,
+              },
+              {
+                status: 'parsed',
+                classification: MessageClassification.PO,
+                classificationConfidence: routeConfidence,
+              },
+            );
+
+            continue;
+          }
+        }
+      }
 
       if (!classificationFailedForUncertain) {
         for (const candidate of uncertainCandidates) {
@@ -2297,6 +2846,8 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
             rejected_items: preview.unmatched_items,
             auto_rfq_created: false,
             pipeline_stage: 'extraction_completed',
+            canonical_route: 'rfq',
+            canonical_route_confidence: Number((confidenceScore || 0) / 100),
           });
           continue;
         }
@@ -2319,6 +2870,8 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
             rejected_items: preview.unmatched_items,
             auto_rfq_created: true,
             pipeline_stage: 'rfq_created',
+            canonical_route: 'rfq',
+            canonical_route_confidence: Number((confidenceScore || 0) / 100),
           });
 
           summary.created_rfqs += 1;
@@ -2384,6 +2937,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       skipped: 0,
       followups: 0,
       po_detected: 0,
+      bills_detected: 0,
       unknown: 0,
     };
 
@@ -2811,7 +3365,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
           entry.message.conversation?.quotation_id,
         );
 
-        if (primaryIntent.classification === MessageClassification.FOLLOWUP) {
+        if (primaryIntent.route === 'followup') {
           const followupType =
             primaryIntent.followupType || FollowupType.GENERAL;
 
@@ -2839,6 +3393,8 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
               parsed_items: [],
               auto_rfq_created: false,
               pipeline_stage: 'followup_ticket_created',
+              canonical_route: primaryIntent.route,
+              canonical_route_confidence: primaryIntent.confidence,
             },
             {
               status: 'parsed',
@@ -2850,7 +3406,61 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
           continue;
         }
 
-        if (primaryIntent.classification === MessageClassification.PO) {
+        if (primaryIntent.route === 'po') {
+          const senderEmail = String(entry.message.sender_email || '');
+          const senderDomain = this.getDomainFromEmail(senderEmail);
+
+          // Block known notification domains from auto-creating POs
+          if (this.isSenderDomainDenied(senderDomain)) {
+            summary.skipped += 1;
+            await this.updateMessageProcessing(
+              candidate.id,
+              {
+                parsing_source: 'backend_intent_router',
+                parsing_confidence: 'low',
+                parsing_error: `PO detection blocked for sender domain: ${senderDomain}`,
+                parsed_items: [],
+                auto_rfq_created: false,
+                pipeline_stage: 'po_denied_sender',
+                canonical_route: primaryIntent.route,
+                canonical_route_confidence: primaryIntent.confidence,
+              },
+              {
+                status: 'parsed',
+                classification: MessageClassification.PO,
+                classificationConfidence: primaryIntent.confidence,
+              },
+            );
+            continue;
+          }
+
+          // Enforce a minimal classification confidence before creating PO records
+          const minCreateConfidence = Number(
+            process.env.ORDER_MIN_CREATE_CONFIDENCE || 0.5,
+          );
+          if (Number(primaryIntent.confidence || 0) < minCreateConfidence) {
+            summary.skipped += 1;
+            await this.updateMessageProcessing(
+              candidate.id,
+              {
+                parsing_source: 'backend_intent_router',
+                parsing_confidence: 'low',
+                parsing_error: `PO detection confidence too low (${primaryIntent.confidence}). Minimum required: ${minCreateConfidence}`,
+                parsed_items: [],
+                auto_rfq_created: false,
+                pipeline_stage: 'po_blocked_low_confidence',
+                canonical_route: primaryIntent.route,
+                canonical_route_confidence: primaryIntent.confidence,
+              },
+              {
+                status: 'parsed',
+                classification: MessageClassification.PO,
+                classificationConfidence: primaryIntent.confidence,
+              },
+            );
+            continue;
+          }
+
           const poRecord = await this.createOrUpdatePurchaseOrderRecord({
             tenantId: entry.message.tenant_id,
             conversationId: entry.message.conversation_id,
@@ -3072,6 +3682,8 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
               pipeline_stage: 'po_detected',
               po_match_percent: percent,
               po_match_components: match?.components || {},
+              canonical_route: primaryIntent.route,
+              canonical_route_confidence: primaryIntent.confidence,
             },
             {
               status: 'parsed',
@@ -3088,12 +3700,14 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
           await this.updateMessageProcessing(
             candidate.id,
             {
-              parsing_source: 'backend_intent_router',
+              parsing_source: 'canonical_router',
               parsing_confidence: 'low',
               parsing_error: primaryIntent.reason,
               parsed_items: [],
               auto_rfq_created: false,
               pipeline_stage: 'classified_unknown',
+              canonical_route: primaryIntent.route,
+              canonical_route_confidence: primaryIntent.confidence,
             },
             {
               status: 'parsed',
@@ -3122,6 +3736,8 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
               auto_rfq_created: false,
               pipeline_stage: 'classified_non_rfq_regex',
               rfq_pipeline_last_error_kind: 'regex_non_rfq',
+              canonical_route: primaryIntent.route,
+              canonical_route_confidence: primaryIntent.confidence,
             },
             {
               status: 'parsed',
@@ -3149,6 +3765,8 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
               auto_rfq_created: false,
               pipeline_stage: 'extracting_items_regex_gate',
               rfq_classified_at: classifiedAt,
+              canonical_route: primaryIntent.route,
+              canonical_route_confidence: primaryIntent.confidence,
             },
             {
               status: 'pending',
@@ -3235,6 +3853,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
                     pipeline_stage: shouldRetry
                       ? 'classification_retry_scheduled'
                       : 'classification_failed',
+                    canonical_route: 'rfq',
                     ...retryPayload,
                   },
                   {
@@ -3265,6 +3884,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
                   auto_rfq_created: false,
                   pipeline_stage: 'classification_failed',
                   rfq_pipeline_last_error_kind: failure.kind,
+                  canonical_route: 'rfq',
                 },
                 { status: 'failed' },
               );
@@ -3296,9 +3916,18 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
         for (const candidate of uncertainCandidates) {
           const entry = pendingById.get(candidate.id);
           if (!entry) continue;
+          // Use the canonical route determined by the multi-label classifier when available
+          const route = (classification.routes && classification.routes[candidate.id]) || (llmRfqIdSet.has(candidate.id) ? 'rfq' : 'other');
 
-          if (!llmRfqIdSet.has(candidate.id)) {
+          if (route !== 'rfq') {
             summary.non_rfq += 1;
+            const classificationEnum =
+              route === 'po'
+                ? MessageClassification.PO
+                : route === 'followup'
+                  ? MessageClassification.FOLLOWUP
+                  : MessageClassification.UNKNOWN;
+
             await this.updateMessageProcessing(
               candidate.id,
               {
@@ -3310,8 +3939,10 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
                 parsed_items: [],
                 auto_rfq_created: false,
                 pipeline_stage: 'classified_non_rfq',
+                canonical_route: route,
+                canonical_route_confidence: classification.routes && classification.routes[candidate.id] ? Number((classification.routes[candidate.id] === 'rfq' ? 0.9 : 0.6)) : classification.reasons?.[candidate.id] ? 0.6 : 0.35,
               },
-              { status: 'parsed' },
+              { status: 'parsed', classification: classificationEnum },
             );
             continue;
           }
@@ -3331,6 +3962,8 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
               auto_rfq_created: false,
               pipeline_stage: 'extracting_items',
               rfq_classified_at: classifiedAt,
+              canonical_route: 'rfq',
+              canonical_route_confidence: classification.routes && classification.routes[candidate.id] ? (classification.routes[candidate.id] === 'rfq' ? 0.9 : 0.6) : 0.6,
             },
             {
               status: 'pending',
@@ -3433,6 +4066,13 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
               parsed_items: extractedItems,
               auto_rfq_created: false,
               pipeline_stage: 'extraction_completed',
+              canonical_route: 'rfq',
+              canonical_route_confidence:
+                extraction.confidence === 'high'
+                  ? 0.9
+                  : extraction.confidence === 'medium'
+                    ? 0.7
+                    : 0.4,
             },
             { status: 'parsed' },
           );
@@ -3472,6 +4112,17 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
             : [];
 
           if (matchedItems.length === 0) {
+            const intelligence = await this.itemIntelligenceService.matchItems({
+              tenant_id: tenantId,
+              item_id: candidate.id,
+              extracted_items: extractedItems.map((item) => ({
+                product_name: item.product_name,
+                quantity: Number(item.quantity || 0),
+                unit: item.unit,
+              })),
+              mode: 'manual',
+            });
+
             summary.unresolved += 1;
             await this.updateMessageProcessing(
               candidate.id,
@@ -3484,6 +4135,15 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
                 ),
                 parsed_items: extractedItems,
                 rejected_items: preview.unmatched_items,
+                item_intelligence_run_id: intelligence?.run_id || undefined,
+                item_intelligence_suggestions:
+                  intelligence?.items?.map((item) => ({
+                    input_text: item.input_text,
+                    confidence: item.confidence,
+                    decision: item.decision,
+                    suggestions: item.suggestions,
+                    best_match: item.best_match,
+                  })) || [],
                 auto_rfq_created: false,
                 pipeline_stage: 'extraction_completed',
               },
@@ -3510,6 +4170,13 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
               rejected_items: preview.unmatched_items,
               auto_rfq_created: true,
               pipeline_stage: 'rfq_created',
+              canonical_route: 'rfq',
+              canonical_route_confidence:
+                extraction.confidence === 'high'
+                  ? 0.9
+                  : extraction.confidence === 'medium'
+                    ? 0.7
+                    : 0.4,
               rfq_pipeline_retry_count: 0,
               rfq_pipeline_next_retry_at: '',
               rfq_pipeline_last_failure_kind: '',

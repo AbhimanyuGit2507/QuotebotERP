@@ -12,6 +12,7 @@ backend/dist/
 backend/backend.log
 
 # Secrets
+/\.env
 /secrets/
 backend/client_secret_*.json
 backend/.env

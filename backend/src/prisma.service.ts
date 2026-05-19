@@ -39,6 +39,12 @@ type GoodsReceiptNoteDelegate = PrismaClient['goodsReceiptNote'];
 type GoodsReceiptNoteItemDelegate = PrismaClient['goodsReceiptNoteItem'];
 type StockMovementDelegate = PrismaClient['stockMovement'];
 type ExchangeRateDelegate = PrismaClient['exchangeRate'];
+type ProcessingSettingsDelegate = PrismaClient['processingSettings'];
+type ItemMatchRunDelegate = PrismaClient['itemMatchRun'];
+type ItemMatchCandidateDelegate = PrismaClient['itemMatchCandidate'];
+type ItemAliasDelegate = PrismaClient['itemAlias'];
+type ItemMatchFeedbackDelegate = PrismaClient['itemMatchFeedback'];
+type ItemMatchConfigDelegate = PrismaClient['itemMatchConfig'];
 
 declare const globalThis: {
   prismaGlobal: PrismaClient;
@@ -53,192 +59,224 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
   private prismaClient: PrismaClient = prisma;
 
+  private getClient(): PrismaClient {
+    if (!this.prismaClient) {
+      this.prismaClient = prismaClientSingleton();
+    }
+
+    return this.prismaClient;
+  }
+
   get user() {
-    return this.prismaClient.user;
+    return this.getClient().user;
   }
 
   get tenant() {
-    return this.prismaClient.tenant;
+    return this.getClient().tenant;
   }
 
   get role() {
-    return this.prismaClient.role;
+    return this.getClient().role;
   }
 
   get product() {
-    return this.prismaClient.product;
+    return this.getClient().product;
   }
 
   get productCategory() {
-    return this.prismaClient.productCategory;
+    return this.getClient().productCategory;
   }
 
   get client() {
-    return this.prismaClient.client;
+    return this.getClient().client;
   }
 
   get rFQ() {
-    return this.prismaClient.rFQ;
+    return this.getClient().rFQ;
   }
 
   get rFQItem() {
-    return this.prismaClient.rFQItem;
+    return this.getClient().rFQItem;
   }
 
   get quotation() {
-    return this.prismaClient.quotation;
+    return this.getClient().quotation;
   }
 
   get quotationItem() {
-    return this.prismaClient.quotationItem;
+    return this.getClient().quotationItem;
   }
 
   get quotationVersion() {
-    return this.prismaClient.quotationVersion;
+    return this.getClient().quotationVersion;
   }
 
   get activity() {
-    return this.prismaClient.activity;
+    return this.getClient().activity;
   }
 
   get auditLog() {
-    return this.prismaClient.auditLog;
+    return this.getClient().auditLog;
   }
 
   get parseRun() {
-    return this.prismaClient.parseRun;
+    return this.getClient().parseRun;
   }
 
   get file() {
-    return this.prismaClient.file;
+    return this.getClient().file;
   }
 
   get conversation() {
-    return this.prismaClient.conversation;
+    return this.getClient().conversation;
   }
 
   get message() {
-    return this.prismaClient.message;
+    return this.getClient().message;
   }
 
   get analyticsCache() {
-    return this.prismaClient.analyticsCache;
+    return this.getClient().analyticsCache;
   }
 
   get settingsCompany() {
-    return this.prismaClient.settingsCompany;
+    return this.getClient().settingsCompany;
   }
 
   get settingsNotifications() {
-    return this.prismaClient.settingsNotifications;
+    return this.getClient().settingsNotifications;
+  }
+
+  get processingSettings() {
+    return this.getClient().processingSettings as ProcessingSettingsDelegate;
+  }
+
+  get itemMatchRun() {
+    return this.getClient().itemMatchRun as ItemMatchRunDelegate;
+  }
+
+  get itemMatchCandidate() {
+    return this.getClient().itemMatchCandidate as ItemMatchCandidateDelegate;
+  }
+
+  get itemAlias() {
+    return this.getClient().itemAlias as ItemAliasDelegate;
+  }
+
+  get itemMatchFeedback() {
+    return this.getClient().itemMatchFeedback as ItemMatchFeedbackDelegate;
+  }
+
+  get itemMatchConfig() {
+    return this.getClient().itemMatchConfig as ItemMatchConfigDelegate;
   }
 
   get settingsTemplate() {
-    return this.prismaClient.settingsTemplate;
+    return this.getClient().settingsTemplate;
   }
 
   get automationRule() {
-    return this.prismaClient.automationRule;
+    return this.getClient().automationRule;
   }
 
   get emailAccount() {
-    return this.prismaClient.emailAccount;
+    return this.getClient().emailAccount;
   }
 
   get outboundEmail() {
-    return this.prismaClient.outboundEmail;
+    return this.getClient().outboundEmail;
   }
 
   get taxProfile(): TaxProfileDelegate {
-    return this.prismaClient.taxProfile;
+    return this.getClient().taxProfile;
   }
 
   get invoice(): InvoiceDelegate {
-    return this.prismaClient.invoice;
+    return this.getClient().invoice;
   }
 
   get payment(): PaymentDelegate {
-    return this.prismaClient.payment;
+    return this.getClient().payment;
   }
 
   get accountingIntegration(): AccountingIntegrationDelegate {
-    return this.prismaClient.accountingIntegration;
+    return this.getClient().accountingIntegration;
   }
 
   get accountingExport(): AccountingExportDelegate {
-    return this.prismaClient.accountingExport;
+    return this.getClient().accountingExport;
   }
 
   get integrationMapping(): IntegrationMappingDelegate {
-    return this.prismaClient.integrationMapping;
+    return this.getClient().integrationMapping;
   }
 
   get assistanceTicket(): AssistanceTicketDelegate {
-    return this.prismaClient.assistanceTicket;
+    return this.getClient().assistanceTicket;
   }
 
   get assistancePurchaseOrder(): AssistancePurchaseOrderDelegate {
-    return this.prismaClient.assistancePurchaseOrder;
+    return this.getClient().assistancePurchaseOrder;
   }
 
   get emailTemplate(): EmailTemplateDelegate {
-    return this.prismaClient.emailTemplate;
+    return this.getClient().emailTemplate;
   }
 
   get chartOfAccount(): ChartOfAccountDelegate {
-    return this.prismaClient.chartOfAccount;
+    return this.getClient().chartOfAccount;
   }
 
   get journalEntry(): JournalEntryDelegate {
-    return this.prismaClient.journalEntry;
+    return this.getClient().journalEntry;
   }
 
   get supplier(): SupplierDelegate {
-    return this.prismaClient.supplier;
+    return this.getClient().supplier;
   }
 
   get purchaseOrderOutbound(): PurchaseOrderOutboundDelegate {
-    return this.prismaClient.purchaseOrderOutbound;
+    return this.getClient().purchaseOrderOutbound;
   }
 
   get purchaseOrderOutboundItem(): PurchaseOrderOutboundItemDelegate {
-    return this.prismaClient.purchaseOrderOutboundItem;
+    return this.getClient().purchaseOrderOutboundItem;
   }
 
   get goodsReceiptNote(): GoodsReceiptNoteDelegate {
-    return this.prismaClient.goodsReceiptNote;
+    return this.getClient().goodsReceiptNote;
   }
 
   get goodsReceiptNoteItem(): GoodsReceiptNoteItemDelegate {
-    return this.prismaClient.goodsReceiptNoteItem;
+    return this.getClient().goodsReceiptNoteItem;
   }
 
   get stockMovement(): StockMovementDelegate {
-    return this.prismaClient.stockMovement;
+    return this.getClient().stockMovement;
   }
 
   get exchangeRate(): ExchangeRateDelegate {
-    return this.prismaClient.exchangeRate;
+    return this.getClient().exchangeRate;
   }
 
   get db(): PrismaClient {
-    return this.prismaClient;
+    return this.getClient();
   }
 
   async $transaction<T>(
     fn: (tx: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
-    return this.prismaClient.$transaction(fn);
+    return this.getClient().$transaction(fn);
   }
 
   async onModuleInit() {
-    await this.prismaClient.$connect();
+    await this.getClient().$connect();
     this.logger.log('✅ Prisma connected to database');
   }
 
   async onModuleDestroy() {
     try {
-      await this.prismaClient.$disconnect();
+      await this.getClient().$disconnect();
       this.logger.log('✅ Prisma disconnected from database');
     } catch (err) {
       this.logger.warn(

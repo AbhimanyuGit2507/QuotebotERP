@@ -22,6 +22,7 @@ const Sidebar: React.FC = () => {
     { path: '/dashboard', icon: 'space_dashboard', label: 'Dashboard' },
     { path: '/inbox', icon: 'all_inbox', label: 'Inbox' },
     { path: '/rfq-inbox', icon: 'assignment', label: 'RFQ Management' },
+    { path: '/bills', icon: 'receipt_long', label: 'Bills' },
     { path: '/quotations', icon: 'receipt_long', label: 'Quotations' },
     { path: '/orders', icon: 'shopping_cart', label: 'Orders' },
     { path: '/purchase-orders', icon: 'shopping_cart_checkout', label: 'Purchase Orders' },
@@ -58,7 +59,7 @@ const Sidebar: React.FC = () => {
   const NavItem = ({ item, active }: { item: typeof mainMenuItems[0]; active: boolean }) => (
     <Link 
       to={item.path} 
-      className={`app-sidebar-item group flex items-center gap-3 mx-2 px-2.5 h-[40px] text-[13px] rounded-lg transition-colors duration-200 ease-out relative z-50 pointer-events-auto ${
+      className={`app-sidebar-item group flex items-center gap-3 mx-2 px-2.5 h-[40px] text-[13px] rounded-lg transition-colors duration-200 ease-out relative pointer-events-auto ${
         active
           ? 'app-sidebar-item-active text-white'
           : 'app-sidebar-item-inactive text-[var(--erp-sidebar-muted)] hover:text-white hover:bg-[rgba(255,255,255,0.08)]'
@@ -88,11 +89,12 @@ const Sidebar: React.FC = () => {
     <>
       {/* Desktop Sidebar - hidden on mobile */}
       <aside
-        className={`app-sidebar hidden md:flex ${isExpanded ? 'w-56' : 'w-[56px]'} bg-gradient-to-b from-[var(--erp-primary)] via-[var(--erp-sidebar-bg)] to-[rgba(0,52,89,0.92)] text-white flex-col shrink-0 transition-all duration-300 font-sans relative z-40`}
+        className={`app-sidebar hidden md:flex ${isExpanded ? 'w-56' : 'w-[56px]'} bg-gradient-to-b from-[var(--erp-primary)] via-[var(--erp-sidebar-bg)] to-[rgba(0,52,89,0.92)] text-white flex-col shrink-0 transition-[width] duration-300 font-sans relative z-40 will-change-[width]`}
+        style={{ contain: 'layout paint' }}
       >
         <div className="h-[52px] px-3 border-b border-[rgba(255,255,255,0.12)] flex items-center gap-2.5">
           <button 
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--erp-sidebar-muted)] hover:text-white hover:bg-[var(--erp-sidebar-hover)] transition-all duration-200"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--erp-sidebar-muted)] hover:text-white hover:bg-[var(--erp-sidebar-hover)] transition-colors duration-200"
             onClick={() => setIsExpanded(!isExpanded)}
           >
             <span className="material-symbols-outlined text-[20px]">
@@ -105,7 +107,7 @@ const Sidebar: React.FC = () => {
             </p>
           )}
         </div>
-        <div className="flex-1 overflow-y-auto overflow-x-hidden py-2 space-y-0.5">
+        <div className="app-sidebar-scroll flex-1 overflow-y-scroll overflow-x-hidden py-2 space-y-0.5">
           {mainMenuItems.map(item => (
             <NavItem 
               key={item.path}
@@ -192,4 +194,4 @@ const Sidebar: React.FC = () => {
   );
 };
 
-export default Sidebar;
+export default React.memo(Sidebar);

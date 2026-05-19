@@ -148,13 +148,11 @@ table, .font-inter-tabular {
   cursor: pointer;
   pointer-events: auto;
   position: relative;
-  z-index: 1;
 }
 
 .app-sidebar .app-sidebar-item:hover {
   color: white !important;
   background-color: rgba(255, 255, 255, 0.08);
-  z-index: 2;
 }
 
 .app-sidebar .app-sidebar-item-inactive {
@@ -180,6 +178,11 @@ table, .font-inter-tabular {
 
 .app-sidebar .app-sidebar-item-active .material-symbols-outlined {
   color: #ffffff;
+}
+
+.app-sidebar-scroll {
+  scrollbar-gutter: stable both-edges;
+  overscroll-behavior-y: contain;
 }
 
 .erp-table {

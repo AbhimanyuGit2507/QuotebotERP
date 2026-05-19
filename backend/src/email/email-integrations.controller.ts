@@ -67,7 +67,9 @@ export class EmailIntegrationsController {
       throw new BadRequestException('Tenant ID not found');
     }
 
-    return this.emailService.triggerImmediateGmailSync(tenantId);
+    return this.emailService.triggerImmediateGmailSync(tenantId, {
+      syncMode: 'manual',
+    });
   }
 
   @UseGuards(JwtAuthGuard)
@@ -182,8 +184,12 @@ export class EmailIntegrationsController {
       );
 
       try {
-        const syncResult =
-          this.emailService.triggerImmediateGmailSync(tenantId);
+        const syncResult = this.emailService.triggerImmediateGmailSync(
+          tenantId,
+          {
+            syncMode: 'initial',
+          },
+        );
         this.logger.log(
           `OAuth immediate sync trigger result tenantId=${tenantId} started=${syncResult.started} reason=${syncResult.reason}`,
         );

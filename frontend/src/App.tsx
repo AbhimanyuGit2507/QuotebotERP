@@ -12,6 +12,7 @@ import Analytics from './pages/Analytics';
 import RFQInbox from './pages/RFQInbox';
 import ClientLedger from './pages/ClientLedger';
 import SystemConfig from './pages/SystemConfig';
+import ItemIntelligenceAdmin from './pages/ItemIntelligenceAdmin';
 import Inbox from './pages/Inbox';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -19,6 +20,8 @@ import AuthCallback from './pages/AuthCallback';
 import Landing from './pages/Landing';
 import AdminConsole from './pages/AdminConsole';
 import Invoices from './pages/Invoices';
+import Bills from './pages/Bills';
+import BillDetails from './pages/BillDetails';
 import EmailTemplates from './pages/EmailTemplates';
 import AuditLog from './pages/AuditLog';
 import Payments from './pages/Payments';
@@ -91,6 +94,8 @@ const AppRoutes = () => {
       <Route path="/admin" element={<ProtectedRoute><AdminConsole /></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/inbox/:id?" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
+      <Route path="/bills" element={<ProtectedRoute><Bills /></ProtectedRoute>} />
+      <Route path="/bills/:id" element={<ProtectedRoute><BillDetails /></ProtectedRoute>} />
       <Route path="/user-permissions" element={<ProtectedRoute><UserPermissions /></ProtectedRoute>} />
       <Route path="/quotations/:id?" element={<ProtectedRoute><Quotations /></ProtectedRoute>} />
       <Route path="/orders/:id?" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
@@ -100,6 +105,7 @@ const AppRoutes = () => {
       <Route path="/rfq-inbox/:id?" element={<ProtectedRoute><RFQInbox /></ProtectedRoute>} />
       <Route path="/client-ledger/:id?" element={<ProtectedRoute><ClientLedger /></ProtectedRoute>} />
       <Route path="/system-config" element={<ProtectedRoute><SystemConfig /></ProtectedRoute>} />
+      <Route path="/item-intelligence" element={<ProtectedRoute><ItemIntelligenceAdmin /></ProtectedRoute>} />
       <Route path="/email-templates" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
       <Route path="/audit-log" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
       <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />

@@ -12,6 +12,7 @@ import { apiRequest } from '../services/api';
 type ConfigTab =
   | 'company'
   | 'communication'
+  | 'processing'
   | 'whatsapp'
   | 'notifications'
   | 'email-templates'
@@ -22,6 +23,7 @@ type ConfigTab =
 const tabs: { id: ConfigTab; label: string; icon: string }[] = [
   { id: 'company', label: 'Company', icon: 'business' },
   { id: 'communication', label: 'Email', icon: 'mail' },
+  { id: 'processing', label: 'Automation', icon: 'memory' },
   { id: 'whatsapp', label: 'WhatsApp', icon: 'chat' },
   { id: 'notifications', label: 'Notifications', icon: 'notifications' },
   { id: 'email-templates', label: 'Email Templates', icon: 'mail_outline' },
@@ -57,6 +59,26 @@ type CompanyProfileForm = {
   bankIfsc: string;
 };
 
+type ProcessingSettingsForm = {
+  interval_ms: string;
+  run_batch_limit: string;
+  classifier_batch_size: string;
+  classifier_batch_max_bytes: string;
+  extraction_delay_ms: string;
+  llm_rate_limit_per_minute: string;
+};
+
+const buildProcessingSettingsForm = (
+  settings?: Partial<ProcessingSettingsForm> | null,
+): ProcessingSettingsForm => ({
+  interval_ms: settings?.interval_ms || '20000',
+  run_batch_limit: settings?.run_batch_limit || '60',
+  classifier_batch_size: settings?.classifier_batch_size || '8',
+  classifier_batch_max_bytes: settings?.classifier_batch_max_bytes || '26000',
+  extraction_delay_ms: settings?.extraction_delay_ms || '50',
+  llm_rate_limit_per_minute: settings?.llm_rate_limit_per_minute || '10',
+});
+
 const buildCompanyProfileForm = (
   fallbackName: string,
   settings: CompanySettings,
@@ -91,6 +113,7 @@ const buildCompanyProfileForm = (
 
 const SystemConfig: React.FC = () => {
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const {
     companySettings,
     notificationSettings,
@@ -110,6 +133,13 @@ const SystemConfig: React.FC = () => {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importProvider, setImportProvider] = useState<'zoho' | 'odoo'>('zoho');
   const [showOdooModal, setShowOdooModal] = useState(false);
+  const [processingLoading, setProcessingLoading] = useState(false);
+  const [processingForm, setProcessingForm] = useState<ProcessingSettingsForm>(() =>
+    buildProcessingSettingsForm(),
+  );
+  const [savedProcessingForm, setSavedProcessingForm] = useState<ProcessingSettingsForm>(() =>
+    buildProcessingSettingsForm(),
+  );
 
   const [companyForm, setCompanyForm] = useState<CompanyProfileForm>(() =>
     buildCompanyProfileForm(user?.company_name || 'Quotebot', companySettings),
@@ -131,6 +161,11 @@ const SystemConfig: React.FC = () => {
     quoteDeclined: notificationSettings.quoteDeclined,
   });
 
+  const visibleTabs = useMemo(
+    () => tabs.filter((tab) => tab.id !== 'processing' || isAdmin),
+    [isAdmin],
+  );
+
   const hasUnsavedChanges = useMemo(() => {
     if (activeTab === 'company') {
       return JSON.stringify(companyForm) !== JSON.stringify(savedCompanyForm);
@@ -146,6 +181,10 @@ const SystemConfig: React.FC = () => {
       );
     }
 
+    if (activeTab === 'processing') {
+      return JSON.stringify(processingForm) !== JSON.stringify(savedProcessingForm);
+    }
+
     return false;
   }, [
     activeTab,
@@ -153,6 +192,8 @@ const SystemConfig: React.FC = () => {
     savedCompanyForm,
     notificationForm,
     notificationSettings,
+    processingForm,
+    savedProcessingForm,
   ]);
 
   const handleSave = async () => {
@@ -205,6 +246,24 @@ const SystemConfig: React.FC = () => {
         });
       }
 
+      if (activeTab === 'processing') {
+        const payload = {
+          interval_ms: Number(processingForm.interval_ms),
+          run_batch_limit: Number(processingForm.run_batch_limit),
+          classifier_batch_size: Number(processingForm.classifier_batch_size),
+          classifier_batch_max_bytes: Number(processingForm.classifier_batch_max_bytes),
+          extraction_delay_ms: Number(processingForm.extraction_delay_ms),
+          llm_rate_limit_per_minute: Number(processingForm.llm_rate_limit_per_minute),
+        };
+
+        await apiRequest('/admin/processing-settings', {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+
+        setSavedProcessingForm(processingForm);
+      }
+
       showToast('Settings saved successfully', 'success');
     } catch (error) {
       showToast(
@@ -232,6 +291,8 @@ const SystemConfig: React.FC = () => {
       quoteDeclined: notificationSettings.quoteDeclined,
     });
 
+    setProcessingForm(savedProcessingForm);
+
     showToast('Changes discarded', 'info');
   };
 
@@ -257,6 +318,46 @@ const SystemConfig: React.FC = () => {
 
     void loadStatus();
   }, [activeTab, showToast]);
+
+  useEffect(() => {
+    if (activeTab !== 'processing' || !isAdmin) {
+      return;
+    }
+
+    const loadProcessingSettings = async () => {
+      setProcessingLoading(true);
+      try {
+        const settings = await apiRequest<{
+          interval_ms: number;
+          run_batch_limit: number;
+          classifier_batch_size: number;
+          classifier_batch_max_bytes: number;
+          extraction_delay_ms: number;
+          llm_rate_limit_per_minute: number;
+        }>('/admin/processing-settings');
+
+        const nextForm = buildProcessingSettingsForm({
+          interval_ms: String(settings?.interval_ms ?? 20000),
+          run_batch_limit: String(settings?.run_batch_limit ?? 60),
+          classifier_batch_size: String(settings?.classifier_batch_size ?? 8),
+          classifier_batch_max_bytes: String(settings?.classifier_batch_max_bytes ?? 26000),
+          extraction_delay_ms: String(settings?.extraction_delay_ms ?? 50),
+          llm_rate_limit_per_minute: String(settings?.llm_rate_limit_per_minute ?? 10),
+        });
+        setProcessingForm(nextForm);
+        setSavedProcessingForm(nextForm);
+      } catch (error) {
+        showToast(
+          error instanceof Error ? error.message : 'Failed to load processing settings',
+          'error',
+        );
+      } finally {
+        setProcessingLoading(false);
+      }
+    };
+
+    void loadProcessingSettings();
+  }, [activeTab, isAdmin, showToast]);
 
   useEffect(() => {
     setCompanyForm(persistedCompanyForm);
@@ -412,6 +513,51 @@ const SystemConfig: React.FC = () => {
             />
             <span className="text-sm text-[var(--erp-text)]">{item.label}</span>
           </label>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderProcessingContent = () => (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-lg font-bold text-[var(--erp-text)]">Automation Settings</h1>
+        <p className="text-sm text-[var(--erp-text-muted)]">
+          Control the global email queue, batching, and LLM throughput limits.
+        </p>
+      </div>
+
+      <section className="rounded-2xl border border-[var(--erp-border)] bg-slate-50 p-4 text-sm text-[var(--erp-text-muted)]">
+        These settings are global defaults with env fallback. They affect the shared classifier and extraction worker.
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {[
+          { key: 'interval_ms', label: 'Worker interval (ms)', helper: 'How often the worker wakes up.' },
+          { key: 'run_batch_limit', label: 'Run batch limit', helper: 'Max messages processed per run.' },
+          { key: 'classifier_batch_size', label: 'Classifier batch size', helper: 'How many messages the router classifies together.' },
+          { key: 'classifier_batch_max_bytes', label: 'Classifier max bytes', helper: 'Byte cap per classifier batch.' },
+          { key: 'extraction_delay_ms', label: 'Extraction delay (ms)', helper: 'Small delay between extraction calls.' },
+          { key: 'llm_rate_limit_per_minute', label: 'LLM calls per minute', helper: 'Global provider safety limit.' },
+        ].map((field) => (
+          <section key={field.key} className="space-y-2 rounded-xl border border-[var(--erp-border)] bg-white p-4">
+            <label className="block text-sm font-medium text-[var(--erp-text-muted)]">{field.label}</label>
+            <input
+              type="number"
+              min={field.key === 'extraction_delay_ms' ? 0 : 1}
+              step={1}
+              value={processingForm[field.key as keyof ProcessingSettingsForm]}
+              onChange={(event) =>
+                setProcessingForm((prev) => ({
+                  ...prev,
+                  [field.key]: event.target.value,
+                }))
+              }
+              className="w-full rounded border border-[var(--erp-border)] px-3 py-2 text-sm"
+              disabled={processingLoading}
+            />
+            <p className="text-[12px] text-[var(--erp-text-muted)]">{field.helper}</p>
+          </section>
         ))}
       </div>
     </div>
@@ -690,6 +836,8 @@ const SystemConfig: React.FC = () => {
         return renderCompanyContent();
       case 'notifications':
         return renderNotificationsContent();
+      case 'processing':
+        return isAdmin ? renderProcessingContent() : renderStaticContent('Automation Settings', 'Admin-only queue and LLM throughput limits.');
       case 'communication':
         return <EmailIntegrations onSuccess={refreshData} />;
       case 'whatsapp':
@@ -712,7 +860,7 @@ const SystemConfig: React.FC = () => {
       <PageLayout>
         <main className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
           <div className="h-11 border-b border-[var(--erp-border)] flex items-center px-3 bg-slate-50 shrink-0 gap-0.5 overflow-x-auto">
-            {tabs.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab.id}
                 className={`flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-medium rounded transition-colors whitespace-nowrap ${

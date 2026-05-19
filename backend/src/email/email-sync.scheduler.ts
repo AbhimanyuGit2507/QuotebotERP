@@ -67,7 +67,12 @@ export class EmailSyncScheduler {
           }
 
           // Trigger sync
-          const result = this.emailService.triggerImmediateGmailSync(tenant_id);
+          const result = this.emailService.triggerImmediateGmailSync(
+            tenant_id,
+            {
+              syncMode: 'catchup',
+            },
+          );
 
           if (result.started) {
             this.logger.log(`📧 Email sync started for tenant: ${tenant_id}`);

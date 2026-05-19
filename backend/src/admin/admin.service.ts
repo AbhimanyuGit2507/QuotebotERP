@@ -1,6 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { UpdateProcessingSettingsDto } from './dtos/update-processing-settings.dto';
+
+type ProcessingSettingsSnapshot = {
+  id: string;
+  interval_ms: number;
+  run_batch_limit: number;
+  classifier_batch_size: number;
+  classifier_batch_max_bytes: number;
+  extraction_delay_ms: number;
+  llm_rate_limit_per_minute: number;
+  created_at: Date;
+  updated_at: Date;
+};
 
 type ProviderStatus = {
   provider: string;
@@ -17,6 +30,61 @@ type ProviderStatus = {
 @Injectable()
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private normalizeProcessingSettings(
+    settings: Partial<ProcessingSettingsSnapshot> | null | undefined,
+  ): ProcessingSettingsSnapshot {
+    return {
+      id: settings?.id || 'global',
+      interval_ms: Math.max(1000, Number(settings?.interval_ms || 20000)),
+      run_batch_limit: Math.max(1, Number(settings?.run_batch_limit || 60)),
+      classifier_batch_size: Math.max(
+        1,
+        Number(settings?.classifier_batch_size || 8),
+      ),
+      classifier_batch_max_bytes: Math.max(
+        1000,
+        Number(settings?.classifier_batch_max_bytes || 26000),
+      ),
+      extraction_delay_ms: Math.max(
+        0,
+        Number(settings?.extraction_delay_ms || 50),
+      ),
+      llm_rate_limit_per_minute: Math.max(
+        1,
+        Number(settings?.llm_rate_limit_per_minute || 10),
+      ),
+      created_at: settings?.created_at || new Date(),
+      updated_at: settings?.updated_at || new Date(),
+    };
+  }
+
+  async processingSettings() {
+    try {
+      const settings = await this.prisma.processingSettings.findUnique({
+        where: { id: 'global' },
+      });
+      return this.normalizeProcessingSettings(settings || null);
+    } catch {
+      return this.normalizeProcessingSettings(null);
+    }
+  }
+
+  async updateProcessingSettings(body: UpdateProcessingSettingsDto) {
+    return this.prisma.processingSettings.upsert({
+      where: { id: 'global' },
+      update: body,
+      create: {
+        id: 'global',
+        interval_ms: body.interval_ms ?? 20000,
+        run_batch_limit: body.run_batch_limit ?? 60,
+        classifier_batch_size: body.classifier_batch_size ?? 8,
+        classifier_batch_max_bytes: body.classifier_batch_max_bytes ?? 26000,
+        extraction_delay_ms: body.extraction_delay_ms ?? 50,
+        llm_rate_limit_per_minute: body.llm_rate_limit_per_minute ?? 10,
+      },
+    });
+  }
 
   async overview(tenantId: string) {
     const timingWindowDays = Math.max(

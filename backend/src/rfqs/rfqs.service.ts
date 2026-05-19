@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { recordsToCsv } from '../common/utils/export.util';
 import { EmailService } from '../email/email.service';
+import { ItemIntelligenceService } from '../item-intelligence/item-intelligence.service';
 import {
   PaginationParams,
   PaginatedResult,
@@ -110,6 +111,7 @@ export class RfqsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
+    private readonly itemIntelligenceService: ItemIntelligenceService,
   ) {}
 
   private normalizeProductName(value: string): string {
@@ -497,12 +499,34 @@ export class RfqsService {
       unmatchedItems: rejectedItems,
     });
 
+    // If nothing matched, try the item intelligence sidecar (manual mode)
+    let itemIntelligenceSuggestions = undefined;
+    if (resolvedItems.length === 0) {
+      try {
+        const intelligence = await this.itemIntelligenceService.matchItems({
+          tenant_id: tenantId,
+          item_id: body.message_id,
+          extracted_items: body.items.map((it) => ({
+            product_name: it.product_name || it.name || '',
+            quantity: Number(it.quantity || 0),
+            unit: it.unit,
+          })),
+          mode: 'manual',
+        } as any);
+
+        itemIntelligenceSuggestions = intelligence?.items || undefined;
+      } catch (e) {
+        this.logger.warn('Item intelligence sidecar failed during preview: ' + (e as Error).message);
+      }
+    }
+
     return {
       message_id: body.message_id || '',
       client_email: body.client_email,
       matched_items: resolvedItems,
       unmatched_items: rejectedItems,
       summary: `${summaryParts.join(', ')}.`,
+      item_intelligence_suggestions: itemIntelligenceSuggestions,
     };
   }
 

@@ -13,6 +13,12 @@ const path = require('path');
 
 const defaultDaysBack = Number.parseInt(process.env.GMAIL_SYNC_DAYS_BACK || '30', 10);
 const defaultMaxPerDay = Number.parseInt(process.env.GMAIL_SYNC_MAX_MESSAGES_PER_DAY || '1000', 10);
+const initialLookbackDays = Number.parseInt(
+  process.env.GMAIL_SYNC_INITIAL_LOOKBACK_DAYS || process.env.GMAIL_SYNC_DAYS_BACK || '7',
+  10,
+);
+const syncMode = process.env.GMAIL_SYNC_MODE || 'catchup';
+const overlapMinutes = Number.parseInt(process.env.GMAIL_SYNC_OVERLAP_MINUTES || '10', 10);
 const computedDefaultMax =
   Math.max(1, Number.isFinite(defaultDaysBack) ? defaultDaysBack : 7) *
   Math.max(1, Number.isFinite(defaultMaxPerDay) ? defaultMaxPerDay : 1000);
@@ -22,6 +28,9 @@ const config = {
   internalKey: process.env.INTERNAL_API_KEY || 'dev-internal-key',
   tenantId: process.env.SYNC_TENANT_ID || 'cmmvzc6z60003bze8i4uhs03l',
   daysBack: defaultDaysBack,
+  initialLookbackDays,
+  syncMode,
+  overlapMinutes,
   maxMessagesPerDay: defaultMaxPerDay,
   maxMessagesPerAccount: Number.parseInt(
     process.env.GMAIL_SYNC_MAX_MESSAGES || String(computedDefaultMax),
@@ -170,18 +179,39 @@ function setSyncStatus(partial) {
   writeSyncStatus();
 }
 
-async function fetchRecentMessageRefs(accessToken) {
-  const safeDaysBack = Number.isFinite(config.daysBack) && config.daysBack > 0
-    ? config.daysBack
-    : 5;
+function resolveLookbackDays() {
+  return Number.isFinite(config.initialLookbackDays) && config.initialLookbackDays > 0
+    ? config.initialLookbackDays
+    : 7;
+}
+
+function buildSearchQuery(account) {
+  const lastSyncAt = account && typeof account.last_sync_at === 'string'
+    ? new Date(account.last_sync_at)
+    : null;
+
+  if (lastSyncAt && !Number.isNaN(lastSyncAt.getTime())) {
+    const overlapMs = Math.max(
+      0,
+      Number.isFinite(config.overlapMinutes) ? config.overlapMinutes : 10,
+    ) * 60 * 1000;
+    const start = new Date(Math.max(0, lastSyncAt.getTime() - overlapMs));
+    return `after:${Math.floor(start.getTime() / 1000)}`;
+  }
+
+  return `newer_than:${resolveLookbackDays()}d`;
+}
+
+async function fetchRecentMessageRefs(accessToken, account) {
   const collected = [];
   let pageToken = null;
+  const query = buildSearchQuery(account);
 
   while (collected.length < config.maxMessagesPerAccount) {
     const params = new URLSearchParams({
       labelIds: 'INBOX',
       maxResults: '100',
-      q: `newer_than:${safeDaysBack}d`,
+      q: query,
     });
 
     if (pageToken) {
@@ -354,7 +384,9 @@ async function main() {
   console.log('🔄 Starting Gmail sync...');
   console.log(`📍 Backend: ${config.apiBaseUrl}`);
   console.log(`👤 Tenant: ${config.tenantId}\n`);
-  console.log(`📆 Fetch window: last ${config.daysBack} day(s)`);
+  console.log(`📆 Sync mode: ${config.syncMode}`);
+  console.log(`📆 Initial fetch window: last ${resolveLookbackDays()} day(s)`);
+  console.log(`📆 Cursor overlap: ${config.overlapMinutes} minute(s)`);
   console.log(`📬 Daily cap: ${config.maxMessagesPerDay} email(s) per day`);
   console.log(`📬 Per-account cap: ${config.maxMessagesPerAccount}\n`);
 
@@ -571,7 +603,7 @@ async function main() {
 
       // Fetch latest messages from Gmail (with pagination) so new emails are not missed.
       console.log('  📧 Fetching messages from Gmail...');
-      const messagesRes = await fetchRecentMessageRefs(account.access_token);
+      const messagesRes = await fetchRecentMessageRefs(account.access_token, account);
 
       if (!messagesRes.ok) {
         console.log(`  ❌ Gmail fetch failed: ${messagesRes.status}`);
@@ -607,6 +639,16 @@ async function main() {
       for (const batch of chunkArray(messageList, messageBatchConcurrency)) {
         await Promise.all(batch.map((msgRef) => processMessageRef(account, msgRef)));
       }
+
+      await httpRequest(
+        {
+          url: `${config.apiBaseUrl}/internal/email-accounts/${account.id}/sync-complete`,
+          method: 'POST',
+        },
+        {
+          synced_at: new Date().toISOString(),
+        },
+      );
 
       setSyncStatus({
         accountsProcessed: syncStatus.accountsProcessed + 1,

@@ -50,6 +50,13 @@ export interface RfqPreviewFromEmailResponse {
       | 'insufficient_stock';
   }>;
   summary: string;
+  item_intelligence_suggestions?: Array<{
+    input_text: string;
+    confidence: number;
+    decision: string;
+    suggestions: Array<{ product_name: string; product_id?: string; confidence: number }>;
+    best_match?: { product_name: string; product_id?: string; confidence: number };
+  }>;
 }
 
 export interface CreateRfqFromEmailPayload extends RfqPreviewFromEmailPayload {
@@ -200,6 +207,10 @@ export function createRfqFromEmail(payload: CreateRfqFromEmailPayload) {
   });
 }
 
+export function postItemIntelligenceFeedback(payload: any) {
+  return apiRequest('/item-intelligence/feedback', { method: 'POST', body: JSON.stringify(payload) });
+}
+
 export interface SendEmailPayload {
   email_account_id?: string;
   to: string[];
@@ -213,6 +224,15 @@ export function sendEmail(payload: SendEmailPayload) {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+// Bills endpoints
+export function getBills(limit = 50) {
+  return apiRequest<any[]>(`/bills?limit=${limit}`);
+}
+
+export function getBillById(id: string) {
+  return apiRequest<any>(`/bills/${id}`);
 }
 
 // Zoho import/preview endpoints

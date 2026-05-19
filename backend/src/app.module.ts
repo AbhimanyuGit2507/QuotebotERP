@@ -19,6 +19,7 @@ import { UsersModule } from './users/users.module';
 import { InboxModule } from './inbox/inbox.module';
 import { EmailModule } from './email/email.module';
 import { EmailRfqModule } from './email-rfq/email-rfq.module';
+import { BillsModule } from './bills/bills.module';
 import { AdminModule } from './admin/admin.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { AccountingIntegrationsModule } from './integrations/accounting-integrations.module';
@@ -61,6 +62,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware';
     InboxModule,
     EmailModule,
     EmailRfqModule,
+    BillsModule,
     AdminModule,
     InvoicesModule,
     AccountingIntegrationsModule,
