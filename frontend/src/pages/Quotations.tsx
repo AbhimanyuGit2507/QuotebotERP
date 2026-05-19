@@ -376,7 +376,7 @@ const Quotations: React.FC = () => {
   return (
     <PageLayout>
       {/* Left Panel - Quote List */}
-      <aside className="w-96 bg-white border-r border-[var(--erp-border)] flex flex-col shrink-0">
+      <aside className={`w-full md:w-96 bg-white border-r border-[var(--erp-border)] flex flex-col shrink-0 ${selectedId ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-3 border-b border-[var(--erp-border)] space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-[var(--erp-text)] uppercase">Quotations</h2>
@@ -514,12 +514,18 @@ const Quotations: React.FC = () => {
       </aside>
 
       {/* Main Content - Quote Details */}
-      <main className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
+      <main className={`flex-1 flex flex-col min-w-0 bg-white overflow-hidden ${selectedId ? 'flex' : 'hidden md:flex'}`}>
         {selectedQuote ? (
           <>
-            <div className="h-14 border-b border-[var(--erp-border)] flex items-center justify-between px-5 shrink-0 bg-slate-50">
-              <div className="flex items-center gap-4">
-                <h1 className="text-lg font-bold text-[var(--erp-accent)]">{selectedQuote.display_name || selectedQuote.number}</h1>
+            <div className="h-14 border-b border-[var(--erp-border)] flex items-center justify-between px-3 md:px-5 shrink-0 bg-slate-50">
+              <div className="flex items-center gap-2 md:gap-4 min-w-0">
+                <button
+                  className="md:hidden flex items-center justify-center w-8 h-8 rounded text-[var(--erp-text-muted)] hover:bg-slate-200 shrink-0"
+                  onClick={() => navigate('/quotations')}
+                >
+                  <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                </button>
+                <h1 className="text-base md:text-lg font-bold text-[var(--erp-accent)] truncate">{selectedQuote.display_name || selectedQuote.number}</h1>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getStatusBadge(selectedQuote.status)}`}>
                   {selectedQuote.status.toUpperCase()}
                 </span>
@@ -564,7 +570,7 @@ const Quotations: React.FC = () => {
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className="flex-1 overflow-y-auto p-3 md:p-5">
               {/* Quote Info Grid */}
               <div className="grid grid-cols-2 gap-6 mb-6">
                 <div className="space-y-3">
@@ -606,8 +612,8 @@ const Quotations: React.FC = () => {
               {/* Line Items Table */}
               <div className="mb-6">
                 <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest border-b border-[var(--erp-border)] pb-1 mb-3">Line Items</h3>
-                <div className="overflow-hidden rounded border border-[var(--erp-border)]">
-                  <table className="w-full text-[13px]">
+                <div className="overflow-x-auto rounded border border-[var(--erp-border)]">
+                  <table className="w-full text-[13px] min-w-[600px]">
                     <thead className="bg-slate-100 text-[var(--erp-text-muted)] font-bold uppercase text-[11px] tracking-wider">
                       <tr>
                         <th className="px-3 py-2 text-center w-10">#</th>

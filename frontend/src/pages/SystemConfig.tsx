@@ -16,6 +16,7 @@ type ConfigTab =
   | 'notifications'
   | 'email-templates'
   | 'integrations'
+  | 'currency'
   | 'billing';
 
 const tabs: { id: ConfigTab; label: string; icon: string }[] = [
@@ -25,6 +26,7 @@ const tabs: { id: ConfigTab; label: string; icon: string }[] = [
   { id: 'notifications', label: 'Notifications', icon: 'notifications' },
   { id: 'email-templates', label: 'Email Templates', icon: 'mail_outline' },
   { id: 'integrations', label: 'Integrations', icon: 'hub' },
+  { id: 'currency', label: 'Currency', icon: 'currency_exchange' },
   { id: 'billing', label: 'Billing', icon: 'credit_card' },
 ];
 
@@ -570,6 +572,118 @@ const SystemConfig: React.FC = () => {
     </div>
   );
 
+  const CurrencySettingsPanel = () => {
+    const [rates, setRates] = React.useState<Array<{ id: string; from_currency: string; to_currency: string; rate: number; effective_date: string }>>([]);
+    const [supported, setSupported] = React.useState<Array<{ code: string; name: string; symbol: string }>>([]);
+    const [showAdd, setShowAdd] = React.useState(false);
+    const [rateForm, setRateForm] = React.useState({ from: 'INR', to: 'USD', rate: '' });
+    const [rateSaving, setRateSaving] = React.useState(false);
+
+    React.useEffect(() => {
+      const loadRates = async () => {
+        try {
+          const [ratesData, supportedData] = await Promise.all([
+            apiRequest<any[]>('/currency/rates'),
+            apiRequest<any[]>('/currency/supported'),
+          ]);
+          setRates(Array.isArray(ratesData) ? ratesData : []);
+          setSupported(Array.isArray(supportedData) ? supportedData : []);
+        } catch { /* ignore */ }
+      };
+      loadRates();
+    }, []);
+
+    const handleAddRate = async () => {
+      if (!rateForm.rate) return;
+      setRateSaving(true);
+      try {
+        const result = await apiRequest<any>('/currency/rates', {
+          method: 'POST',
+          body: JSON.stringify({ from: rateForm.from, to: rateForm.to, rate: Number(rateForm.rate) }),
+        });
+        setRates(prev => {
+          const filtered = prev.filter(r => !(r.from_currency === rateForm.from && r.to_currency === rateForm.to));
+          return [result, ...filtered];
+        });
+        setShowAdd(false);
+        setRateForm({ from: 'INR', to: 'USD', rate: '' });
+      } catch { /* ignore */ }
+      setRateSaving(false);
+    };
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-lg font-bold text-[var(--erp-text)]">Currency & Exchange Rates</h1>
+          <p className="text-sm text-[var(--erp-text-muted)]">
+            Manage exchange rates for multi-currency support. Base currency: <b>{companyForm.currency || 'INR'}</b>
+          </p>
+        </div>
+        <div className="flex items-center justify-between">
+          <h3 className="text-[13px] font-bold text-[var(--erp-text)]">Exchange Rates</h3>
+          <button onClick={() => setShowAdd(!showAdd)} className="btn btn-primary btn-sm flex items-center gap-1">
+            <span className="material-symbols-outlined !text-[14px]">add</span>
+            Add Rate
+          </button>
+        </div>
+        {showAdd && (
+          <div className="p-4 border border-[var(--erp-border)] rounded bg-slate-50 space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-medium text-[var(--erp-text-muted)] mb-1 uppercase tracking-wider">From</label>
+                <select className="w-full text-[12px] border border-[var(--erp-border)] rounded py-2 px-3 bg-white"
+                  value={rateForm.from} onChange={e => setRateForm(p => ({ ...p, from: e.target.value }))}>
+                  {supported.map(c => <option key={c.code} value={c.code}>{c.code} - {c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-[var(--erp-text-muted)] mb-1 uppercase tracking-wider">To</label>
+                <select className="w-full text-[12px] border border-[var(--erp-border)] rounded py-2 px-3 bg-white"
+                  value={rateForm.to} onChange={e => setRateForm(p => ({ ...p, to: e.target.value }))}>
+                  {supported.map(c => <option key={c.code} value={c.code}>{c.code} - {c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-[var(--erp-text-muted)] mb-1 uppercase tracking-wider">Rate</label>
+                <input type="number" step="0.000001" className="w-full text-[12px] border border-[var(--erp-border)] rounded py-2 px-3"
+                  placeholder="e.g. 0.012" value={rateForm.rate} onChange={e => setRateForm(p => ({ ...p, rate: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowAdd(false)} className="btn btn-secondary btn-sm">Cancel</button>
+              <button onClick={handleAddRate} disabled={rateSaving} className="btn btn-primary btn-sm">
+                {rateSaving ? 'Saving...' : 'Save Rate'}
+              </button>
+            </div>
+          </div>
+        )}
+        <table className="w-full text-[12px] border border-[var(--erp-border)] rounded">
+          <thead className="bg-slate-50 text-[10px] uppercase tracking-wider">
+            <tr>
+              <th className="text-left px-3 py-2">From</th>
+              <th className="text-left px-3 py-2">To</th>
+              <th className="text-right px-3 py-2">Rate</th>
+              <th className="text-left px-3 py-2">Effective Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rates.map(r => (
+              <tr key={r.id} className="border-t border-[var(--erp-border)] hover:bg-slate-50">
+                <td className="px-3 py-2 font-medium">{r.from_currency}</td>
+                <td className="px-3 py-2 font-medium">{r.to_currency}</td>
+                <td className="px-3 py-2 text-right font-mono">{Number(r.rate).toFixed(6)}</td>
+                <td className="px-3 py-2 text-[var(--erp-text-muted)]">{new Date(r.effective_date).toLocaleDateString()}</td>
+              </tr>
+            ))}
+            {rates.length === 0 && (
+              <tr><td colSpan={4} className="px-3 py-8 text-center text-slate-400">No exchange rates configured</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'company':
@@ -584,6 +698,8 @@ const SystemConfig: React.FC = () => {
         return <EmailTemplatesContent />;
       case 'integrations':
         return renderIntegrationsContent();
+      case 'currency':
+        return <CurrencySettingsPanel />;
       case 'billing':
         return renderStaticContent('Billing & Subscription', 'Plan usage and invoice details.');
       default:

@@ -11,10 +11,19 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiParam,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { RfqsService } from './rfqs.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PermissionGuard } from '../common/guards/permission.guard';
+import { RequirePermission } from '../common/decorators/require-permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import { RfqsQueryDto } from './dtos/rfqs-query.dto';
@@ -23,14 +32,25 @@ import { UpdateRfqDto } from './dtos/update-rfq.dto';
 import { UpdateRfqStatusDto } from './dtos/update-rfq-status.dto';
 import { CreateRfqFromEmailDto } from './dtos/create-rfq-from-email.dto';
 import { SendRfqEmailDto } from './dtos/send-rfq-email.dto';
+import { PERMISSIONS } from '../common/constants/permissions';
 
 @ApiTags('RFQs')
-@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('rfqs')
 export class RfqsController {
   constructor(private readonly rfqsService: RfqsService) {}
 
   @Get()
+  @RequirePermission(PERMISSIONS.RFQ_VIEW)
+  @ApiOperation({ summary: 'List all RFQs with filtering and pagination' })
+  @ApiResponse({ status: 200, description: 'Paginated list of RFQs' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number' })
+  @ApiQuery({ name: 'pageSize', required: false, description: 'Items per page' })
+  @ApiQuery({ name: 'sortBy', required: false, description: 'Sort field' })
+  @ApiQuery({ name: 'sortOrder', required: false, description: 'Sort order: asc or desc' })
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: RfqsQueryDto,
@@ -52,6 +72,11 @@ export class RfqsController {
   }
 
   @Get('export/csv')
+  @RequirePermission(PERMISSIONS.RFQ_VIEW)
+  @ApiOperation({ summary: 'Export RFQs as CSV' })
+  @ApiResponse({ status: 200, description: 'CSV file download' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
   async exportCsv(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: RfqsQueryDto,
@@ -74,16 +99,32 @@ export class RfqsController {
   }
 
   @Get(':id')
+  @RequirePermission(PERMISSIONS.RFQ_VIEW)
+  @ApiOperation({ summary: 'Get a single RFQ by ID' })
+  @ApiParam({ name: 'id', description: 'RFQ ID' })
+  @ApiResponse({ status: 200, description: 'RFQ details' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.rfqsService.findOne(id, user.tenant_id);
   }
 
   @Post()
+  @RequirePermission(PERMISSIONS.RFQ_CREATE)
+  @ApiOperation({ summary: 'Create a new RFQ' })
+  @ApiResponse({ status: 201, description: 'RFQ created successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
   create(@CurrentUser() user: AuthenticatedUser, @Body() body: CreateRfqDto) {
     return this.rfqsService.create(user.tenant_id, body);
   }
 
   @Post('from-email')
+  @RequirePermission(PERMISSIONS.RFQ_CREATE)
+  @ApiOperation({ summary: 'Create an RFQ from an email' })
+  @ApiResponse({ status: 201, description: 'RFQ created from email successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
   createFromEmail(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: CreateRfqFromEmailDto,
@@ -92,6 +133,11 @@ export class RfqsController {
   }
 
   @Post('preview-from-email')
+  @RequirePermission(PERMISSIONS.RFQ_VIEW)
+  @ApiOperation({ summary: 'Preview RFQ data extracted from an email' })
+  @ApiResponse({ status: 200, description: 'Extracted RFQ preview data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
   previewFromEmail(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: CreateRfqFromEmailDto,
@@ -100,6 +146,12 @@ export class RfqsController {
   }
 
   @Put(':id')
+  @RequirePermission(PERMISSIONS.RFQ_EDIT)
+  @ApiOperation({ summary: 'Update an existing RFQ' })
+  @ApiParam({ name: 'id', description: 'RFQ ID' })
+  @ApiResponse({ status: 200, description: 'RFQ updated successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
   update(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -109,6 +161,12 @@ export class RfqsController {
   }
 
   @Put(':id/status')
+  @RequirePermission(PERMISSIONS.RFQ_EDIT)
+  @ApiOperation({ summary: 'Update RFQ status' })
+  @ApiParam({ name: 'id', description: 'RFQ ID' })
+  @ApiResponse({ status: 200, description: 'RFQ status updated successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
   updateStatus(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -118,6 +176,12 @@ export class RfqsController {
   }
 
   @Post(':id/convert-to-quotation')
+  @RequirePermission(PERMISSIONS.RFQ_EDIT)
+  @ApiOperation({ summary: 'Convert an RFQ to a quotation' })
+  @ApiParam({ name: 'id', description: 'RFQ ID' })
+  @ApiResponse({ status: 201, description: 'Quotation created from RFQ' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
   convertToQuotation(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -126,6 +190,12 @@ export class RfqsController {
   }
 
   @Post(':id/send-email')
+  @RequirePermission(PERMISSIONS.RFQ_EDIT)
+  @ApiOperation({ summary: 'Send RFQ via email' })
+  @ApiParam({ name: 'id', description: 'RFQ ID' })
+  @ApiResponse({ status: 200, description: 'RFQ email sent successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
   sendByEmail(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -135,6 +205,14 @@ export class RfqsController {
   }
 
   @Delete(':id')
+  @RequirePermission(PERMISSIONS.RFQ_DELETE)
+  @ApiOperation({ summary: 'Delete an RFQ (soft or force)' })
+  @ApiParam({ name: 'id', description: 'RFQ ID' })
+  @ApiQuery({ name: 'forceDeleteLinkedQuotation', required: false, description: 'Also delete linked quotation' })
+  @ApiQuery({ name: 'forceDelete', required: false, description: 'Permanently delete (admin only)' })
+  @ApiResponse({ status: 200, description: 'RFQ deleted successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
   remove(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,

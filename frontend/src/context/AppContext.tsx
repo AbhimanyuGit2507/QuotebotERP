@@ -149,7 +149,7 @@ export interface User {
   status: 'online' | 'offline' | 'active' | 'inactive';
   avatar?: string;
   lastLogin: string;
-  permissions?: { modules: PermissionEntry[] } | null;
+  permissions?: { modules: PermissionEntry[]; granular?: string[] } | null;
 }
 
 export interface InboxMessage {

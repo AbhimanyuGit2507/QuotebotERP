@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { AccountingService } from '../accounting/accounting.service';
 import {
   PaginationParams,
   PaginatedResult,
@@ -22,7 +23,10 @@ const INVOICE_SORTABLE_FIELDS = new Set([
 
 @Injectable()
 export class InvoicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly accountingService: AccountingService,
+  ) {}
 
   private generateInvoiceNumber() {
     const year = new Date().getFullYear();
@@ -76,6 +80,17 @@ export class InvoicesService {
       },
       include: { payments: true, quotation: true },
     });
+
+    // Create auto journal entry for invoice
+    try {
+      await this.accountingService.createAutoJournalEntry(tenantId, {
+        type: 'INVOICE',
+        invoiceId: invoice.id,
+        amount: Number(invoice.total) || 0,
+      });
+    } catch {
+      // best effort — don't fail invoice creation if accounting entry fails
+    }
 
     // compute display_name and search_tokens from linked quotation
     try {

@@ -22,6 +22,10 @@ import Invoices from './pages/Invoices';
 import EmailTemplates from './pages/EmailTemplates';
 import AuditLog from './pages/AuditLog';
 import Payments from './pages/Payments';
+import Suppliers from './pages/Suppliers';
+import PurchaseOrdersPage from './pages/PurchaseOrders';
+import InventoryPage from './pages/Inventory';
+import Accounting from './pages/Accounting';
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const { isAuthenticated, isInitializing } = useAuth();
@@ -99,6 +103,10 @@ const AppRoutes = () => {
       <Route path="/email-templates" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
       <Route path="/audit-log" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />
       <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
+      <Route path="/accounting" element={<ProtectedRoute><Accounting /></ProtectedRoute>} />
+      <Route path="/suppliers" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+      <Route path="/purchase-orders/:id?" element={<ProtectedRoute><PurchaseOrdersPage /></ProtectedRoute>} />
+      <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
     </Routes>
   );
 };

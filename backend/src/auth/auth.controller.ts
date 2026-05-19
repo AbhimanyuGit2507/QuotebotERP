@@ -11,7 +11,12 @@ import {
   Res,
   Req,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -42,6 +47,9 @@ export class AuthController {
   @Post('login')
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login with email and password' })
+  @ApiResponse({ status: 200, description: 'Login successful, auth cookies set' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -58,6 +66,9 @@ export class AuthController {
   @Post('register')
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register a new user in an existing tenant' })
+  @ApiResponse({ status: 201, description: 'User registered successfully' })
+  @ApiResponse({ status: 400, description: 'Validation error or user already exists' })
   async register(
     @Body() registerDto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
@@ -72,6 +83,8 @@ export class AuthController {
    * Starts Google OAuth for platform sign-in / sign-up
    */
   @Get('google')
+  @ApiOperation({ summary: 'Initiate Google OAuth sign-in / sign-up' })
+  @ApiResponse({ status: 302, description: 'Redirects to Google OAuth consent screen' })
   googleAuth(
     @Query('redirectTo') redirectTo: string | undefined,
     @Query('source') source: 'login' | 'signup' | undefined,
@@ -90,6 +103,8 @@ export class AuthController {
    * Google redirects here after authentication
    */
   @Get('google/callback')
+  @ApiOperation({ summary: 'Google OAuth callback handler' })
+  @ApiResponse({ status: 302, description: 'Redirects to frontend with auth cookies' })
   async googleCallback(
     @Query('code') code: string,
     @Query('state') state: string,
@@ -125,6 +140,10 @@ export class AuthController {
   @Post('validate')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Validate current JWT token' })
+  @ApiResponse({ status: 200, description: 'Token is valid' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   validate() {
     return {
       message: 'Token is valid',
@@ -139,6 +158,10 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current authenticated user profile' })
+  @ApiResponse({ status: 200, description: 'Authenticated user payload' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   getMe(@CurrentUser() user: AuthenticatedUser) {
     return {
       user,
@@ -152,6 +175,9 @@ export class AuthController {
   @Post('refresh')
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh access token using refresh cookie' })
+  @ApiResponse({ status: 200, description: 'New access token issued' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid refresh token' })
   async refresh(
     @Req() req: AuthRequest,
     @Res({ passthrough: true }) res: Response,
@@ -177,6 +203,8 @@ export class AuthController {
    */
   @Post('logout')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Logout and clear auth cookies' })
+  @ApiResponse({ status: 200, description: 'Logged out successfully' })
   logout(@Res({ passthrough: true }) res: Response) {
     this.clearAuthCookies(res);
 
@@ -191,6 +219,11 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Check if user has admin access' })
+  @ApiResponse({ status: 200, description: 'Admin access granted' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden — admin only' })
   adminCheck(@CurrentUser() user: AuthenticatedUser) {
     return {
       message: 'Admin access granted',

@@ -110,6 +110,13 @@ model Tenant {
   assistance_tickets AssistanceTicket[]
   email_templates EmailTemplate[]
   tax_profiles TaxProfile[]
+  chart_of_accounts ChartOfAccount[]
+  journal_entries   JournalEntry[]
+  suppliers Supplier[]
+  purchase_orders_outbound PurchaseOrderOutbound[]
+  goods_receipt_notes GoodsReceiptNote[]
+  stock_movements StockMovement[]
+  exchange_rates ExchangeRate[]
 
   @@index([company_name])
 }
@@ -191,6 +198,9 @@ model Product {
   category        ProductCategory @relation(fields: [category_id], references: [id])
   rfq_items       RFQItem[]
   quotation_items QuotationItem[]
+  stock_movements StockMovement[]
+  purchase_order_items PurchaseOrderOutboundItem[]
+  grn_items       GoodsReceiptNoteItem[]
 
   @@unique([tenant_id, sku])
   @@index([tenant_id])
@@ -923,4 +933,200 @@ model IntegrationMapping {
   @@index([tenant_id])
   @@index([provider, external_id])
   @@unique([tenant_id, provider, external_id, local_entity])
+}
+
+// ============================================
+// DOUBLE-ENTRY ACCOUNTING
+// ============================================
+
+model ChartOfAccount {
+  id          String   @id @default(uuid())
+  tenant_id   String
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id])
+  code        String
+  name        String
+  type        String   // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+  parent_id   String?
+  parent      ChartOfAccount? @relation("AccountHierarchy", fields: [parent_id], references: [id])
+  children    ChartOfAccount[] @relation("AccountHierarchy")
+  is_system   Boolean  @default(false)
+  is_active   Boolean  @default(true)
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  deleted_at  DateTime?
+  journal_debits  JournalEntry[] @relation("DebitAccount")
+  journal_credits JournalEntry[] @relation("CreditAccount")
+  @@unique([tenant_id, code])
+  @@index([tenant_id])
+  @@index([deleted_at])
+}
+
+model JournalEntry {
+  id              String   @id @default(uuid())
+  tenant_id       String
+  tenant          Tenant   @relation(fields: [tenant_id], references: [id])
+  entry_number    String
+  date            DateTime @default(now())
+  description     String
+  debit_account_id  String
+  debit_account     ChartOfAccount @relation("DebitAccount", fields: [debit_account_id], references: [id])
+  credit_account_id String
+  credit_account    ChartOfAccount @relation("CreditAccount", fields: [credit_account_id], references: [id])
+  amount          Decimal  @db.Decimal(12, 2)
+  reference_type  String?  // INVOICE, PAYMENT, MANUAL
+  reference_id    String?
+  is_auto         Boolean  @default(false)
+  created_by      String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  deleted_at      DateTime?
+  @@index([tenant_id])
+  @@index([tenant_id, date])
+  @@index([reference_type, reference_id])
+  @@index([deleted_at])
+}
+
+// ============================================
+// SUPPLIERS
+// ============================================
+
+model Supplier {
+  id              String   @id @default(uuid())
+  tenant_id       String
+  tenant          Tenant   @relation(fields: [tenant_id], references: [id])
+  name            String
+  email           String?
+  phone           String?
+  address         String?
+  city            String?
+  state           String?
+  gstin           String?
+  pan             String?
+  contact_person  String?
+  payment_terms   String?
+  notes           String?
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  deleted_at      DateTime?
+  purchase_orders PurchaseOrderOutbound[]
+  @@index([tenant_id])
+  @@index([deleted_at])
+}
+
+// ============================================
+// PURCHASE ORDERS (OUTBOUND)
+// ============================================
+
+model PurchaseOrderOutbound {
+  id                String   @id @default(uuid())
+  tenant_id         String
+  tenant            Tenant   @relation(fields: [tenant_id], references: [id])
+  number            String
+  supplier_id       String
+  supplier          Supplier @relation(fields: [supplier_id], references: [id])
+  date              DateTime @default(now())
+  expected_delivery DateTime?
+  status            String   @default("draft")
+  subtotal          Decimal  @db.Decimal(12, 2) @default(0)
+  tax               Decimal  @db.Decimal(12, 2) @default(0)
+  total             Decimal  @db.Decimal(12, 2) @default(0)
+  currency          String   @default("INR")
+  notes             String?
+  created_by        String?
+  approved_by       String?
+  approved_at       DateTime?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  deleted_at        DateTime?
+  items             PurchaseOrderOutboundItem[]
+  grns              GoodsReceiptNote[]
+  @@index([tenant_id])
+  @@index([deleted_at])
+}
+
+model PurchaseOrderOutboundItem {
+  id                String   @id @default(uuid())
+  purchase_order_id String
+  purchase_order    PurchaseOrderOutbound @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade)
+  product_id        String?
+  product           Product? @relation(fields: [product_id], references: [id])
+  product_name      String
+  quantity          Decimal  @db.Decimal(12, 2)
+  received_quantity Decimal  @db.Decimal(12, 2) @default(0)
+  unit_price        Decimal  @db.Decimal(12, 2)
+  tax_percent       Decimal  @db.Decimal(5, 2) @default(0)
+  total             Decimal  @db.Decimal(12, 2)
+  unit              String   @default("pcs")
+}
+
+// ============================================
+// GOODS RECEIPT NOTES
+// ============================================
+
+model GoodsReceiptNote {
+  id                String   @id @default(uuid())
+  tenant_id         String
+  tenant            Tenant   @relation(fields: [tenant_id], references: [id])
+  purchase_order_id String
+  purchase_order    PurchaseOrderOutbound @relation(fields: [purchase_order_id], references: [id])
+  number            String
+  date              DateTime @default(now())
+  notes             String?
+  received_by       String?
+  created_at        DateTime @default(now())
+  items             GoodsReceiptNoteItem[]
+  @@index([tenant_id])
+}
+
+model GoodsReceiptNoteItem {
+  id                String   @id @default(uuid())
+  grn_id            String
+  grn               GoodsReceiptNote @relation(fields: [grn_id], references: [id], onDelete: Cascade)
+  product_id        String?
+  product           Product? @relation(fields: [product_id], references: [id])
+  product_name      String
+  quantity_received Decimal  @db.Decimal(12, 2)
+  quantity_accepted Decimal  @db.Decimal(12, 2)
+  quantity_rejected Decimal  @db.Decimal(12, 2) @default(0)
+  notes             String?
+}
+
+// ============================================
+// STOCK MOVEMENTS
+// ============================================
+
+model StockMovement {
+  id             String   @id @default(uuid())
+  tenant_id      String
+  tenant         Tenant   @relation(fields: [tenant_id], references: [id])
+  product_id     String
+  product        Product  @relation(fields: [product_id], references: [id])
+  type           String
+  quantity       Decimal  @db.Decimal(12, 2)
+  reference_type String?
+  reference_id   String?
+  notes          String?
+  created_by     String?
+  created_at     DateTime @default(now())
+  @@index([tenant_id])
+  @@index([product_id])
+  @@index([created_at])
+}
+
+// ============================================
+// EXCHANGE RATES
+// ============================================
+
+model ExchangeRate {
+  id             String   @id @default(uuid())
+  tenant_id      String
+  tenant         Tenant   @relation(fields: [tenant_id], references: [id])
+  from_currency  String
+  to_currency    String
+  rate           Decimal  @db.Decimal(12, 6)
+  effective_date DateTime @default(now())
+  created_at     DateTime @default(now())
+  @@index([tenant_id, from_currency, to_currency])
 }

@@ -266,7 +266,7 @@ const Invoices: React.FC = () => {
 
   return (
     <PageLayout>
-      <aside className="w-96 bg-white border-r border-[var(--erp-border)] flex flex-col shrink-0">
+      <aside className={`w-full md:w-96 bg-white border-r border-[var(--erp-border)] flex flex-col shrink-0 ${selectedId ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-3 border-b border-[var(--erp-border)] space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-[var(--erp-text)] uppercase">Invoices</h2>
@@ -363,12 +363,18 @@ const Invoices: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
+      <main className={`flex-1 flex flex-col min-w-0 bg-white overflow-hidden ${selectedId ? 'flex' : 'hidden md:flex'}`}>
         {selectedInvoice ? (
           <>
-            <div className="h-14 border-b border-[var(--erp-border)] flex items-center justify-between px-5 shrink-0 bg-slate-50">
-              <div className="flex items-center gap-4">
-                <h1 className="text-lg font-bold text-[var(--erp-accent)]">{selectedInvoice.display_name || selectedInvoice.number}</h1>
+            <div className="h-14 border-b border-[var(--erp-border)] flex items-center justify-between px-3 md:px-5 shrink-0 bg-slate-50">
+              <div className="flex items-center gap-2 md:gap-4 min-w-0">
+                <button
+                  className="md:hidden flex items-center justify-center w-8 h-8 rounded text-[var(--erp-text-muted)] hover:bg-slate-200 shrink-0"
+                  onClick={() => navigate('/invoices')}
+                >
+                  <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                </button>
+                <h1 className="text-base md:text-lg font-bold text-[var(--erp-accent)] truncate">{selectedInvoice.display_name || selectedInvoice.number}</h1>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
                   selectedInvoice.status === 'paid'
                     ? 'bg-green-100 text-green-700 border-green-200'
@@ -396,8 +402,8 @@ const Invoices: React.FC = () => {
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-5">
-              <div className="grid grid-cols-2 gap-6 mb-6">
+            <div className="flex-1 overflow-y-auto p-3 md:p-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
                 <div className="space-y-3">
                   <h3 className="text-[11px] font-bold text-[var(--erp-text-muted)] uppercase tracking-widest border-b border-[var(--erp-border)] pb-1">Invoice Details</h3>
                   <div className="space-y-2 text-[13px]">

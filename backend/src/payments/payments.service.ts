@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { AccountingService } from '../accounting/accounting.service';
 import {
   PaginationParams,
   PaginatedResult,
@@ -22,7 +23,10 @@ const PAYMENT_SORTABLE_FIELDS = new Set([
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly accountingService: AccountingService,
+  ) {}
 
   async recordPayment(tenantId: string, dto: RecordPaymentDto) {
     // All reads and writes happen inside the transaction to prevent race conditions
@@ -81,6 +85,17 @@ export class PaymentsService {
           status: invoiceStatus,
         },
       });
+
+      // Create auto journal entry for payment (outside transaction)
+      try {
+        await this.accountingService.createAutoJournalEntry(tenantId, {
+          type: 'PAYMENT',
+          invoiceId: dto.invoice_id,
+          amount: dto.amount,
+        });
+      } catch {
+        // best effort — don't fail payment recording if accounting entry fails
+      }
 
       return payment;
     });

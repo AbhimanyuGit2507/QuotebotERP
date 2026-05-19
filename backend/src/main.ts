@@ -88,11 +88,12 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('QuotebotERP API')
     .setDescription(
-      'API documentation for QuotebotERP - AI-Powered ERP for Modern Businesses',
+      'QuotebotERP API — AI-powered ERP for modern businesses',
     )
     .setVersion('1.0')
     .addCookieAuth('qb_access_token')
     .addBearerAuth()
+    .addServer('http://localhost:3001/api', 'Local Development')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/swagger', app, document);

@@ -314,7 +314,7 @@ const RFQInbox: React.FC = () => {
   return (
     <PageLayout>
       {/* Left Panel - RFQ List */}
-      <aside className="w-96 bg-white border-r border-[var(--erp-border)] flex flex-col shrink-0">
+      <aside className={`w-full md:w-96 bg-white border-r border-[var(--erp-border)] flex flex-col shrink-0 ${selectedId ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-3 border-b border-[var(--erp-border)] space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-[var(--erp-text)] uppercase">RFQ Management</h2>
@@ -468,12 +468,18 @@ const RFQInbox: React.FC = () => {
       </aside>
 
       {/* Main Content - RFQ Details */}
-      <main className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
+      <main className={`flex-1 flex flex-col min-w-0 bg-white overflow-hidden ${selectedId ? 'flex' : 'hidden md:flex'}`}>
         {selectedRFQ ? (
           <>
-            <div className="h-14 border-b border-[var(--erp-border)] flex items-center justify-between px-5 shrink-0 bg-slate-50">
-              <div className="flex items-center gap-4">
-                <h1 className="text-lg font-bold text-[var(--erp-accent)]">{selectedRFQ.display_name || selectedRFQ.number}</h1>
+            <div className="h-14 border-b border-[var(--erp-border)] flex items-center justify-between px-3 md:px-5 shrink-0 bg-slate-50">
+              <div className="flex items-center gap-2 md:gap-4 min-w-0">
+                <button
+                  className="md:hidden flex items-center justify-center w-8 h-8 rounded text-[var(--erp-text-muted)] hover:bg-slate-200 shrink-0"
+                  onClick={() => navigate('/rfq-inbox')}
+                >
+                  <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                </button>
+                <h1 className="text-base md:text-lg font-bold text-[var(--erp-accent)] truncate">{selectedRFQ.display_name || selectedRFQ.number}</h1>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${getStatusBadge(selectedRFQ.status)}`}>
                   {selectedRFQ.status.toUpperCase()}
                 </span>
