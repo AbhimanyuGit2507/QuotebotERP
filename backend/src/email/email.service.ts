@@ -321,6 +321,120 @@ export class EmailService {
     };
   }
 
+  /**
+   * Incremental sync using Gmail History API.
+   * Falls back to full sync if history is expired (404) or no historyId stored.
+   */
+  async syncGmailIncremental(emailAccountId: string): Promise<void> {
+    const account = await this.prisma.emailAccount.findUnique({
+      where: { id: emailAccountId },
+      select: {
+        id: true,
+        tenant_id: true,
+        credentials: true,
+        gmail_history_id: true,
+        provider: true,
+      },
+    });
+
+    if (!account || account.provider !== 'gmail') {
+      this.logger.warn(`syncGmailIncremental: account ${emailAccountId} not found or not gmail`);
+      return;
+    }
+
+    if (!account.gmail_history_id) {
+      this.logger.log(`No historyId for account ${emailAccountId}, falling back to full sync`);
+      await this.triggerImmediateGmailSync(account.tenant_id, { syncMode: 'catchup' });
+      return;
+    }
+
+    try {
+      const creds = account.credentials as Record<string, string> | null;
+      if (!creds?.access_token) {
+        this.logger.warn(`No credentials for account ${emailAccountId}`);
+        return;
+      }
+
+      const accessToken = creds.access_token;
+      const historyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/history?startHistoryId=${account.gmail_history_id}&historyTypes=messageAdded`;
+      const histRes = await fetch(historyUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (histRes.status === 404) {
+        throw Object.assign(new Error('History expired'), { code: 404 });
+      }
+
+      if (!histRes.ok) {
+        throw new Error(`Gmail history API returned ${histRes.status}`);
+      }
+
+      const histData = await histRes.json() as {
+        historyId?: string;
+        history?: Array<{
+          messagesAdded?: Array<{ message?: { id?: string } }>;
+        }>;
+      };
+
+      if (histData.historyId) {
+        await this.prisma.emailAccount.update({
+          where: { id: emailAccountId },
+          data: { gmail_history_id: histData.historyId },
+        });
+      }
+
+      const added = (histData.history || [])
+        .flatMap((h) => h.messagesAdded ?? [])
+        .map((m) => m.message?.id)
+        .filter(Boolean) as string[];
+
+      if (added.length === 0) {
+        this.logger.debug(`No new messages for account ${emailAccountId}`);
+        return;
+      }
+
+      this.logger.log(`History API found ${added.length} new messages for account ${emailAccountId}`);
+      await this.triggerImmediateGmailSync(account.tenant_id, { syncMode: 'catchup' });
+    } catch (err: unknown) {
+      const errObj = err as { code?: number; message?: string };
+      if (errObj?.code === 404) {
+        this.logger.warn(`Gmail history expired for account ${emailAccountId}, falling back to full sync`);
+        await this.triggerImmediateGmailSync(account.tenant_id, { syncMode: 'catchup' });
+      } else {
+        this.logger.error(`Gmail incremental sync error: ${errObj?.message || String(err)}`);
+      }
+    }
+  }
+
+  async setupGmailWatch(tenantId: string, topic: string): Promise<{ success: boolean; message: string }> {
+    const accounts = await this.prisma.emailAccount.findMany({
+      where: { tenant_id: tenantId, provider: 'gmail', is_active: true },
+      select: { id: true, credentials: true },
+    });
+    for (const account of accounts) {
+      try {
+        const creds = account.credentials as Record<string, string> | null;
+        if (!creds?.access_token) continue;
+        const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/watch', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${creds.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ topicName: topic, labelIds: ['INBOX'] }),
+        });
+        if (!res.ok) {
+          this.logger.warn(`Gmail watch API returned ${res.status} for account ${account.id}`);
+        } else {
+          this.logger.log(`Gmail watch set up for account ${account.id}`);
+        }
+      } catch (err) {
+        this.logger.warn(`Gmail watch failed for account ${account.id}: ${(err as Error).message}`);
+      }
+    }
+    return { success: true, message: `Watch set up for ${accounts.length} accounts` };
+  }
+
   async markEmailAccountSynced(
     accountId: string,
     tenantId: string,

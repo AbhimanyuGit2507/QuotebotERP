@@ -40,6 +40,9 @@ import { CurrencyModule } from './currency/currency.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware';
+import { EventsModule } from './events/events.module';
+import { QueueModule } from './queue/queue.module';
+import { WhatsAppModule } from './whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -80,6 +83,9 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware';
     PurchaseOrdersModule,
     InventoryModule,
     CurrencyModule,
+    EventsModule,
+    QueueModule,
+    WhatsAppModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

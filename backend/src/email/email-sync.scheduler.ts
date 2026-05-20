@@ -1,22 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { InjectQueue } from '@nestjs/bull';
+import type { Queue } from 'bull';
 import { EmailService } from './email.service';
 import { PrismaService } from '../prisma.service';
+import { EventsService } from '../events/events.service';
 
 @Injectable()
 export class EmailSyncScheduler {
   private readonly logger = new Logger(EmailSyncScheduler.name);
-  // In development, automatic sync is disabled by default. Enable by setting
-  // AUTO_EMAIL_SYNC_ENABLED=true in the environment.
   private readonly AUTO_SYNC_ENABLED =
     process.env.AUTO_EMAIL_SYNC_ENABLED === 'true';
 
   constructor(
     private emailService: EmailService,
     private prisma: PrismaService,
+    private eventsService: EventsService,
+    @InjectQueue('email-sync') private emailSyncQueue: Queue,
   ) {
     if (this.AUTO_SYNC_ENABLED) {
-      this.logger.log('✓ Automatic email sync enabled (every 10 seconds)');
+      this.logger.log('✓ Automatic email sync enabled (every 5 minutes via Bull queue)');
     } else {
       this.logger.log(
         'Automatic email sync is disabled (set AUTO_EMAIL_SYNC_ENABLED=true to enable)',
@@ -25,10 +28,9 @@ export class EmailSyncScheduler {
   }
 
   /**
-   * Runs every 10 seconds to check for new emails
-   * Cron pattern: every 10 seconds
+   * Runs every 5 minutes as fallback polling (real-time path is via webhooks)
    */
-  @Cron('*/10 * * * * *', {
+  @Cron('0 */5 * * * *', {
     name: 'auto-email-sync',
   })
   async handleEmailSync() {
@@ -37,49 +39,59 @@ export class EmailSyncScheduler {
     }
 
     try {
-      // Get all active tenants with email accounts
-      const tenants = await this.prisma.emailAccount.findMany({
-        where: {
-          is_active: true,
-        },
+      const accounts = await this.prisma.emailAccount.findMany({
+        where: { is_active: true },
         select: {
+          id: true,
           tenant_id: true,
+          provider: true,
         },
-        distinct: ['tenant_id'],
       });
 
-      if (tenants.length === 0) {
-        // No email accounts configured, skip sync
+      if (accounts.length === 0) {
         return;
       }
 
-      // Sync emails for each tenant
-      for (const { tenant_id } of tenants) {
+      for (const account of accounts) {
         try {
-          const currentStatus = this.emailService.getGmailSyncStatus(tenant_id);
+          const tenantId = account.tenant_id;
 
-          // Skip if sync is already running for this tenant
-          if (currentStatus.status === 'running') {
-            this.logger.debug(
-              `Skipping sync for tenant ${tenant_id} - already running`,
+          // Gmail accounts
+          if (account.provider === 'gmail') {
+            await this.emailSyncQueue.add(
+              'sync-account',
+              {
+                tenantId,
+                emailAccountId: account.id,
+                mode: 'incremental',
+              },
+              {
+                jobId: `gmail-${tenantId}`, // dedup: one per tenant
+                removeOnComplete: 100,
+                removeOnFail: 50,
+              },
             );
-            continue;
           }
 
-          // Trigger sync
-          const result = this.emailService.triggerImmediateGmailSync(
-            tenant_id,
-            {
-              syncMode: 'catchup',
-            },
-          );
-
-          if (result.started) {
-            this.logger.log(`📧 Email sync started for tenant: ${tenant_id}`);
+          // Outlook accounts - handled via OutlookService delta sync
+          if (account.provider === 'outlook') {
+            await this.emailSyncQueue.add(
+              'sync-account',
+              {
+                tenantId,
+                emailAccountId: account.id,
+                mode: 'incremental',
+              },
+              {
+                jobId: `outlook-${account.id}`,
+                removeOnComplete: 100,
+                removeOnFail: 50,
+              },
+            );
           }
         } catch (error) {
           this.logger.error(
-            `Failed to sync emails for tenant ${tenant_id}: ${error instanceof Error ? error.message : String(error)}`,
+            `Failed to queue sync for account ${account.id}: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
       }

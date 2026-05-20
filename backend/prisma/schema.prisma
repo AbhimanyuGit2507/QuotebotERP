@@ -122,6 +122,7 @@ model Tenant {
   item_aliases ItemAlias[]
   item_match_configs     ItemMatchConfig[]
   item_alias_proposals   ItemAliasProposal[]
+  whatsapp_accounts      WhatsAppAccount[]
 
   @@index([company_name])
 }
@@ -633,6 +634,15 @@ model EmailAccount {
   credentials     Json?     // encrypted via external vault
   is_active       Boolean   @default(true)
   
+  // Gmail History API tracking
+  gmail_history_id String?
+
+  // Outlook / Office 365 fields
+  outlook_tenant_id         String?
+  outlook_subscription_id   String?
+  outlook_subscription_expiry DateTime?
+  outlook_delta_link        String?
+
   last_sync_at    DateTime?
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
@@ -1287,4 +1297,54 @@ model ExchangeRate {
   effective_date DateTime @default(now())
   created_at     DateTime @default(now())
   @@index([tenant_id, from_currency, to_currency])
+}
+// ============================================
+// WHATSAPP
+// ============================================
+
+model WhatsAppAccount {
+  id              String   @id @default(cuid())
+  tenant_id       String
+  client_type     String   // 'baileys' | 'meta'
+  phone_number    String?
+  display_name    String?
+  is_active       Boolean  @default(true)
+  baileys_session_data Json?
+  meta_phone_number_id String?
+  meta_waba_id         String?
+  meta_access_token    String?
+  webhook_verify_token String?
+  last_connected_at   DateTime?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  tenant   Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  messages WhatsAppMessage[]
+
+  @@index([tenant_id])
+  @@index([client_type])
+}
+
+model WhatsAppMessage {
+  id              String   @id @default(cuid())
+  account_id      String
+  tenant_id       String
+  external_id     String?
+  from_number     String
+  to_number       String?
+  body            String
+  media_url       String?
+  media_type      String?
+  direction       String   @default("inbound")
+  status          String   @default("received")
+  is_processed    Boolean  @default(false)
+  raw_payload     Json?
+  created_at      DateTime @default(now())
+
+  account  WhatsAppAccount @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@unique([account_id, external_id])
+  @@index([tenant_id])
+  @@index([account_id])
+  @@index([is_processed])
 }

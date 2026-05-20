@@ -48,6 +48,8 @@ type ItemMatchConfigDelegate = PrismaClient['itemMatchConfig'];
 type ItemAliasProposalDelegate = PrismaClient['itemAliasProposal'];
 type BillDelegate = PrismaClient['bill'];
 type SettingDelegate = PrismaClient['setting'];
+type WhatsAppAccountDelegate = PrismaClient['whatsAppAccount'];
+type WhatsAppMessageDelegate = PrismaClient['whatsAppMessage'];
 
 declare const globalThis: {
   prismaGlobal: PrismaClient;
@@ -274,8 +276,20 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.getClient().exchangeRate;
   }
 
+  get whatsAppAccount(): WhatsAppAccountDelegate {
+    return this.getClient().whatsAppAccount;
+  }
+
+  get whatsAppMessage(): WhatsAppMessageDelegate {
+    return this.getClient().whatsAppMessage;
+  }
+
   get db(): PrismaClient {
     return this.getClient();
+  }
+
+  async $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T> {
+    return this.getClient().$queryRaw<T>(query, ...values);
   }
 
   async $transaction<T>(

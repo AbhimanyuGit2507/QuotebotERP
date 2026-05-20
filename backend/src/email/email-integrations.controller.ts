@@ -8,12 +8,15 @@ import {
   UseGuards,
   Req,
   Res,
+  Body,
   BadRequestException,
   Logger,
+  HttpCode,
 } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { EmailService } from './email.service';
+import { OutlookService } from './outlook.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 
@@ -28,7 +31,10 @@ import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.
 export class EmailIntegrationsController {
   private readonly logger = new Logger(EmailIntegrationsController.name);
 
-  constructor(private emailService: EmailService) {}
+  constructor(
+    private emailService: EmailService,
+    private outlookService: OutlookService,
+  ) {}
 
   /**
    * GET /api/email-integrations
@@ -241,5 +247,114 @@ export class EmailIntegrationsController {
       tenantId,
       userId,
     );
+  }
+
+  // ─── Gmail Push Notification Webhook (no auth — called by Google Pub/Sub) ───
+
+  /** POST /api/email-integrations/gmail/webhook */
+  @Post('gmail/webhook')
+  @HttpCode(200)
+  async gmailWebhook(@Req() req: Request, @Res() res: Response) {
+    try {
+      const resourceState = req.headers['x-goog-resource-state'] as string;
+      if (resourceState === 'sync') {
+        res.sendStatus(200);
+        return;
+      }
+
+      const body = req.body as Record<string, unknown>;
+      if (body?.message) {
+        const msgData = (body.message as Record<string, unknown>).data as string;
+        if (msgData) {
+          const decoded = JSON.parse(Buffer.from(msgData, 'base64').toString('utf8')) as {
+            emailAddress?: string;
+            historyId?: string;
+          };
+          if (decoded.emailAddress) {
+            const account = await this.emailService['prisma'].emailAccount.findFirst({
+              where: { email_address: decoded.emailAddress, is_active: true },
+              select: { id: true },
+            });
+            if (account) {
+              void this.emailService.syncGmailIncremental(account.id);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Gmail webhook error: ${(err as Error).message}`);
+    }
+    res.sendStatus(200);
+  }
+
+  /** POST /api/email-integrations/gmail/watch */
+  @UseGuards(JwtAuthGuard)
+  @Post('gmail/watch')
+  async gmailWatch(@Req() req: Request & { user: AuthenticatedUser }) {
+    const tenantId = req.user?.tenant_id;
+    const topic = process.env.GMAIL_PUBSUB_TOPIC;
+    if (!topic) {
+      return { message: 'GMAIL_PUBSUB_TOPIC not configured — skipping watch setup' };
+    }
+    return this.emailService.setupGmailWatch(tenantId, topic);
+  }
+
+  // ─── Outlook OAuth ───
+
+  /** GET /api/email-integrations/outlook/auth */
+  @UseGuards(JwtAuthGuard)
+  @Get('outlook/auth')
+  async outlookAuth(@Req() req: Request & { user: AuthenticatedUser }) {
+    const state = Buffer.from(JSON.stringify({ tenantId: req.user.tenant_id, userId: req.user.id })).toString('base64');
+    return { url: this.outlookService.getAuthUrl(state) };
+  }
+
+  /** GET /api/email-integrations/outlook/callback */
+  @Get('outlook/callback')
+  async outlookCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    try {
+      const { tenantId, userId } = JSON.parse(Buffer.from(state, 'base64').toString('utf8')) as {
+        tenantId: string;
+        userId: string;
+      };
+      await this.outlookService.handleCallback(code, tenantId, userId);
+      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/system-config?tab=email&connected=outlook`);
+    } catch (err) {
+      this.logger.error(`Outlook callback error: ${(err as Error).message}`);
+      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/system-config?tab=email&error=outlook`);
+    }
+  }
+
+  /** POST /api/email-integrations/outlook/webhook */
+  @Post('outlook/webhook')
+  @HttpCode(200)
+  async outlookWebhook(@Query('validationToken') validationToken: string, @Req() req: Request, @Res() res: Response) {
+    // Graph API validation handshake
+    if (validationToken) {
+      res.setHeader('Content-Type', 'text/plain');
+      res.send(validationToken);
+      return;
+    }
+    try {
+      const body = req.body as Record<string, unknown>;
+      await this.outlookService.processWebhookNotification(body);
+    } catch (err) {
+      this.logger.warn(`Outlook webhook error: ${(err as Error).message}`);
+    }
+    res.sendStatus(200);
+  }
+
+  /** DELETE /api/email-integrations/outlook/disconnect */
+  @UseGuards(JwtAuthGuard)
+  @Delete('outlook/disconnect')
+  async outlookDisconnect(@Req() req: Request & { user: AuthenticatedUser }) {
+    const tenantId = req.user?.tenant_id;
+    const userId = req.user?.id;
+    if (!tenantId || !userId) throw new BadRequestException('Missing user context');
+    return this.outlookService.disconnect(tenantId, userId);
   }
 }
