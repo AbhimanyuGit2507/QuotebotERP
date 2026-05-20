@@ -1,6 +1,6 @@
 from .schemas import MatchRequest, ItemMatchResult, MatchCandidate
 from rapidfuzz import fuzz
-from unidecode import unidecode
+from text_unidecode import unidecode
 from typing import List, Optional
 import re
 import uuid
