@@ -137,7 +137,7 @@ const AppRoutes = () => {
       <Route path="/rfq-inbox/:id?" element={<ProtectedRoute><RFQInbox /></ProtectedRoute>} />
       <Route path="/client-ledger/:id?" element={<ProtectedRoute><ClientLedger /></ProtectedRoute>} />
       <Route path="/system-config" element={<ProtectedRoute><SystemConfig /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><AIAndAutomation /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><SystemConfig /></ProtectedRoute>} />
       <Route path="/settings/ai" element={<ProtectedRoute><AIAndAutomation /></ProtectedRoute>} />
       <Route path="/item-intelligence" element={<ProtectedRoute><ItemIntelligenceAdmin /></ProtectedRoute>} />
       <Route path="/email-templates" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />

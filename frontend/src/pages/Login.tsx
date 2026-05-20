@@ -54,7 +54,7 @@ const Login: React.FC = () => {
   return (
     <div className="flex min-h-screen">
       {/* ===== Left branded panel (hidden on mobile) ===== */}
-      <div className="hidden w-1/2 flex-col justify-between bg-gradient-to-br from-indigo-600 to-indigo-800 p-12 text-white md:flex">
+      <div className="hidden w-1/2 flex-col justify-between bg-gradient-to-br from-[#003459] to-[#00171f] p-12 text-white md:flex">
         <div>
           {/* Logo */}
           <Link to="/" className="inline-flex items-center gap-2">
@@ -62,7 +62,7 @@ const Login: React.FC = () => {
               Q
             </div>
             <span className="text-xl font-bold">
-              Quotebot<span className="text-indigo-200">ERP</span>
+              Quotebot<span className="text-[#00a7e1]">ERP</span>
             </span>
           </Link>
         </div>
@@ -71,7 +71,7 @@ const Login: React.FC = () => {
           <h2 className="text-3xl font-bold leading-tight lg:text-4xl">
             Streamline your business with AI-powered automation
           </h2>
-          <p className="mt-4 text-lg text-indigo-200">
+          <p className="mt-4 text-lg text-[#00a7e1]">
             Focus on growing your business while we handle the repetitive work.
           </p>
 
@@ -92,7 +92,7 @@ const Login: React.FC = () => {
             ].map((item) => (
               <li key={item.title} className="flex items-start gap-3">
                 <svg
-                  className="mt-0.5 h-5 w-5 flex-shrink-0 text-indigo-300"
+                  className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#007ea7]"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -102,14 +102,14 @@ const Login: React.FC = () => {
                 </svg>
                 <div>
                   <div className="font-semibold">{item.title}</div>
-                  <div className="text-sm text-indigo-200">{item.desc}</div>
+                  <div className="text-sm text-[#00a7e1]">{item.desc}</div>
                 </div>
               </li>
             ))}
           </ul>
         </div>
 
-        <p className="text-sm text-indigo-300">
+        <p className="text-sm text-[#007ea7]">
           &copy; {new Date().getFullYear()} QuotebotERP. All rights reserved.
         </p>
       </div>
@@ -119,11 +119,11 @@ const Login: React.FC = () => {
         {/* Mobile logo */}
         <div className="mb-8 md:hidden">
           <Link to="/" className="inline-flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#007ea7] text-sm font-bold text-white">
               Q
             </div>
             <span className="text-xl font-bold text-slate-900">
-              Quotebot<span className="text-indigo-600">ERP</span>
+              Quotebot<span className="text-[#007ea7]">ERP</span>
             </span>
           </Link>
         </div>
@@ -152,7 +152,7 @@ const Login: React.FC = () => {
                 className={`mt-1.5 block w-full rounded-lg border px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-2 ${
                   isEmailInvalid
                     ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                    : 'border-slate-300 focus:border-indigo-500 focus:ring-indigo-100'
+                    : 'border-slate-300 focus:border-[#007ea7] focus:ring-[#00a7e1]/20'
                 }`}
                 placeholder="you@company.com"
                 required
@@ -174,7 +174,7 @@ const Login: React.FC = () => {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 pr-10 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  className="block w-full rounded-lg border border-slate-300 px-4 py-2.5 pr-10 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#007ea7] focus:ring-2 focus:ring-[#00a7e1]/20"
                   placeholder="Enter your password"
                   required
                 />
@@ -205,7 +205,7 @@ const Login: React.FC = () => {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                className="h-4 w-4 rounded border-slate-300 text-[#007ea7] focus:ring-[#007ea7]"
               />
               <label htmlFor="remember" className="ml-2 text-sm text-slate-600">
                 Remember me
@@ -223,7 +223,7 @@ const Login: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-lg bg-[#007ea7] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#003459] focus:outline-none focus:ring-2 focus:ring-[#007ea7] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? 'Signing in…' : 'Sign in'}
             </button>
@@ -270,7 +270,7 @@ const Login: React.FC = () => {
           {/* Sign up link */}
           <p className="mt-8 text-center text-sm text-slate-600">
             Don&apos;t have an account?{' '}
-            <Link to="/signup" className="font-semibold text-indigo-600 hover:text-indigo-700">
+            <Link to="/signup" className="font-semibold text-[#007ea7] hover:text-[#003459]">
               Sign up
             </Link>
           </p>
