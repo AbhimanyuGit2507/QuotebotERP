@@ -16,6 +16,8 @@ class MatchRequest(BaseModel):
     items: List[InputItem]
     candidates: Optional[List[Candidate]] = None
     top_k: Optional[int] = 3
+    semantic_reranker_enabled: Optional[bool] = False
+    semantic_weight: Optional[float] = 0.5
 
 class MatchCandidate(BaseModel):
     candidate_id: Optional[str]

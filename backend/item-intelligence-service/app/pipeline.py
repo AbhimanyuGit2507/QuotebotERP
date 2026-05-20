@@ -1,9 +1,29 @@
 from .schemas import MatchRequest, ItemMatchResult, MatchCandidate
 from rapidfuzz import fuzz
 from unidecode import unidecode
-from typing import List
+from typing import List, Optional
 import re
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Lazy-load semantic transformer
+_semantic_encoder = None
+
+def get_semantic_encoder():
+    """Lazy-load sentence transformer model on first use."""
+    global _semantic_encoder
+    if _semantic_encoder is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            logger.info("Loading sentence transformer model...")
+            _semantic_encoder = SentenceTransformer('all-MiniLM-L6-v2')
+            logger.info("Sentence transformer loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load semantic encoder: {e}")
+            _semantic_encoder = False  # Mark as unavailable
+    return _semantic_encoder if _semantic_encoder is not False else None
 
 
 def normalize_text(s: str) -> str:
@@ -27,6 +47,28 @@ def score_pair(a: str, b: str) -> float:
     s1 = fuzz.token_sort_ratio(a, b)
     s2 = fuzz.partial_ratio(a, b)
     return float(max(s1, s2)) / 100.0
+
+
+def compute_semantic_similarity(input_text: str, candidate_text: str) -> float:
+    """Compute semantic similarity using sentence transformers."""
+    try:
+        encoder = get_semantic_encoder()
+        if not encoder:
+            return 0.0
+        
+        embeddings = encoder.encode([input_text, candidate_text])
+        from sklearn.metrics.pairwise import cosine_similarity
+        similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
+        return float(similarity)
+    except Exception as e:
+        logger.error(f"Error computing semantic similarity: {e}")
+        return 0.0
+
+
+def blend_scores(fuzzy_score: float, semantic_score: float, semantic_weight: float) -> float:
+    """Blend fuzzy and semantic scores."""
+    fuzzy_weight = 1.0 - semantic_weight
+    return (fuzzy_score * fuzzy_weight) + (semantic_score * semantic_weight)
 
 
 def run_matching(request: MatchRequest) -> List[ItemMatchResult]:
@@ -64,15 +106,26 @@ def run_matching(request: MatchRequest) -> List[ItemMatchResult]:
                 # for large catalogs, skip non-overlapping candidates
                 continue
 
-            sc = score_pair(in_norm, c['norm']) if c['norm'] else 0.0
+            fuzzy_score = score_pair(in_norm, c['norm']) if c['norm'] else 0.0
             # boost if alias matches exactly
             if any(in_norm == a for a in c.get('aliases', []) or []):
-                sc = max(sc, 0.95)
+                fuzzy_score = max(fuzzy_score, 0.95)
+
+            # Compute semantic score if enabled
+            if request.semantic_reranker_enabled:
+                semantic_score = compute_semantic_similarity(itm.text, c.get('text', ''))
+                final_score = blend_scores(
+                    fuzzy_score,
+                    semantic_score,
+                    request.semantic_weight or 0.5
+                )
+            else:
+                final_score = fuzzy_score
 
             candidates_scores.append({
                 'candidate_id': c.get('id'),
                 'product_name': c.get('text'),
-                'confidence': sc,
+                'confidence': final_score,
                 'metadata': c.get('metadata'),
             })
 
@@ -103,3 +156,4 @@ def run_matching(request: MatchRequest) -> List[ItemMatchResult]:
 
     # wrap as top-level response structure is assembled by the caller
     return out
+

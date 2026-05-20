@@ -47,10 +47,33 @@ export class ItemIntelligenceService {
       return null;
     }
 
+    // Load tenant config to get semantic reranker settings
+    let semanticConfig = { enabled: false, weight: 0.5 };
+    try {
+      const config = await this.prisma.itemMatchConfig.findUnique({
+        where: { tenant_id: request.tenant_id },
+      });
+      if (config) {
+        semanticConfig = {
+          enabled: config.semantic_reranker_enabled || false,
+          weight: Number(config.semantic_weight) || 0.5,
+        };
+      }
+    } catch (e) {
+      this.logger.warn('Failed to load item match config: ' + (e as Error).message);
+    }
+
+    // Attach semantic config to request
+    const requestWithConfig = {
+      ...request,
+      semantic_reranker_enabled: semanticConfig.enabled,
+      semantic_weight: semanticConfig.weight,
+    };
+
     const resp = await this.callWithRetry<ItemIntelligenceMatchResponse>({
       tenantId: request.tenant_id,
       endpoint: '/item-intelligence/match',
-      body: request,
+      body: requestWithConfig,
     });
 
     // persist run and candidates to DB if available

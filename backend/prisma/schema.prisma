@@ -120,7 +120,8 @@ model Tenant {
   exchange_rates ExchangeRate[]
   item_match_runs ItemMatchRun[]
   item_aliases ItemAlias[]
-  item_match_configs ItemMatchConfig[]
+  item_match_configs     ItemMatchConfig[]
+  item_alias_proposals   ItemAliasProposal[]
 
   @@index([company_name])
 }
@@ -824,18 +825,39 @@ model ItemMatchFeedback {
 }
 
 model ItemMatchConfig {
-  id                    String   @id @default(cuid())
-  tenant_id             String   @unique
-  suggestion_threshold  Decimal  @db.Decimal(5,4) @default(0.8)
-  auto_accept_threshold Decimal  @db.Decimal(5,4) @default(0.92)
-  mode                  String   @default("manual")
-  model_version         String   @default("v1")
-  created_at            DateTime @default(now())
-  updated_at            DateTime @updatedAt
+  id                           String   @id @default(cuid())
+  tenant_id                    String   @unique
+  suggestion_threshold         Decimal  @db.Decimal(5,4) @default(0.8)
+  auto_accept_threshold        Decimal  @db.Decimal(5,4) @default(0.92)
+  mode                         String   @default("manual")
+  model_version                String   @default("v1")
+  semantic_reranker_enabled    Boolean  @default(false)
+  semantic_model_name          String   @default("all-MiniLM-L6-v2")
+  semantic_weight              Decimal  @db.Decimal(3,2) @default(0.5)
+  created_at                   DateTime @default(now())
+  updated_at                   DateTime @updatedAt
 
-  tenant                Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant                       Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 
   @@index([tenant_id])
+}
+
+model ItemAliasProposal {
+  id                     String   @id @default(cuid())
+  tenant_id              String
+  input_text             String
+  canonical_product_id   String
+  confidence             Decimal  @db.Decimal(5,4)
+  feedback_count         Int      @default(1)
+  status                 String   @default("pending") // "pending" | "accepted" | "rejected"
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  tenant                 Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, input_text, canonical_product_id])
+  @@index([tenant_id, status, created_at])
+  @@index([tenant_id, status])
 }
 
 model SettingsTemplate {

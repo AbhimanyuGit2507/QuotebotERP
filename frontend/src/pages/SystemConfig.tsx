@@ -161,6 +161,15 @@ const SystemConfig: React.FC = () => {
     quoteDeclined: notificationSettings.quoteDeclined,
   });
 
+  const [itemIntelligenceForm, setItemIntelligenceForm] = useState({
+    semantic_reranker_enabled: false,
+    semantic_weight: 0.5,
+  });
+  const [savedItemIntelligenceForm, setSavedItemIntelligenceForm] = useState({
+    semantic_reranker_enabled: false,
+    semantic_weight: 0.5,
+  });
+
   const visibleTabs = useMemo(
     () => tabs.filter((tab) => tab.id !== 'processing' || isAdmin),
     [isAdmin],
@@ -182,7 +191,10 @@ const SystemConfig: React.FC = () => {
     }
 
     if (activeTab === 'processing') {
-      return JSON.stringify(processingForm) !== JSON.stringify(savedProcessingForm);
+      return (
+        JSON.stringify(processingForm) !== JSON.stringify(savedProcessingForm) ||
+        JSON.stringify(itemIntelligenceForm) !== JSON.stringify(savedItemIntelligenceForm)
+      );
     }
 
     return false;
@@ -194,6 +206,8 @@ const SystemConfig: React.FC = () => {
     notificationSettings,
     processingForm,
     savedProcessingForm,
+    itemIntelligenceForm,
+    savedItemIntelligenceForm,
   ]);
 
   const handleSave = async () => {
@@ -247,7 +261,7 @@ const SystemConfig: React.FC = () => {
       }
 
       if (activeTab === 'processing') {
-        const payload = {
+        const processingPayload = {
           interval_ms: Number(processingForm.interval_ms),
           run_batch_limit: Number(processingForm.run_batch_limit),
           classifier_batch_size: Number(processingForm.classifier_batch_size),
@@ -256,12 +270,24 @@ const SystemConfig: React.FC = () => {
           llm_rate_limit_per_minute: Number(processingForm.llm_rate_limit_per_minute),
         };
 
-        await apiRequest('/admin/processing-settings', {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
+        const itemIntelPayload = {
+          semantic_reranker_enabled: itemIntelligenceForm.semantic_reranker_enabled,
+          semantic_weight: itemIntelligenceForm.semantic_weight,
+        };
+
+        await Promise.all([
+          apiRequest('/admin/processing-settings', {
+            method: 'PUT',
+            body: JSON.stringify(processingPayload),
+          }),
+          apiRequest(`/item-intelligence/config?tenant_id=${user?.tenant_id}`, {
+            method: 'PUT',
+            body: JSON.stringify(itemIntelPayload),
+          }),
+        ]);
 
         setSavedProcessingForm(processingForm);
+        setSavedItemIntelligenceForm(itemIntelligenceForm);
       }
 
       showToast('Settings saved successfully', 'success');
@@ -292,6 +318,7 @@ const SystemConfig: React.FC = () => {
     });
 
     setProcessingForm(savedProcessingForm);
+    setItemIntelligenceForm(savedItemIntelligenceForm);
 
     showToast('Changes discarded', 'info');
   };
@@ -327,14 +354,17 @@ const SystemConfig: React.FC = () => {
     const loadProcessingSettings = async () => {
       setProcessingLoading(true);
       try {
-        const settings = await apiRequest<{
-          interval_ms: number;
-          run_batch_limit: number;
-          classifier_batch_size: number;
-          classifier_batch_max_bytes: number;
-          extraction_delay_ms: number;
-          llm_rate_limit_per_minute: number;
-        }>('/admin/processing-settings');
+        const [settings, itemIntelConfig] = await Promise.all([
+          apiRequest<{
+            interval_ms: number;
+            run_batch_limit: number;
+            classifier_batch_size: number;
+            classifier_batch_max_bytes: number;
+            extraction_delay_ms: number;
+            llm_rate_limit_per_minute: number;
+          }>('/admin/processing-settings'),
+          apiRequest<any>(`/item-intelligence/config?tenant_id=${user?.tenant_id}`).catch(() => null),
+        ]);
 
         const nextForm = buildProcessingSettingsForm({
           interval_ms: String(settings?.interval_ms ?? 20000),
@@ -346,6 +376,17 @@ const SystemConfig: React.FC = () => {
         });
         setProcessingForm(nextForm);
         setSavedProcessingForm(nextForm);
+
+        if (itemIntelConfig) {
+          setItemIntelligenceForm({
+            semantic_reranker_enabled: itemIntelConfig.semantic_reranker_enabled || false,
+            semantic_weight: Number(itemIntelConfig.semantic_weight) || 0.5,
+          });
+          setSavedItemIntelligenceForm({
+            semantic_reranker_enabled: itemIntelConfig.semantic_reranker_enabled || false,
+            semantic_weight: Number(itemIntelConfig.semantic_weight) || 0.5,
+          });
+        }
       } catch (error) {
         showToast(
           error instanceof Error ? error.message : 'Failed to load processing settings',
@@ -357,7 +398,7 @@ const SystemConfig: React.FC = () => {
     };
 
     void loadProcessingSettings();
-  }, [activeTab, isAdmin, showToast]);
+  }, [activeTab, isAdmin, user?.tenant_id, showToast]);
 
   useEffect(() => {
     setCompanyForm(persistedCompanyForm);
@@ -521,44 +562,105 @@ const SystemConfig: React.FC = () => {
   const renderProcessingContent = () => (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-bold text-[var(--erp-text)]">Automation Settings</h1>
+        <h1 className="text-lg font-bold text-[var(--erp-text)]">Automation & Item Intelligence</h1>
         <p className="text-sm text-[var(--erp-text-muted)]">
-          Control the global email queue, batching, and LLM throughput limits.
+          Control the global email queue, batching, LLM throughput limits, and item matching configuration.
         </p>
       </div>
 
-      <section className="rounded-2xl border border-[var(--erp-border)] bg-slate-50 p-4 text-sm text-[var(--erp-text-muted)]">
-        These settings are global defaults with env fallback. They affect the shared classifier and extraction worker.
-      </section>
+      {/* Processing Section */}
+      <div>
+        <h2 className="text-md font-bold mb-2 text-[var(--erp-text)]">Email Processing</h2>
+        <section className="rounded-2xl border border-[var(--erp-border)] bg-slate-50 p-4 text-sm text-[var(--erp-text-muted)] mb-4">
+          These settings are global defaults with env fallback. They affect the shared classifier and extraction worker.
+        </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {[
-          { key: 'interval_ms', label: 'Worker interval (ms)', helper: 'How often the worker wakes up.' },
-          { key: 'run_batch_limit', label: 'Run batch limit', helper: 'Max messages processed per run.' },
-          { key: 'classifier_batch_size', label: 'Classifier batch size', helper: 'How many messages the router classifies together.' },
-          { key: 'classifier_batch_max_bytes', label: 'Classifier max bytes', helper: 'Byte cap per classifier batch.' },
-          { key: 'extraction_delay_ms', label: 'Extraction delay (ms)', helper: 'Small delay between extraction calls.' },
-          { key: 'llm_rate_limit_per_minute', label: 'LLM calls per minute', helper: 'Global provider safety limit.' },
-        ].map((field) => (
-          <section key={field.key} className="space-y-2 rounded-xl border border-[var(--erp-border)] bg-white p-4">
-            <label className="block text-sm font-medium text-[var(--erp-text-muted)]">{field.label}</label>
-            <input
-              type="number"
-              min={field.key === 'extraction_delay_ms' ? 0 : 1}
-              step={1}
-              value={processingForm[field.key as keyof ProcessingSettingsForm]}
-              onChange={(event) =>
-                setProcessingForm((prev) => ({
-                  ...prev,
-                  [field.key]: event.target.value,
-                }))
-              }
-              className="w-full rounded border border-[var(--erp-border)] px-3 py-2 text-sm"
-              disabled={processingLoading}
-            />
-            <p className="text-[12px] text-[var(--erp-text-muted)]">{field.helper}</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          {[
+            { key: 'interval_ms', label: 'Worker interval (ms)', helper: 'How often the worker wakes up.' },
+            { key: 'run_batch_limit', label: 'Run batch limit', helper: 'Max messages processed per run.' },
+            { key: 'classifier_batch_size', label: 'Classifier batch size', helper: 'How many messages the router classifies together.' },
+            { key: 'classifier_batch_max_bytes', label: 'Classifier max bytes', helper: 'Byte cap per classifier batch.' },
+            { key: 'extraction_delay_ms', label: 'Extraction delay (ms)', helper: 'Small delay between extraction calls.' },
+            { key: 'llm_rate_limit_per_minute', label: 'LLM calls per minute', helper: 'Global provider safety limit.' },
+          ].map((field) => (
+            <section key={field.key} className="space-y-2 rounded-xl border border-[var(--erp-border)] bg-white p-4">
+              <label className="block text-sm font-medium text-[var(--erp-text-muted)]">{field.label}</label>
+              <input
+                type="number"
+                min={field.key === 'extraction_delay_ms' ? 0 : 1}
+                step={1}
+                value={processingForm[field.key as keyof ProcessingSettingsForm]}
+                onChange={(event) =>
+                  setProcessingForm((prev) => ({
+                    ...prev,
+                    [field.key]: event.target.value,
+                  }))
+                }
+                className="w-full rounded border border-[var(--erp-border)] px-3 py-2 text-sm"
+                disabled={processingLoading}
+              />
+              <p className="text-[12px] text-[var(--erp-text-muted)]">{field.helper}</p>
+            </section>
+          ))}
+        </div>
+      </div>
+
+      {/* Item Intelligence Section */}
+      <div className="pt-4 border-t border-[var(--erp-border)]">
+        <h2 className="text-md font-bold mb-2 text-[var(--erp-text)]">Item Matching</h2>
+        <section className="rounded-2xl border border-[var(--erp-border)] bg-slate-50 p-4 text-sm text-[var(--erp-text-muted)] mb-4">
+          Configure intelligent matching for RFQ line items. Enable semantic reranking to improve matching accuracy for synonyms and conceptually similar terms.
+        </section>
+
+        <div className="space-y-4">
+          <section className="rounded-xl border border-[var(--erp-border)] bg-white p-4 space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={itemIntelligenceForm.semantic_reranker_enabled}
+                onChange={(event) =>
+                  setItemIntelligenceForm((prev) => ({
+                    ...prev,
+                    semantic_reranker_enabled: event.target.checked,
+                  }))
+                }
+                className="rounded border-[var(--erp-border)] text-[var(--erp-accent)]"
+                disabled={itemIntelligenceLoading}
+              />
+              <div>
+                <span className="text-sm font-medium text-[var(--erp-text)]">Enable Semantic Reranker</span>
+                <p className="text-[12px] text-[var(--erp-text-muted)]">Uses AI embeddings to improve matching for similar terms</p>
+              </div>
+            </label>
+
+            {itemIntelligenceForm.semantic_reranker_enabled && (
+              <div className="ml-6 space-y-2 pt-2 border-t border-[var(--erp-border)]">
+                <label className="block text-sm font-medium text-[var(--erp-text-muted)]">
+                  Semantic Weight: {(itemIntelligenceForm.semantic_weight * 100).toFixed(0)}%
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={itemIntelligenceForm.semantic_weight * 100}
+                  onChange={(event) =>
+                    setItemIntelligenceForm((prev) => ({
+                      ...prev,
+                      semantic_weight: Number(event.target.value) / 100,
+                    }))
+                  }
+                  className="w-full"
+                  disabled={itemIntelligenceLoading}
+                />
+                <p className="text-[12px] text-[var(--erp-text-muted)]">
+                  Balance between fuzzy text matching (0%) and semantic AI matching (100%). 50% = equal weight.
+                </p>
+              </div>
+            )}
           </section>
-        ))}
+        </div>
       </div>
     </div>
   );
