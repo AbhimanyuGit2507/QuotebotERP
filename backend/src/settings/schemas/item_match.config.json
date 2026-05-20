@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "suggestion_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+    "auto_accept_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+    "semantic_reranker_enabled": { "type": "boolean" },
+    "semantic_model_name": { "type": "string" },
+    "semantic_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+    "mode": { "type": "string", "enum": ["manual", "auto"] }
+  },
+  "required": [],
+  "additionalProperties": false
+}

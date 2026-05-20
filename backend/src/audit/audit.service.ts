@@ -14,9 +14,33 @@ export interface AuditFilterParams extends PaginationParams {
   dateTo?: string;
 }
 
+export interface CreateAuditEventInput {
+  tenantId: string;
+  userId?: string | null;
+  action: string;
+  entityType: string;
+  entityId: string;
+  beforeJson?: string | null;
+  afterJson?: string | null;
+}
+
 @Injectable()
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async createEvent(input: CreateAuditEventInput) {
+    return this.prisma.auditLog.create({
+      data: {
+        tenant_id: input.tenantId,
+        user_id: input.userId || null,
+        action: input.action,
+        entity_type: input.entityType,
+        entity_id: input.entityId,
+        before_json: input.beforeJson || null,
+        after_json: input.afterJson || null,
+      },
+    });
+  }
 
   async findAll(
     tenantId: string,

@@ -500,7 +500,7 @@ export class RfqsService {
     });
 
     // If nothing matched, try the item intelligence sidecar (manual mode)
-    let itemIntelligenceSuggestions = undefined;
+    let itemIntelligenceSuggestions: any[] | undefined = undefined;
     if (resolvedItems.length === 0) {
       try {
         const intelligence = await this.itemIntelligenceService.matchItems({

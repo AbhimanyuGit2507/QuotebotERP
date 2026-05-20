@@ -6,8 +6,10 @@ export type ItemIntelligenceInputItem = {
 
 export type ItemIntelligenceSuggestion = {
   product_name: string;
+  candidate_id?: string; // aligns with sidecar candidate_id
   product_id?: string;
   confidence: number;
+  metadata?: any;
   reason?: string;
 };
 

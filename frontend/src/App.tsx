@@ -13,6 +13,7 @@ import RFQInbox from './pages/RFQInbox';
 import ClientLedger from './pages/ClientLedger';
 import SystemConfig from './pages/SystemConfig';
 import ItemIntelligenceAdmin from './pages/ItemIntelligenceAdmin';
+import AIAndAutomation from './pages/Settings/AIAndAutomation';
 import Inbox from './pages/Inbox';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -105,6 +106,8 @@ const AppRoutes = () => {
       <Route path="/rfq-inbox/:id?" element={<ProtectedRoute><RFQInbox /></ProtectedRoute>} />
       <Route path="/client-ledger/:id?" element={<ProtectedRoute><ClientLedger /></ProtectedRoute>} />
       <Route path="/system-config" element={<ProtectedRoute><SystemConfig /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><AIAndAutomation /></ProtectedRoute>} />
+      <Route path="/settings/ai" element={<ProtectedRoute><AIAndAutomation /></ProtectedRoute>} />
       <Route path="/item-intelligence" element={<ProtectedRoute><ItemIntelligenceAdmin /></ProtectedRoute>} />
       <Route path="/email-templates" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
       <Route path="/audit-log" element={<ProtectedRoute><AuditLog /></ProtectedRoute>} />

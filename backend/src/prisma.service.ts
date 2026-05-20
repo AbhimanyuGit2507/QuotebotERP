@@ -45,6 +45,9 @@ type ItemMatchCandidateDelegate = PrismaClient['itemMatchCandidate'];
 type ItemAliasDelegate = PrismaClient['itemAlias'];
 type ItemMatchFeedbackDelegate = PrismaClient['itemMatchFeedback'];
 type ItemMatchConfigDelegate = PrismaClient['itemMatchConfig'];
+type ItemAliasProposalDelegate = PrismaClient['itemAliasProposal'];
+type BillDelegate = PrismaClient['bill'];
+type SettingDelegate = PrismaClient['setting'];
 
 declare const globalThis: {
   prismaGlobal: PrismaClient;
@@ -171,8 +174,20 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.getClient().itemMatchConfig as ItemMatchConfigDelegate;
   }
 
+  get itemAliasProposal() {
+    return this.getClient().itemAliasProposal as ItemAliasProposalDelegate;
+  }
+
+  get bill() {
+    return this.getClient().bill as BillDelegate;
+  }
+
   get settingsTemplate() {
     return this.getClient().settingsTemplate;
+  }
+
+  get setting() {
+    return this.getClient().setting as SettingDelegate;
   }
 
   get automationRule() {

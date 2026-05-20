@@ -22,7 +22,7 @@ export class BillsService {
 
     const status = params.confidence >= autoConfirmThreshold ? 'CONFIRMED' : 'REVIEW_PENDING';
 
-    const created = await (this.prisma as any).bill.create({
+    const created = await this.prisma.bill.create({
       data: {
         tenant_id: params.tenantId,
         message_id: params.messageId,
@@ -42,7 +42,7 @@ export class BillsService {
   }
 
   async listBills(tenantId: string, limit = 50) {
-    return (this.prisma as any).bill.findMany({
+    return this.prisma.bill.findMany({
       where: { tenant_id: tenantId },
       orderBy: { created_at: 'desc' },
       take: limit,
@@ -50,6 +50,6 @@ export class BillsService {
   }
 
   async getBill(tenantId: string, id: string) {
-    return (this.prisma as any).bill.findFirst({ where: { tenant_id: tenantId, id } });
+    return this.prisma.bill.findFirst({ where: { tenant_id: tenantId, id } });
   }
 }

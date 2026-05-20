@@ -759,6 +759,20 @@ model ProcessingSettings {
   updated_at                DateTime @updatedAt
 }
 
+model Setting {
+  id         String   @id @default(cuid())
+  tenant_id  String
+  namespace  String
+  key        String
+  value      Json
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([tenant_id, namespace, key])
+  @@index([tenant_id])
+  @@index([namespace])
+}
+
 model ItemMatchRun {
   id            String   @id @default(cuid())
   item_id       String?

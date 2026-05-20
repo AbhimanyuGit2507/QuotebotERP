@@ -36,7 +36,7 @@ export class SettingsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: UpdateCompanySettingsDto,
   ) {
-    return this.settingsService.updateCompany(user.tenant_id, body);
+    return this.settingsService.updateCompany(user.tenant_id, body, user.id);
   }
 
   @Get('notifications')
@@ -49,7 +49,7 @@ export class SettingsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: UpdateNotificationSettingsDto,
   ) {
-    return this.settingsService.updateNotifications(user.tenant_id, body);
+    return this.settingsService.updateNotifications(user.tenant_id, body, user.id);
   }
 
   @Get('templates')

@@ -52,17 +52,17 @@ export class AliasProposalService {
         },
         include: {
           candidates: true,
-          feedback: true,
+          feedbacks: true,
         },
       });
 
       for (const run of recentRuns) {
         // if this run has feedback, check if user selected a product
-        const feedbackRecord = run.feedback[0];
+        const feedbackRecord = (run as any).feedbacks?.[0];
         if (!feedbackRecord || !feedbackRecord.selected_product_id) continue;
 
         // get the best candidate for this run
-        const bestCandidate = run.candidates.sort((a, b) => Number(b.score) - Number(a.score))[0];
+        const bestCandidate = (run as any).candidates.sort((a, b) => Number(b.score) - Number(a.score))[0];
         if (!bestCandidate) continue;
 
         // if user selected a different product than the top candidate,
