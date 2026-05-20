@@ -49,7 +49,11 @@ export class SettingsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: UpdateNotificationSettingsDto,
   ) {
-    return this.settingsService.updateNotifications(user.tenant_id, body, user.id);
+    return this.settingsService.updateNotifications(
+      user.tenant_id,
+      body,
+      user.id,
+    );
   }
 
   @Get('templates')

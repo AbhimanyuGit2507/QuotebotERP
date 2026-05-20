@@ -47,6 +47,7 @@ export const EmailIntegrations: React.FC<EmailIntegrationsProps> = ({
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [connectingOutlook, setConnectingOutlook] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<GmailSyncStatus | null>(null);
@@ -182,6 +183,24 @@ export const EmailIntegrations: React.FC<EmailIntegrationsProps> = ({
       console.error('[Frontend][OAuth] Flow failed:', err);
     } finally {
       setConnecting(false);
+    }
+  };
+
+  const handleConnectOutlook = async () => {
+    try {
+      setConnectingOutlook(true);
+      setError(null);
+      const data = await apiRequest<{ url: string }>('/email/outlook/auth');
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        setError('Outlook OAuth not configured. Set OUTLOOK_CLIENT_ID and OUTLOOK_CLIENT_SECRET in backend .env');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Outlook connection failed';
+      setError(message);
+    } finally {
+      setConnectingOutlook(false);
     }
   };
 
@@ -364,6 +383,7 @@ export const EmailIntegrations: React.FC<EmailIntegrationsProps> = ({
           </div>
         )}
 
+        {/* Gmail connect */}
         <button
           onClick={handleConnectGmail}
           disabled={connecting}
@@ -382,6 +402,29 @@ export const EmailIntegrations: React.FC<EmailIntegrationsProps> = ({
                 add_circle
               </span>
               Connect Gmail Account
+            </>
+          )}
+        </button>
+
+        {/* Outlook / Office 365 connect */}
+        <button
+          onClick={handleConnectOutlook}
+          disabled={connectingOutlook}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-[var(--erp-border)] text-[13px] font-medium text-[var(--erp-text)] hover:bg-[var(--erp-surface)] transition-colors mt-2 disabled:opacity-50"
+        >
+          {connectingOutlook ? (
+            <>
+              <span className="material-symbols-outlined animate-spin text-sm">sync</span>
+              Connecting Outlook...
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21.5 12C21.5 17.247 17.247 21.5 12 21.5C6.753 21.5 2.5 17.247 2.5 12C2.5 6.753 6.753 2.5 12 2.5C17.247 2.5 21.5 6.753 21.5 12Z" fill="#0078D4"/>
+                <path d="M8 8H16V16H8V8Z" fill="white"/>
+                <path d="M10 10H14V14H10V10Z" fill="#0078D4"/>
+              </svg>
+              Connect Outlook / Office 365
             </>
           )}
         </button>

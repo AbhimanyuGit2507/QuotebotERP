@@ -43,7 +43,7 @@ export class MetaWhatsAppController {
     @Res() res: Response,
   ) {
     try {
-      const { tenant_id: tenantId, id: userId } = req.user;
+      const { tenant_id: tenantId } = req.user;
       if (!tenantId) throw new BadRequestException('Missing tenant');
 
       const tokens = await this.metaService.exchangeCode(code);
@@ -59,10 +59,14 @@ export class MetaWhatsAppController {
         },
       });
 
-      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/system-config?tab=whatsapp&connected=meta`);
+      res.redirect(
+        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/system-config?tab=whatsapp&connected=meta`,
+      );
     } catch (err) {
       this.logger.error(`Meta callback error: ${(err as Error).message}`);
-      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/system-config?tab=whatsapp&error=meta`);
+      res.redirect(
+        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/system-config?tab=whatsapp&error=meta`,
+      );
     }
   }
 

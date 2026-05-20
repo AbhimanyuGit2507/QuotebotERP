@@ -6,7 +6,10 @@ export class QuotationItemDto {
   @IsString()
   product_id!: string;
 
-  @ApiProperty({ description: 'Product name', example: 'Industrial Bearing 6205' })
+  @ApiProperty({
+    description: 'Product name',
+    example: 'Industrial Bearing 6205',
+  })
   @IsString()
   product_name!: string;
 

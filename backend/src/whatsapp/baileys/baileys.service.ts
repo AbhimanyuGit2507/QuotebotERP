@@ -15,7 +15,10 @@ interface BaileysSocket {
 @Injectable()
 export class BaileysService {
   private readonly logger = new Logger(BaileysService.name);
-  private sessions = new Map<string, { socket: BaileysSocket; qr?: string; status: string }>();
+  private sessions = new Map<
+    string,
+    { socket: BaileysSocket; qr?: string; status: string }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -31,19 +34,25 @@ export class BaileysService {
     if (!account) throw new Error('WhatsApp account not found');
 
     // Dynamic import to avoid breaking build if optional dep missing
-    let makeWASocket: ((config: Record<string, unknown>) => Promise<BaileysSocket>) | undefined;
+    let makeWASocket:
+      | ((config: Record<string, unknown>) => Promise<BaileysSocket>)
+      | undefined;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const baileys = require('@whiskeysockets/baileys') as {
         default?: (config: Record<string, unknown>) => BaileysSocket;
         makeWASocket?: (config: Record<string, unknown>) => BaileysSocket;
       };
       const fn = baileys.default || baileys.makeWASocket;
       if (typeof fn === 'function') {
-        makeWASocket = fn as unknown as (config: Record<string, unknown>) => Promise<BaileysSocket>;
+        makeWASocket = fn as unknown as (
+          config: Record<string, unknown>,
+        ) => Promise<BaileysSocket>;
       }
     } catch {
-      this.logger.warn('Baileys package not available — WhatsApp QR session disabled');
+      this.logger.warn(
+        'Baileys package not available — WhatsApp QR session disabled',
+      );
       return;
     }
 
@@ -52,7 +61,10 @@ export class BaileysService {
       return;
     }
 
-    this.sessions.set(accountId, { socket: null as unknown as BaileysSocket, status: 'connecting' });
+    this.sessions.set(accountId, {
+      socket: null as unknown as BaileysSocket,
+      status: 'connecting',
+    });
 
     try {
       const socket = await makeWASocket({
@@ -60,7 +72,11 @@ export class BaileysService {
         auth: account.baileys_session_data || undefined,
       });
 
-      const sessionEntry = { socket, qr: undefined as string | undefined, status: 'connecting' };
+      const sessionEntry = {
+        socket,
+        qr: undefined as string | undefined,
+        status: 'connecting',
+      };
       this.sessions.set(accountId, sessionEntry);
 
       // Handle connection updates via event listeners
@@ -71,8 +87,13 @@ export class BaileysService {
       };
 
       if (eventEmitter.ev) {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         eventEmitter.ev.on('connection.update', async (update: unknown) => {
-          const u = update as { qr?: string; connection?: string; lastDisconnect?: unknown };
+          const u = update as {
+            qr?: string;
+            connection?: string;
+            lastDisconnect?: unknown;
+          };
           if (u.qr) {
             sessionEntry.qr = u.qr;
             const qrBase64 = await QRCode.toDataURL(u.qr);
@@ -87,21 +108,31 @@ export class BaileysService {
               where: { id: accountId },
               data: { is_active: true, last_connected_at: new Date() },
             });
-            this.eventsService.emitToTenant(account.tenant_id, 'whatsapp.connected', { accountId });
+            this.eventsService.emitToTenant(
+              account.tenant_id,
+              'whatsapp.connected',
+              { accountId },
+            );
           }
           if (u.connection === 'close') {
             sessionEntry.status = 'disconnected';
-            this.eventsService.emitToTenant(account.tenant_id, 'whatsapp.disconnected', { accountId });
+            this.eventsService.emitToTenant(
+              account.tenant_id,
+              'whatsapp.disconnected',
+              { accountId },
+            );
           }
         });
 
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         eventEmitter.ev.on('creds.update', async (creds: unknown) => {
           await this.prisma.whatsAppAccount.update({
             where: { id: accountId },
-            data: { baileys_session_data: (creds as Prisma.InputJsonValue) },
+            data: { baileys_session_data: creds as Prisma.InputJsonValue },
           });
         });
 
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
         eventEmitter.ev.on('messages.upsert', async (upsert: unknown) => {
           const u = upsert as { messages?: unknown[]; type?: string };
           if (u.type !== 'notify') return;
@@ -117,16 +148,21 @@ export class BaileysService {
     }
   }
 
-  async onMessage(accountId: string, msg: unknown, tenantId: string): Promise<void> {
+  async onMessage(
+    accountId: string,
+    msg: unknown,
+    tenantId: string,
+  ): Promise<void> {
     const m = msg as {
       key?: { id?: string; remoteJid?: string; fromMe?: boolean };
-      message?: { conversation?: string; extendedTextMessage?: { text?: string } };
+      message?: {
+        conversation?: string;
+        extendedTextMessage?: { text?: string };
+      };
     };
 
     const body =
-      m.message?.conversation ||
-      m.message?.extendedTextMessage?.text ||
-      '';
+      m.message?.conversation || m.message?.extendedTextMessage?.text || '';
 
     if (!body || m.key?.fromMe) return;
 
@@ -144,14 +180,19 @@ export class BaileysService {
     await this.processor.process(normalised);
   }
 
-  async sendMessage(accountId: string, to: string, body: string): Promise<void> {
+  async sendMessage(
+    accountId: string,
+    to: string,
+    body: string,
+  ): Promise<void> {
     const session = this.sessions.get(accountId);
-    if (!session?.socket) throw new Error('No active session for account ' + accountId);
+    if (!session?.socket)
+      throw new Error('No active session for account ' + accountId);
     const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
     await session.socket.sendMessage(jid, { text: body });
   }
 
-  async getQR(accountId: string): Promise<string | null> {
+  getQR(accountId: string): string | null {
     return this.sessions.get(accountId)?.qr || null;
   }
 

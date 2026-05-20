@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
@@ -243,7 +247,11 @@ export class InventoryService {
           // Create IN stock movement for accepted quantity
           if (grnItem.quantity_accepted > 0) {
             const product = await tx.product.findFirst({
-              where: { id: grnItem.product_id, tenant_id: tenantId, deleted_at: null },
+              where: {
+                id: grnItem.product_id,
+                tenant_id: tenantId,
+                deleted_at: null,
+              },
             });
             if (product) {
               await tx.stockMovement.create({

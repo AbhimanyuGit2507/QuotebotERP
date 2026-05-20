@@ -82,8 +82,16 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Get conversion funnel data' })
   @ApiResponse({ status: 200, description: 'Conversion funnel stages' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiQuery({ name: 'startDate', required: false, description: 'Start date (ISO 8601)' })
-  @ApiQuery({ name: 'endDate', required: false, description: 'End date (ISO 8601)' })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Start date (ISO 8601)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'End date (ISO 8601)',
+  })
   conversionFunnel(
     @CurrentUser() user: AuthenticatedUser,
     @Query('startDate') startDate?: string,
@@ -99,7 +107,10 @@ export class AnalyticsController {
   @Get('revenue-forecast')
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
   @ApiOperation({ summary: 'Get revenue forecasting data' })
-  @ApiResponse({ status: 200, description: 'Revenue forecast with monthly trend' })
+  @ApiResponse({
+    status: 200,
+    description: 'Revenue forecast with monthly trend',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   revenueForecast(@CurrentUser() user: AuthenticatedUser) {
     return this.analyticsService.getRevenueForecasting(user.tenant_id);
@@ -107,10 +118,16 @@ export class AnalyticsController {
 
   @Get('client-insights-enhanced')
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
-  @ApiOperation({ summary: 'Get enhanced client insights with growth and response metrics' })
+  @ApiOperation({
+    summary: 'Get enhanced client insights with growth and response metrics',
+  })
   @ApiResponse({ status: 200, description: 'Enhanced client insights data' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Number of top clients to return' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Number of top clients to return',
+  })
   clientInsightsEnhanced(
     @CurrentUser() user: AuthenticatedUser,
     @Query('limit') limit?: string,
@@ -124,9 +141,16 @@ export class AnalyticsController {
   @Get('product-performance-enhanced')
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
   @ApiOperation({ summary: 'Get enhanced product performance metrics' })
-  @ApiResponse({ status: 200, description: 'Enhanced product performance data' })
+  @ApiResponse({
+    status: 200,
+    description: 'Enhanced product performance data',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Number of top products to return' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Number of top products to return',
+  })
   productPerformanceEnhanced(
     @CurrentUser() user: AuthenticatedUser,
     @Query('limit') limit?: string,
@@ -149,7 +173,10 @@ export class AnalyticsController {
   @Get(':report/csv')
   @RequirePermission(PERMISSIONS.REPORT_EXPORT)
   @ApiOperation({ summary: 'Export an analytics report as CSV' })
-  @ApiParam({ name: 'report', description: 'Report type (e.g., sales-trends, rfq-analysis)' })
+  @ApiParam({
+    name: 'report',
+    description: 'Report type (e.g., sales-trends, rfq-analysis)',
+  })
   @ApiResponse({ status: 200, description: 'CSV file download' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async exportCsv(

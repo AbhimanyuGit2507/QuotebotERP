@@ -1,8 +1,10 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AppProvider } from './context/AppContext';
+import { AppProvider, useApp } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useRealtimeEvents } from './hooks/useRealtimeEvents';
+import OnboardingManager from './components/onboarding/OnboardingManager';
 import Dashboard from './pages/Dashboard';
 import UserPermissions from './pages/UserPermissions';
 import Quotations from './pages/Quotations';
@@ -31,6 +33,30 @@ import PurchaseOrdersPage from './pages/PurchaseOrders';
 import InventoryPage from './pages/Inventory';
 import Accounting from './pages/Accounting';
 
+/** Inner component — runs only when authenticated; hooks into realtime events */
+const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { refreshData } = useApp();
+
+  const { connected } = useRealtimeEvents({
+    onRfqNew: () => refreshData(),
+    onRfqUpdated: () => refreshData(),
+    onInboxNew: () => refreshData(),
+    onInboxUpdated: () => refreshData(),
+    onQuotationUpdated: () => refreshData(),
+    onSyncProgress: (data) => {
+      if (data.status === 'completed') refreshData();
+    },
+  });
+
+  // Expose connection status to Header via a custom attribute on window
+  React.useEffect(() => {
+    (window as unknown as Record<string, unknown>).__wsCon = connected;
+    window.dispatchEvent(new CustomEvent('ws-status', { detail: { connected } }));
+  }, [connected]);
+
+  return <>{children}</>;
+};
+
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const { isAuthenticated, isInitializing } = useAuth();
   const location = useLocation();
@@ -53,7 +79,12 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }
     );
   }
 
-  return children;
+  return (
+    <RealtimeProvider>
+      <OnboardingManager />
+      {children}
+    </RealtimeProvider>
+  );
 };
 
 const LAST_ROUTE_KEY = 'lastRoute';

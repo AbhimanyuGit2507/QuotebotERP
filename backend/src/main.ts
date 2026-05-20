@@ -87,9 +87,7 @@ async function bootstrap() {
   // Swagger / OpenAPI documentation
   const config = new DocumentBuilder()
     .setTitle('QuotebotERP API')
-    .setDescription(
-      'QuotebotERP API — AI-powered ERP for modern businesses',
-    )
+    .setDescription('QuotebotERP API — AI-powered ERP for modern businesses')
     .setVersion('1.0')
     .addCookieAuth('qb_access_token')
     .addBearerAuth()

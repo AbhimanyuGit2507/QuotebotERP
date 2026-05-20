@@ -1,12 +1,10 @@
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { InventoryService } from './inventory.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
@@ -61,11 +59,7 @@ export class InventoryController {
       notes?: string;
     },
   ) {
-    return this.inventoryService.recordMovement(
-      user.tenant_id,
-      body,
-      user.id,
-    );
+    return this.inventoryService.recordMovement(user.tenant_id, body, user.id);
   }
 
   @Get('alerts')

@@ -26,7 +26,11 @@ export class SuggestionsController {
   @ApiOperation({ summary: 'Get pricing suggestions for a product' })
   @ApiResponse({ status: 200, description: 'Pricing suggestions' })
   @ApiQuery({ name: 'productId', required: true, description: 'Product ID' })
-  @ApiQuery({ name: 'clientId', required: false, description: 'Client ID for client-specific pricing' })
+  @ApiQuery({
+    name: 'clientId',
+    required: false,
+    description: 'Client ID for client-specific pricing',
+  })
   getPricingSuggestions(
     @CurrentUser() user: AuthenticatedUser,
     @Query('productId') productId: string,
@@ -41,7 +45,10 @@ export class SuggestionsController {
 
   @Get('follow-ups')
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
-  @ApiOperation({ summary: 'Get follow-up recommendations (stale quotes, overdue invoices, inactive clients)' })
+  @ApiOperation({
+    summary:
+      'Get follow-up recommendations (stale quotes, overdue invoices, inactive clients)',
+  })
   @ApiResponse({ status: 200, description: 'Follow-up recommendations' })
   getFollowUpRecommendations(@CurrentUser() user: AuthenticatedUser) {
     return this.suggestionsService.getFollowUpRecommendations(user.tenant_id);
@@ -56,9 +63,6 @@ export class SuggestionsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('productId') productId: string,
   ) {
-    return this.suggestionsService.getDemandForecast(
-      user.tenant_id,
-      productId,
-    );
+    return this.suggestionsService.getDemandForecast(user.tenant_id, productId);
   }
 }

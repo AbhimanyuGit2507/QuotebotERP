@@ -20,7 +20,10 @@ export class AdminSettingsController {
     @Query('tenantId') tenantId: string | undefined,
     @Query('namespace') namespace: string,
   ) {
-    const tid = user.role === 'superadmin' ? tenantId ?? user.tenant_id : user.tenant_id;
+    const tid =
+      user.role === 'superadmin'
+        ? (tenantId ?? user.tenant_id)
+        : user.tenant_id;
     return this.settingsService.getNamespace(tid, namespace);
   }
 
@@ -31,7 +34,15 @@ export class AdminSettingsController {
     @Query('namespace') namespace: string,
     @Body() payload: Record<string, any>,
   ) {
-    const tid = user.role === 'superadmin' ? tenantId ?? user.tenant_id : user.tenant_id;
-    return this.settingsService.upsertNamespace(tid, namespace, payload, user.id);
+    const tid =
+      user.role === 'superadmin'
+        ? (tenantId ?? user.tenant_id)
+        : user.tenant_id;
+    return this.settingsService.upsertNamespace(
+      tid,
+      namespace,
+      payload,
+      user.id,
+    );
   }
 }

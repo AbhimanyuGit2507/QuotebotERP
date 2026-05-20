@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, UseGuards, Inject } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -62,7 +62,9 @@ export class AdminController {
     try {
       await this.prisma.$queryRaw`SELECT 1`;
       dbStatus = 'ok';
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
 
     try {
       const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -70,7 +72,9 @@ export class AdminController {
       const pong = await redis.ping();
       if (pong === 'PONG') redisStatus = 'ok';
       await redis.quit();
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
 
     return {
       uptime: os.uptime(),

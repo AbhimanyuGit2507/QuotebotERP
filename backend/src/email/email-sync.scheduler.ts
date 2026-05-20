@@ -19,7 +19,9 @@ export class EmailSyncScheduler {
     @InjectQueue('email-sync') private emailSyncQueue: Queue,
   ) {
     if (this.AUTO_SYNC_ENABLED) {
-      this.logger.log('✓ Automatic email sync enabled (every 5 minutes via Bull queue)');
+      this.logger.log(
+        '✓ Automatic email sync enabled (every 5 minutes via Bull queue)',
+      );
     } else {
       this.logger.log(
         'Automatic email sync is disabled (set AUTO_EMAIL_SYNC_ENABLED=true to enable)',

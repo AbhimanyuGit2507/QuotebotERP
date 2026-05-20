@@ -308,7 +308,8 @@ export class EmailService {
         GMAIL_SYNC_STATUS_FILE: statusFile,
         GMAIL_SYNC_MODE: options.syncMode || 'catchup',
         GMAIL_SYNC_INITIAL_LOOKBACK_DAYS: String(
-          options.initialLookbackDays || this.getDefaultGmailInitialLookbackDays(),
+          options.initialLookbackDays ||
+            this.getDefaultGmailInitialLookbackDays(),
         ),
       },
     });
@@ -338,13 +339,19 @@ export class EmailService {
     });
 
     if (!account || account.provider !== 'gmail') {
-      this.logger.warn(`syncGmailIncremental: account ${emailAccountId} not found or not gmail`);
+      this.logger.warn(
+        `syncGmailIncremental: account ${emailAccountId} not found or not gmail`,
+      );
       return;
     }
 
     if (!account.gmail_history_id) {
-      this.logger.log(`No historyId for account ${emailAccountId}, falling back to full sync`);
-      await this.triggerImmediateGmailSync(account.tenant_id, { syncMode: 'catchup' });
+      this.logger.log(
+        `No historyId for account ${emailAccountId}, falling back to full sync`,
+      );
+      this.triggerImmediateGmailSync(account.tenant_id, {
+        syncMode: 'catchup',
+      });
       return;
     }
 
@@ -369,7 +376,7 @@ export class EmailService {
         throw new Error(`Gmail history API returned ${histRes.status}`);
       }
 
-      const histData = await histRes.json() as {
+      const histData = (await histRes.json()) as {
         historyId?: string;
         history?: Array<{
           messagesAdded?: Array<{ message?: { id?: string } }>;
@@ -393,20 +400,33 @@ export class EmailService {
         return;
       }
 
-      this.logger.log(`History API found ${added.length} new messages for account ${emailAccountId}`);
-      await this.triggerImmediateGmailSync(account.tenant_id, { syncMode: 'catchup' });
+      this.logger.log(
+        `History API found ${added.length} new messages for account ${emailAccountId}`,
+      );
+      this.triggerImmediateGmailSync(account.tenant_id, {
+        syncMode: 'catchup',
+      });
     } catch (err: unknown) {
       const errObj = err as { code?: number; message?: string };
       if (errObj?.code === 404) {
-        this.logger.warn(`Gmail history expired for account ${emailAccountId}, falling back to full sync`);
-        await this.triggerImmediateGmailSync(account.tenant_id, { syncMode: 'catchup' });
+        this.logger.warn(
+          `Gmail history expired for account ${emailAccountId}, falling back to full sync`,
+        );
+        this.triggerImmediateGmailSync(account.tenant_id, {
+          syncMode: 'catchup',
+        });
       } else {
-        this.logger.error(`Gmail incremental sync error: ${errObj?.message || String(err)}`);
+        this.logger.error(
+          `Gmail incremental sync error: ${errObj?.message || String(err)}`,
+        );
       }
     }
   }
 
-  async setupGmailWatch(tenantId: string, topic: string): Promise<{ success: boolean; message: string }> {
+  async setupGmailWatch(
+    tenantId: string,
+    topic: string,
+  ): Promise<{ success: boolean; message: string }> {
     const accounts = await this.prisma.emailAccount.findMany({
       where: { tenant_id: tenantId, provider: 'gmail', is_active: true },
       select: { id: true, credentials: true },
@@ -415,24 +435,34 @@ export class EmailService {
       try {
         const creds = account.credentials as Record<string, string> | null;
         if (!creds?.access_token) continue;
-        const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/watch', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${creds.access_token}`,
-            'Content-Type': 'application/json',
+        const res = await fetch(
+          'https://gmail.googleapis.com/gmail/v1/users/me/watch',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${creds.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ topicName: topic, labelIds: ['INBOX'] }),
           },
-          body: JSON.stringify({ topicName: topic, labelIds: ['INBOX'] }),
-        });
+        );
         if (!res.ok) {
-          this.logger.warn(`Gmail watch API returned ${res.status} for account ${account.id}`);
+          this.logger.warn(
+            `Gmail watch API returned ${res.status} for account ${account.id}`,
+          );
         } else {
           this.logger.log(`Gmail watch set up for account ${account.id}`);
         }
       } catch (err) {
-        this.logger.warn(`Gmail watch failed for account ${account.id}: ${(err as Error).message}`);
+        this.logger.warn(
+          `Gmail watch failed for account ${account.id}: ${(err as Error).message}`,
+        );
       }
     }
-    return { success: true, message: `Watch set up for ${accounts.length} accounts` };
+    return {
+      success: true,
+      message: `Watch set up for ${accounts.length} accounts`,
+    };
   }
 
   async markEmailAccountSynced(

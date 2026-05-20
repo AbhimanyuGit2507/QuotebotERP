@@ -1,4 +1,15 @@
-import { Body, Controller, Post, Headers, HttpCode, Get, Query, Param, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Headers,
+  HttpCode,
+  Get,
+  Query,
+  Param,
+  Put,
+} from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { ItemIntelligenceService } from './item-intelligence.service';
 import { AliasProposalService } from './alias-proposal.service';
 import { PrismaService } from '../prisma.service';
@@ -15,12 +26,18 @@ export class ItemIntelligenceController {
   @HttpCode(200)
   async feedback(@Body() body: any, @Headers('x-tenant-id') tenantId: string) {
     // forward to adapter sidecar for persistence/processing
-    await this.svc.storeFeedback(tenantId || body?.tenant_id || 'default', body);
+    await this.svc.storeFeedback(
+      tenantId || body?.tenant_id || 'default',
+      body,
+    );
     return { status: 'ok' };
   }
 
   @Get('runs')
-  async listRuns(@Query('tenant_id') tenantId: string, @Query('limit') limit = '50') {
+  async listRuns(
+    @Query('tenant_id') tenantId: string,
+    @Query('limit') limit = '50',
+  ) {
     const lim = Math.min(200, Number(limit) || 50);
     const runs = await this.prisma.itemMatchRun.findMany({
       where: { tenant_id: tenantId },
@@ -67,7 +84,7 @@ export class ItemIntelligenceController {
     } else {
       return this.prisma.itemMatchConfig.create({
         data: {
-          id: require('crypto').randomUUID(),
+          id: randomUUID(),
           tenant_id: tenantId,
           semantic_reranker_enabled: body.semantic_reranker_enabled || false,
           semantic_weight: body.semantic_weight || 0.5,
@@ -79,7 +96,10 @@ export class ItemIntelligenceController {
   }
 
   @Get('alias-proposals')
-  async listProposals(@Query('tenant_id') tenantId: string, @Query('pending_only') pendingOnly = 'true') {
+  async listProposals(
+    @Query('tenant_id') tenantId: string,
+    @Query('pending_only') pendingOnly = 'true',
+  ) {
     if (pendingOnly === 'true' || pendingOnly === '1') {
       return this.proposalSvc.listPendingProposals(tenantId);
     }

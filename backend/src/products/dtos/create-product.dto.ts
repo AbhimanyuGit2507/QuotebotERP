@@ -14,7 +14,10 @@ export class CreateProductDto {
   @IsString()
   sku!: string;
 
-  @ApiProperty({ description: 'Product name', example: 'Industrial Bearing 6205' })
+  @ApiProperty({
+    description: 'Product name',
+    example: 'Industrial Bearing 6205',
+  })
   @IsString()
   name!: string;
 
@@ -26,12 +29,12 @@ export class CreateProductDto {
   @IsString()
   unit!: string;
 
-  @ApiProperty({ description: 'Selling price (₹)', example: 1500.00 })
+  @ApiProperty({ description: 'Selling price (₹)', example: 1500.0 })
   @IsNumber()
   @Min(0)
   price!: number;
 
-  @ApiProperty({ description: 'Cost price (₹)', example: 1000.00 })
+  @ApiProperty({ description: 'Cost price (₹)', example: 1000.0 })
   @IsNumber()
   @Min(0)
   cost!: number;
@@ -48,7 +51,10 @@ export class CreateProductDto {
   @Min(0)
   reorder_level?: number;
 
-  @ApiPropertyOptional({ description: 'HSN code for tax classification', example: '8482' })
+  @ApiPropertyOptional({
+    description: 'HSN code for tax classification',
+    example: '8482',
+  })
   @IsOptional()
   @IsString()
   hsn?: string;
@@ -59,17 +65,27 @@ export class CreateProductDto {
   @Min(0)
   gst_percent?: number;
 
-  @ApiPropertyOptional({ description: 'Product description', example: 'Deep groove ball bearing' })
+  @ApiPropertyOptional({
+    description: 'Product description',
+    example: 'Deep groove ball bearing',
+  })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ description: 'Product status', example: 'active', enum: ['active', 'inactive'] })
+  @ApiPropertyOptional({
+    description: 'Product status',
+    example: 'active',
+    enum: ['active', 'inactive'],
+  })
   @IsOptional()
   @IsIn(['active', 'inactive'])
   status?: string;
 
-  @ApiPropertyOptional({ description: 'Product image URL', example: 'https://example.com/image.jpg' })
+  @ApiPropertyOptional({
+    description: 'Product image URL',
+    example: 'https://example.com/image.jpg',
+  })
   @IsOptional()
   @IsUrl()
   image_url?: string;

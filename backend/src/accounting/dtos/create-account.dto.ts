@@ -10,17 +10,27 @@ export class CreateAccountDto {
   @IsString()
   name: string;
 
-  @ApiProperty({ description: 'Account type', example: 'ASSET', enum: ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'] })
+  @ApiProperty({
+    description: 'Account type',
+    example: 'ASSET',
+    enum: ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'],
+  })
   @IsString()
   @IsIn(['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'])
   type: string;
 
-  @ApiPropertyOptional({ description: 'Parent account ID for sub-accounts', example: 'acc_parent123' })
+  @ApiPropertyOptional({
+    description: 'Parent account ID for sub-accounts',
+    example: 'acc_parent123',
+  })
   @IsOptional()
   @IsString()
   parentId?: string;
 
-  @ApiPropertyOptional({ description: 'Account description', example: 'Primary cash and bank account' })
+  @ApiPropertyOptional({
+    description: 'Account description',
+    example: 'Primary cash and bank account',
+  })
   @IsOptional()
   @IsString()
   description?: string;

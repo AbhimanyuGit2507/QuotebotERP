@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { EmailClassifierService } from './email-classifier/email-classifier.service';
 import { BillsService } from './bills/bills.service';
 
@@ -6,7 +6,8 @@ describe('Bills classifier & unit checks', () => {
   it('EmailClassifierService returns null for GitHub notification (no invoice)', () => {
     const classifier = new EmailClassifierService();
     const subject = 'Build succeeded: PR merged';
-    const body = 'CI run succeeded. Details: https://github.com/org/repo/actions';
+    const body =
+      'CI run succeeded. Details: https://github.com/org/repo/actions';
     const detected = classifier.detectBill(subject, body);
     expect(detected).toBeNull();
   });
@@ -14,11 +15,16 @@ describe('Bills classifier & unit checks', () => {
   it('BillsService.createBillIfThreshold persists when confidence above threshold', async () => {
     const mockPrisma: any = {
       bill: {
-        create: jest.fn().mockImplementation(({ data }) => ({ id: 'bill-1', ...data, created_at: new Date() })),
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+        create: jest.fn().mockImplementation(({ data }) => ({
+          id: 'bill-1',
+          ...data,
+          created_at: new Date(),
+        })),
       },
     };
 
-    const bills = new BillsService(mockPrisma as any);
+    const bills = new BillsService(mockPrisma);
 
     const created = await bills.createBillIfThreshold({
       tenantId: 't1',

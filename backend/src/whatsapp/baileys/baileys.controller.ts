@@ -40,16 +40,23 @@ export class BaileysController {
 
     // Start session asynchronously
     void this.baileysService.initSession(account.id).catch((err) => {
-      this.logger.error(`Baileys initSession failed: ${(err as Error).message}`);
+      this.logger.error(
+        `Baileys initSession failed: ${(err as Error).message}`,
+      );
     });
 
-    return { accountId: account.id, status: 'connecting', message: 'QR code will be emitted via WebSocket whatsapp.qr event' };
+    return {
+      accountId: account.id,
+      status: 'connecting',
+      message: 'QR code will be emitted via WebSocket whatsapp.qr event',
+    };
   }
 
   @Get('qr/:accountId')
-  async getQR(@Param('accountId') accountId: string) {
-    const qr = await this.baileysService.getQR(accountId);
-    if (!qr) return { qr: null, status: this.baileysService.getStatus(accountId) };
+  getQR(@Param('accountId') accountId: string) {
+    const qr = this.baileysService.getQR(accountId);
+    if (!qr)
+      return { qr: null, status: this.baileysService.getStatus(accountId) };
     return { qr, status: 'qr_pending' };
   }
 

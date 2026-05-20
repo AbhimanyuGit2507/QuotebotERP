@@ -27,7 +27,9 @@ export class PermissionGuard implements CanActivate {
     // Check user's permissions array
     const userPermissions: string[] = user.permissions || [];
     const rolePermissions: string[] = user.role_permissions || [];
-    const allPermissions = [...new Set([...userPermissions, ...rolePermissions])];
+    const allPermissions = [
+      ...new Set([...userPermissions, ...rolePermissions]),
+    ];
 
     const hasPermission = requiredPermissions.some((p) =>
       allPermissions.includes(p),

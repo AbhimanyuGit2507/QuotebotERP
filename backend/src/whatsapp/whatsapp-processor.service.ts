@@ -35,7 +35,9 @@ export class WhatsAppProcessorService {
             media_url: msg.mediaUrl,
             media_type: msg.mediaType,
             direction: msg.direction,
-            raw_payload: msg.rawPayload ? (msg.rawPayload as Prisma.InputJsonValue) : undefined,
+            raw_payload: msg.rawPayload
+              ? (msg.rawPayload as Prisma.InputJsonValue)
+              : undefined,
           },
         });
       }
@@ -64,9 +66,26 @@ export class WhatsAppProcessorService {
   private isRfqText(text: string): boolean {
     const lower = text.toLowerCase();
     const rfqKeywords = [
-      'quote', 'quotation', 'rfq', 'price', 'pricing', 'rate', 'rates',
-      'how much', 'cost', 'inquiry', 'enquiry', 'purchase', 'order',
-      'need', 'require', 'supply', 'supplier', 'pieces', 'units', 'qty',
+      'quote',
+      'quotation',
+      'rfq',
+      'price',
+      'pricing',
+      'rate',
+      'rates',
+      'how much',
+      'cost',
+      'inquiry',
+      'enquiry',
+      'purchase',
+      'order',
+      'need',
+      'require',
+      'supply',
+      'supplier',
+      'pieces',
+      'units',
+      'qty',
     ];
     return rfqKeywords.some((kw) => lower.includes(kw));
   }

@@ -7,12 +7,17 @@ export class UpdateCompanySettingsDto {
   @IsString()
   currency?: string;
 
-  @ApiPropertyOptional({ description: 'Company logo URL', example: 'https://company.com/logo.png' })
+  @ApiPropertyOptional({
+    description: 'Company logo URL',
+    example: 'https://company.com/logo.png',
+  })
   @IsOptional()
   @IsUrl()
   logo_url?: string;
 
-  @ApiPropertyOptional({ description: 'Company profile JSON (name, address, etc.)' })
+  @ApiPropertyOptional({
+    description: 'Company profile JSON (name, address, etc.)',
+  })
   @IsOptional()
   @IsObject()
   profile_json?: Record<string, unknown>;

@@ -21,7 +21,9 @@ interface JwtPayload {
   cors: { origin: '*' },
   namespace: '/events',
 })
-export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class EventsGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server!: Server;
 
@@ -36,13 +38,17 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
   handleConnection(client: Socket) {
     try {
-      const authToken = (client.handshake.auth as Record<string, unknown>)?.token;
-      const queryToken = (client.handshake.query as Record<string, unknown>)?.token;
+      const authToken = (client.handshake.auth as Record<string, unknown>)
+        ?.token;
+      const queryToken = (client.handshake.query as Record<string, unknown>)
+        ?.token;
       const rawToken = authToken || queryToken;
       const tokenStr = typeof rawToken === 'string' ? rawToken : undefined;
 
       if (!tokenStr) {
-        this.logger.warn(`Client ${client.id} connected without token — disconnecting`);
+        this.logger.warn(
+          `Client ${client.id} connected without token — disconnecting`,
+        );
         client.disconnect(true);
         return;
       }
@@ -61,7 +67,9 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       this.eventsService.incrementConnections();
       this.logger.log(`Client ${client.id} joined tenant:${payload.tenant_id}`);
     } catch (err) {
-      this.logger.warn(`Client ${client.id} auth failed: ${(err as Error).message}`);
+      this.logger.warn(
+        `Client ${client.id} auth failed: ${(err as Error).message}`,
+      );
       client.disconnect(true);
     }
   }

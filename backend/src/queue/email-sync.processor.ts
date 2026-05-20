@@ -1,4 +1,10 @@
-import { Process, Processor, OnQueueActive, OnQueueCompleted, OnQueueFailed } from '@nestjs/bull';
+import {
+  Process,
+  Processor,
+  OnQueueActive,
+  OnQueueCompleted,
+  OnQueueFailed,
+} from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bull';
 import { EmailService } from '../email/email.service';
@@ -22,12 +28,16 @@ export class EmailSyncProcessor {
   @Process('sync-account')
   async handleSyncAccount(job: Job<EmailSyncJobData>): Promise<void> {
     const { tenantId, emailAccountId, mode } = job.data;
-    this.logger.log(`Processing sync job for tenant ${tenantId}, account ${emailAccountId}, mode: ${mode}`);
+    this.logger.log(
+      `Processing sync job for tenant ${tenantId}, account ${emailAccountId}, mode: ${mode}`,
+    );
 
     if (mode === 'incremental') {
       await this.emailService.syncGmailIncremental(emailAccountId);
     } else {
-      await this.emailService.triggerImmediateGmailSync(tenantId, { syncMode: 'catchup' });
+      this.emailService.triggerImmediateGmailSync(tenantId, {
+        syncMode: 'catchup',
+      });
     }
   }
 
@@ -54,7 +64,9 @@ export class EmailSyncProcessor {
   @OnQueueFailed()
   onFailed(job: Job<EmailSyncJobData>, error: Error) {
     const { tenantId } = job.data;
-    this.logger.error(`Sync job failed for tenant ${tenantId}: ${error.message}`);
+    this.logger.error(
+      `Sync job failed for tenant ${tenantId}: ${error.message}`,
+    );
     this.eventsService.emitSyncProgress(tenantId, {
       status: 'failed',
       jobId: job.id,

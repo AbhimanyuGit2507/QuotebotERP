@@ -34,7 +34,9 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get('permissions')
-  @ApiOperation({ summary: 'Get all available permission groups for the permission editor' })
+  @ApiOperation({
+    summary: 'Get all available permission groups for the permission editor',
+  })
   @ApiResponse({ status: 200, description: 'Permission groups map' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getPermissionGroups() {

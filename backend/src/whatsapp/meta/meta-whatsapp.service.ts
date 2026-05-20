@@ -8,10 +8,21 @@ import { WhatsAppAccount } from '@prisma/client';
 export class MetaWhatsAppService {
   private readonly logger = new Logger(MetaWhatsAppService.name);
 
-  private get appId() { return process.env.META_WHATSAPP_APP_ID || ''; }
-  private get appSecret() { return process.env.META_WHATSAPP_APP_SECRET || ''; }
-  private get redirectUri() { return process.env.META_WHATSAPP_REDIRECT_URI || 'http://localhost:3001/api/whatsapp/meta/callback'; }
-  private get verifyToken() { return process.env.META_WHATSAPP_VERIFY_TOKEN || 'quotebot_verify'; }
+  private get appId() {
+    return process.env.META_WHATSAPP_APP_ID || '';
+  }
+  private get appSecret() {
+    return process.env.META_WHATSAPP_APP_SECRET || '';
+  }
+  private get redirectUri() {
+    return (
+      process.env.META_WHATSAPP_REDIRECT_URI ||
+      'http://localhost:3001/api/whatsapp/meta/callback'
+    );
+  }
+  private get verifyToken() {
+    return process.env.META_WHATSAPP_VERIFY_TOKEN || 'quotebot_verify';
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -29,21 +40,28 @@ export class MetaWhatsAppService {
   }
 
   async exchangeCode(code: string): Promise<{ access_token: string }> {
-    const url = `https://graph.facebook.com/v18.0/oauth/access_token?` +
+    const url =
+      `https://graph.facebook.com/v18.0/oauth/access_token?` +
       `client_id=${this.appId}&client_secret=${this.appSecret}&code=${code}&redirect_uri=${encodeURIComponent(this.redirectUri)}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`Meta token exchange failed: ${await res.text()}`);
-    const data = await res.json() as { access_token: string };
+    if (!res.ok)
+      throw new Error(`Meta token exchange failed: ${await res.text()}`);
+    const data = (await res.json()) as { access_token: string };
 
     // Exchange for long-lived token
-    const longLivedUrl = `https://graph.facebook.com/v18.0/oauth/access_token?` +
+    const longLivedUrl =
+      `https://graph.facebook.com/v18.0/oauth/access_token?` +
       `grant_type=fb_exchange_token&client_id=${this.appId}&client_secret=${this.appSecret}&fb_exchange_token=${data.access_token}`;
     const longRes = await fetch(longLivedUrl);
     if (!longRes.ok) return data;
     return longRes.json() as Promise<{ access_token: string }>;
   }
 
-  async sendMessage(account: WhatsAppAccount, to: string, body: string): Promise<void> {
+  async sendMessage(
+    account: WhatsAppAccount,
+    to: string,
+    body: string,
+  ): Promise<void> {
     if (!account.meta_phone_number_id || !account.meta_access_token) {
       throw new Error('Meta account not fully configured');
     }
@@ -102,7 +120,10 @@ export class MetaWhatsAppService {
         // Find account by phone_number_id
         const account = value.phone_number_id
           ? await this.prisma.whatsAppAccount.findFirst({
-              where: { meta_phone_number_id: value.phone_number_id, is_active: true },
+              where: {
+                meta_phone_number_id: value.phone_number_id,
+                is_active: true,
+              },
             })
           : null;
 

@@ -64,12 +64,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     try {
       if ((user as Record<string, unknown>).permissions) {
         const raw = (user as Record<string, unknown>).permissions;
-        const parsed: unknown =
-          typeof raw === 'string' ? JSON.parse(raw) : raw;
+        const parsed: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
         // If permissions is an object with 'granular' key, extract the array
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
           const obj = parsed as Record<string, unknown>;
-          if (Array.isArray(obj.granular)) userPermissions = obj.granular as string[];
+          if (Array.isArray(obj.granular))
+            userPermissions = obj.granular as string[];
         } else if (Array.isArray(parsed)) {
           userPermissions = parsed as string[];
         }

@@ -112,7 +112,11 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "globalSetup": "<rootDir>/../test/jest-global-setup.js",
+    "setupFiles": [
+      "<rootDir>/../test/jest-setup-env.js"
+    ]
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

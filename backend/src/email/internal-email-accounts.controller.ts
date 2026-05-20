@@ -50,7 +50,7 @@ export class InternalEmailAccountsController {
    * Starts a catch-up sync for webhook relays or backend recovery jobs.
    */
   @Post('email-accounts/sync')
-  async triggerSync(@Req() req: Request) {
+  triggerSync(@Req() req: Request) {
     const tenantId = req['tenantId'] as string | undefined;
     if (!tenantId) {
       throw new BadRequestException('Tenant ID not found in request');

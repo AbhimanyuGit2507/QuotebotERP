@@ -58,7 +58,10 @@ export class CreatePurchaseOrderDto {
   @IsString()
   notes?: string;
 
-  @ApiProperty({ description: 'Order items', type: [CreatePurchaseOrderItemDto] })
+  @ApiProperty({
+    description: 'Order items',
+    type: [CreatePurchaseOrderItemDto],
+  })
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

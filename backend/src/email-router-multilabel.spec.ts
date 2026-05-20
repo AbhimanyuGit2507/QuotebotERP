@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { EmailRfqService } = require('./email-rfq/email-rfq.service');
 
 describe('Multi-label batch classifier aggregation', () => {
@@ -8,7 +8,7 @@ describe('Multi-label batch classifier aggregation', () => {
     const fakeThis = {
       classifierBatchMaxBytes: 30 * 1024,
       classifierBatchSize: 50,
-      classifyMessagesBatchMultiLabel: async (messages) => {
+      classifyMessagesBatchMultiLabel: (messages) => {
         const out = {};
         for (const m of messages) {
           out[m.id] = { route: 'rfq', confidence: 0.9, reason: 'test' };
@@ -37,13 +37,27 @@ describe('Multi-label batch classifier aggregation', () => {
     const fakeThis = {
       classifierBatchMaxBytes: 30 * 1024,
       classifierBatchSize: 50,
-      classifyMessagesBatchMultiLabel: async (messages) => {
+      classifyMessagesBatchMultiLabel: (messages) => {
         const out = {};
         for (const m of messages) {
           if (m.id === 'bill1') {
-            out[m.id] = { route: 'bill', confidence: 0.95, reason: 'invoice found', billDetection: { invoiceNumber: 'INV/1', amount: 123.45, confidence: 0.95 } };
+            out[m.id] = {
+              route: 'bill',
+              confidence: 0.95,
+              reason: 'invoice found',
+              billDetection: {
+                invoiceNumber: 'INV/1',
+                amount: 123.45,
+                confidence: 0.95,
+              },
+            };
           } else {
-            out[m.id] = { route: 'rfq', confidence: 0.8, reason: 'rq', billDetection: null };
+            out[m.id] = {
+              route: 'rfq',
+              confidence: 0.8,
+              reason: 'rq',
+              billDetection: null,
+            };
           }
         }
         return out;

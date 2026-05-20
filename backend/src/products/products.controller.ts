@@ -44,11 +44,22 @@ export class ProductsController {
   @ApiOperation({ summary: 'List all products with filtering and pagination' })
   @ApiResponse({ status: 200, description: 'Paginated list of products' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
   @ApiQuery({ name: 'page', required: false, description: 'Page number' })
-  @ApiQuery({ name: 'pageSize', required: false, description: 'Items per page' })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    description: 'Items per page',
+  })
   @ApiQuery({ name: 'sortBy', required: false, description: 'Sort field' })
-  @ApiQuery({ name: 'sortOrder', required: false, description: 'Sort order: asc or desc' })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    description: 'Sort order: asc or desc',
+  })
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ProductsQueryDto,
@@ -73,7 +84,10 @@ export class ProductsController {
   @ApiOperation({ summary: 'Export products as CSV' })
   @ApiResponse({ status: 200, description: 'CSV file download' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
   async exportCsv(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ProductsQueryDto,
@@ -99,7 +113,10 @@ export class ProductsController {
   @ApiOperation({ summary: 'Get all product categories' })
   @ApiResponse({ status: 200, description: 'List of product categories' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
   getCategories(@CurrentUser() user: AuthenticatedUser) {
     return this.productsService.getCategories(user.tenant_id);
   }
@@ -110,7 +127,10 @@ export class ProductsController {
   @ApiParam({ name: 'id', description: 'Product ID' })
   @ApiResponse({ status: 200, description: 'Product details' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.productsService.findOne(id, user.tenant_id);
   }
@@ -120,7 +140,10 @@ export class ProductsController {
   @ApiOperation({ summary: 'Create a new product' })
   @ApiResponse({ status: 201, description: 'Product created successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
   create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: CreateProductDto,
@@ -134,7 +157,10 @@ export class ProductsController {
   @ApiParam({ name: 'id', description: 'Product ID' })
   @ApiResponse({ status: 200, description: 'Product updated successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
   update(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -147,10 +173,17 @@ export class ProductsController {
   @RequirePermission(PERMISSIONS.PRODUCT_DELETE)
   @ApiOperation({ summary: 'Delete a product (soft or force)' })
   @ApiParam({ name: 'id', description: 'Product ID' })
-  @ApiQuery({ name: 'forceDelete', required: false, description: 'Permanently delete (admin only)' })
+  @ApiQuery({
+    name: 'forceDelete',
+    required: false,
+    description: 'Permanently delete (admin only)',
+  })
   @ApiResponse({ status: 200, description: 'Product deleted successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
   remove(
     @Param('id') id: string,
     @Query('forceDelete') forceDelete: string,
@@ -173,7 +206,10 @@ export class ProductsController {
   @ApiParam({ name: 'id', description: 'Product ID' })
   @ApiResponse({ status: 200, description: 'Image uploaded successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
   uploadImage(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,

@@ -6,7 +6,10 @@ export class CreateJournalEntryDto {
   @IsString()
   date: string;
 
-  @ApiProperty({ description: 'Entry description', example: 'Monthly rent payment' })
+  @ApiProperty({
+    description: 'Entry description',
+    example: 'Monthly rent payment',
+  })
   @IsString()
   description: string;
 
@@ -18,17 +21,23 @@ export class CreateJournalEntryDto {
   @IsString()
   creditAccountId: string;
 
-  @ApiProperty({ description: 'Entry amount (₹)', example: 25000.00 })
+  @ApiProperty({ description: 'Entry amount (₹)', example: 25000.0 })
   @IsNumber()
   @Min(0.01, { message: 'Amount must be at least 0.01' })
   amount: number;
 
-  @ApiPropertyOptional({ description: 'Reference entity type (e.g., invoice, payment)', example: 'invoice' })
+  @ApiPropertyOptional({
+    description: 'Reference entity type (e.g., invoice, payment)',
+    example: 'invoice',
+  })
   @IsOptional()
   @IsString()
   referenceType?: string;
 
-  @ApiPropertyOptional({ description: 'Reference entity ID', example: 'inv_abc123' })
+  @ApiPropertyOptional({
+    description: 'Reference entity ID',
+    example: 'inv_abc123',
+  })
   @IsOptional()
   @IsString()
   referenceId?: string;

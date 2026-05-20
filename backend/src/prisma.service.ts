@@ -34,7 +34,8 @@ type ChartOfAccountDelegate = PrismaClient['chartOfAccount'];
 type JournalEntryDelegate = PrismaClient['journalEntry'];
 type SupplierDelegate = PrismaClient['supplier'];
 type PurchaseOrderOutboundDelegate = PrismaClient['purchaseOrderOutbound'];
-type PurchaseOrderOutboundItemDelegate = PrismaClient['purchaseOrderOutboundItem'];
+type PurchaseOrderOutboundItemDelegate =
+  PrismaClient['purchaseOrderOutboundItem'];
 type GoodsReceiptNoteDelegate = PrismaClient['goodsReceiptNote'];
 type GoodsReceiptNoteItemDelegate = PrismaClient['goodsReceiptNoteItem'];
 type StockMovementDelegate = PrismaClient['stockMovement'];
@@ -153,35 +154,35 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   }
 
   get processingSettings() {
-    return this.getClient().processingSettings as ProcessingSettingsDelegate;
+    return this.getClient().processingSettings;
   }
 
   get itemMatchRun() {
-    return this.getClient().itemMatchRun as ItemMatchRunDelegate;
+    return this.getClient().itemMatchRun;
   }
 
   get itemMatchCandidate() {
-    return this.getClient().itemMatchCandidate as ItemMatchCandidateDelegate;
+    return this.getClient().itemMatchCandidate;
   }
 
   get itemAlias() {
-    return this.getClient().itemAlias as ItemAliasDelegate;
+    return this.getClient().itemAlias;
   }
 
   get itemMatchFeedback() {
-    return this.getClient().itemMatchFeedback as ItemMatchFeedbackDelegate;
+    return this.getClient().itemMatchFeedback;
   }
 
   get itemMatchConfig() {
-    return this.getClient().itemMatchConfig as ItemMatchConfigDelegate;
+    return this.getClient().itemMatchConfig;
   }
 
   get itemAliasProposal() {
-    return this.getClient().itemAliasProposal as ItemAliasProposalDelegate;
+    return this.getClient().itemAliasProposal;
   }
 
   get bill() {
-    return this.getClient().bill as BillDelegate;
+    return this.getClient().bill;
   }
 
   get settingsTemplate() {
@@ -189,7 +190,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   }
 
   get setting() {
-    return this.getClient().setting as SettingDelegate;
+    return this.getClient().setting;
   }
 
   get automationRule() {
@@ -288,7 +289,10 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.getClient();
   }
 
-  async $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T> {
+  async $queryRaw<T = unknown>(
+    query: TemplateStringsArray,
+    ...values: unknown[]
+  ): Promise<T> {
     return this.getClient().$queryRaw<T>(query, ...values);
   }
 

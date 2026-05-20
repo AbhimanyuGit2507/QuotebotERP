@@ -8,15 +8,18 @@ function waitForSidecar(url: string, timeout = 10000) {
   return new Promise<void>((resolve, reject) => {
     const tick = async () => {
       try {
-        // @ts-ignore
+        // @ts-expect-error -- fetch is available in Node 18+
         const res = await fetch(url);
         if (res.ok) return resolve();
       } catch (e) {
         // ignore
       }
 
-      if (Date.now() - start > timeout) return reject(new Error('sidecar did not start')); 
-      setTimeout(tick, 200);
+      if (Date.now() - start > timeout)
+        return reject(new Error('sidecar did not start'));
+      setTimeout(() => {
+        void tick();
+      }, 200);
     };
     tick();
   });
@@ -26,7 +29,10 @@ describe('Item intelligence sidecar (contract)', () => {
   let proc: ChildProcess | null = null;
 
   beforeAll(async () => {
-    proc = spawn(PY_CMD, ['-m', 'uvicorn', 'app.main:app', '--port', '3801'], { cwd: SIDECAR_DIR, stdio: 'ignore' });
+    proc = spawn(PY_CMD, ['-m', 'uvicorn', 'app.main:app', '--port', '3801'], {
+      cwd: SIDECAR_DIR,
+      stdio: 'ignore',
+    });
     await waitForSidecar('http://127.0.0.1:3801/health', 12000);
   }, 20000);
 
@@ -35,7 +41,7 @@ describe('Item intelligence sidecar (contract)', () => {
   });
 
   test('sidecar health is ok', async () => {
-    // @ts-ignore
+    // @ts-expect-error -- fetch is available in Node 18+
     const res = await fetch('http://127.0.0.1:3801/health');
     expect(res.ok).toBe(true);
     const body = await res.json();

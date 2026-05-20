@@ -97,6 +97,121 @@ const formatDuration = (value: number | null | undefined) => {
   return `${hours}h ${minutes}m`;
 };
 
+interface HealthData {
+  uptime: number;
+  processUptime: number;
+  db: 'ok' | 'error';
+  redis: 'ok' | 'error';
+  wsConnections: number;
+  memoryMb: number;
+}
+
+interface QueueStats {
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+  delayed: number;
+}
+
+/* ──── System Health Panel ──── */
+const SystemHealthPanel: React.FC = () => {
+  const [health, setHealth] = useState<HealthData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void apiRequest<HealthData>('/admin/health')
+      .then((d) => setHealth(d))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const StatusBadge = ({ ok }: { ok: boolean }) => (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-green-500' : 'bg-red-500'}`} />
+      {ok ? 'OK' : 'Error'}
+    </span>
+  );
+
+  if (loading) return <div className="text-[13px] text-[var(--erp-text-muted)]">Loading health data...</div>;
+  if (!health) return <div className="text-[13px] text-red-500">Could not load health data</div>;
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      {[
+        { label: 'Database', value: <StatusBadge ok={health.db === 'ok'} /> },
+        { label: 'Redis', value: <StatusBadge ok={health.redis === 'ok'} /> },
+        { label: 'WebSocket Connections', value: <span className="font-bold text-[var(--palette-cerulean)]">{health.wsConnections}</span> },
+        { label: 'Server Uptime', value: <span className="font-bold">{Math.floor(health.uptime / 3600)}h {Math.floor((health.uptime % 3600) / 60)}m</span> },
+        { label: 'Process Uptime', value: <span className="font-bold">{Math.floor(health.processUptime / 3600)}h {Math.floor((health.processUptime % 3600) / 60)}m</span> },
+        { label: 'Heap Memory', value: <span className="font-bold">{health.memoryMb} MB</span> },
+      ].map(({ label, value }) => (
+        <div key={label} className="p-4 rounded-xl border" style={{ borderColor: 'rgba(0,52,89,0.12)', background: 'rgba(0,52,89,0.02)' }}>
+          <p className="text-[11px] text-[var(--erp-text-muted)] mb-1">{label}</p>
+          {value}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* ──── Queue Stats Panel ──── */
+const QueueStatsPanel: React.FC = () => {
+  const [stats, setStats] = useState<QueueStats | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const load = React.useCallback(async () => {
+    try {
+      const d = await apiRequest<QueueStats>('/admin/queue/stats');
+      setStats(d);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const retryFailed = async () => {
+    setRetrying(true);
+    await apiRequest('/admin/queue/retry-failed', { method: 'POST' }).catch(() => {});
+    await load();
+    setRetrying(false);
+  };
+
+  if (loading) return <div className="text-[13px] text-[var(--erp-text-muted)]">Loading queue stats...</div>;
+  if (!stats) return <div className="text-[13px] text-red-500">Could not load queue data</div>;
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+        {[
+          { label: 'Waiting', value: stats.waiting, color: 'var(--palette-cerulean)' },
+          { label: 'Active', value: stats.active, color: '#10b981' },
+          { label: 'Completed', value: stats.completed, color: '#6366f1' },
+          { label: 'Failed', value: stats.failed, color: '#ef4444' },
+          { label: 'Delayed', value: stats.delayed, color: '#f59e0b' },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="p-3 rounded-xl border text-center" style={{ borderColor: 'rgba(0,52,89,0.12)' }}>
+            <p className="text-2xl font-extrabold" style={{ color }}>{value}</p>
+            <p className="text-[11px] text-[var(--erp-text-muted)] mt-0.5">{label}</p>
+          </div>
+        ))}
+      </div>
+      {stats.failed > 0 && (
+        <button
+          onClick={() => void retryFailed()}
+          disabled={retrying}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-[13px] transition-all hover:opacity-90 disabled:opacity-50"
+          style={{ background: '#ef4444', color: '#fff' }}
+        >
+          <span className="material-symbols-outlined text-[16px]">refresh</span>
+          {retrying ? 'Retrying...' : `Retry ${stats.failed} Failed Jobs`}
+        </button>
+      )}
+    </div>
+  );
+};
+
 const AdminConsole: React.FC = () => {
   const { user } = useAuth();
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
@@ -105,7 +220,7 @@ const AdminConsole: React.FC = () => {
   const [llms, setLlms] = useState<LlmStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'overview' | 'users' | 'logs' | 'llms'>('overview');
+  const [tab, setTab] = useState<'overview' | 'users' | 'logs' | 'llms' | 'health' | 'queue'>('overview');
 
   useEffect(() => {
     if (user && user.role !== 'admin') {
@@ -176,20 +291,25 @@ const AdminConsole: React.FC = () => {
       <main className="flex-1 flex flex-col overflow-hidden bg-white text-[var(--erp-text)]">
         <div className="h-11 border-b border-[var(--erp-border)] flex items-center px-3 bg-slate-50 shrink-0 gap-0.5 overflow-x-auto justify-between">
           <div className="flex items-center gap-0.5 overflow-x-auto">
-            {(['overview', 'users', 'logs', 'llms'] as const).map((item) => (
+            {([
+              { id: 'overview', label: 'Overview', icon: 'dashboard' },
+              { id: 'users', label: 'Users', icon: 'group' },
+              { id: 'logs', label: 'Logs', icon: 'receipt_long' },
+              { id: 'llms', label: 'LLM Status', icon: 'smart_toy' },
+              { id: 'health', label: 'System Health', icon: 'monitor_heart' },
+              { id: 'queue', label: 'Job Queue', icon: 'pending_actions' },
+            ] as const).map((item) => (
               <button
-                key={item}
-                onClick={() => setTab(item)}
+                key={item.id}
+                onClick={() => setTab(item.id)}
                 className={`flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-medium rounded transition-colors whitespace-nowrap ${
-                  tab === item
+                  tab === item.id
                     ? 'bg-white text-[var(--erp-accent)] shadow-sm border border-[var(--erp-border)]'
                     : 'text-[var(--erp-text-muted)] hover:text-[var(--erp-text)] hover:bg-white/50'
                 }`}
               >
-                <span className="material-symbols-outlined !text-[16px]">
-                  {item === 'llms' ? 'smart_toy' : item === 'overview' ? 'dashboard' : item === 'users' ? 'group' : 'receipt_long'}
-                </span>
-                {item === 'llms' ? 'LLM Status' : item.charAt(0).toUpperCase() + item.slice(1)}
+                <span className="material-symbols-outlined !text-[16px]">{item.icon}</span>
+                {item.label}
               </button>
             ))}
           </div>
@@ -443,6 +563,33 @@ const AdminConsole: React.FC = () => {
                 </div>
               </section>
             ) : null}
+
+            {/* System Health Tab */}
+            {tab === 'health' && (
+              <section className="rounded-2xl border border-[var(--erp-border)] bg-white shadow-sm overflow-hidden">
+                <div className="border-b border-[var(--erp-border)] px-6 py-4">
+                  <h2 className="text-lg font-semibold text-[var(--erp-text)]">System Health</h2>
+                  <p className="text-[12px] text-[var(--erp-text-muted)] mt-0.5">Real-time infrastructure status</p>
+                </div>
+                <div className="p-6">
+                  <SystemHealthPanel />
+                </div>
+              </section>
+            )}
+
+            {/* Queue Stats Tab */}
+            {tab === 'queue' && (
+              <section className="rounded-2xl border border-[var(--erp-border)] bg-white shadow-sm overflow-hidden">
+                <div className="border-b border-[var(--erp-border)] px-6 py-4">
+                  <h2 className="text-lg font-semibold text-[var(--erp-text)]">Job Queue</h2>
+                  <p className="text-[12px] text-[var(--erp-text-muted)] mt-0.5">Bull email-sync queue statistics</p>
+                </div>
+                <div className="p-6">
+                  <QueueStatsPanel />
+                </div>
+              </section>
+            )}
+
           </div>
         </div>
         </div>

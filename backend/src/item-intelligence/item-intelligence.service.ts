@@ -17,8 +17,7 @@ type SidecarCallOptions = {
 @Injectable()
 export class ItemIntelligenceService {
   private readonly logger = new Logger(ItemIntelligenceService.name);
-  private readonly enabled =
-    process.env.ITEM_INTELLIGENCE_ENABLED !== 'false';
+  private readonly enabled = process.env.ITEM_INTELLIGENCE_ENABLED !== 'false';
   private readonly baseUrl =
     process.env.ITEM_INTELLIGENCE_BASE_URL || 'http://127.0.0.1:3801';
   private readonly timeoutMs = Math.min(
@@ -60,7 +59,9 @@ export class ItemIntelligenceService {
         };
       }
     } catch (e) {
-      this.logger.warn('Failed to load item match config: ' + (e as Error).message);
+      this.logger.warn(
+        'Failed to load item match config: ' + (e as Error).message,
+      );
     }
 
     // Attach semantic config to request
@@ -86,7 +87,9 @@ export class ItemIntelligenceService {
             id: runId,
             item_id: request.item_id || null,
             tenant_id: request.tenant_id,
-            input_text: (request.extracted_items || []).map((i) => i.product_name || '').join('; '),
+            input_text: (request.extracted_items || [])
+              .map((i) => i.product_name || '')
+              .join('; '),
             stage_used: resp.mode || 'manual',
             best_match_id: resp.items?.[0]?.best_match?.candidate_id || null,
             confidence: resp.items?.[0]?.confidence ?? null,
@@ -115,7 +118,9 @@ export class ItemIntelligenceService {
         }
       }
     } catch (e) {
-      this.logger.warn('Failed to persist item intelligence run: ' + (e as Error).message);
+      this.logger.warn(
+        'Failed to persist item intelligence run: ' + (e as Error).message,
+      );
     }
 
     return resp;
@@ -148,18 +153,26 @@ export class ItemIntelligenceService {
         },
       });
       // Optionally update alias weights / suggestions (simple heuristic)
-      if (request.action === 'accept' && request.selected_product_id && request.reviewer_id) {
+      if (
+        request.action === 'accept' &&
+        request.selected_product_id &&
+        request.reviewer_id
+      ) {
         // Suggest alias creation could be queued; for now, create a low-weight alias record for later review
         // Do nothing aggressive here.
       }
     } catch (e) {
-      this.logger.warn('Failed to persist item intelligence feedback: ' + (e as Error).message);
+      this.logger.warn(
+        'Failed to persist item intelligence feedback: ' + (e as Error).message,
+      );
     }
 
     return resp;
   }
 
-  private async callWithRetry<T>(options: SidecarCallOptions): Promise<T | null> {
+  private async callWithRetry<T>(
+    options: SidecarCallOptions,
+  ): Promise<T | null> {
     const internalKey = process.env.INTERNAL_API_KEY || '';
     if (!internalKey) {
       this.logger.warn(

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
@@ -79,7 +83,11 @@ export class PurchaseOrdersService {
   async findOne(id: string, tenantId: string) {
     const po = await this.prisma.purchaseOrderOutbound.findFirst({
       where: { id, tenant_id: tenantId, deleted_at: null },
-      include: { supplier: true, items: { include: { product: true } }, grns: { include: { items: true } } },
+      include: {
+        supplier: true,
+        items: { include: { product: true } },
+        grns: { include: { items: true } },
+      },
     });
     if (!po) throw new NotFoundException('Purchase order not found');
     return po;
@@ -118,7 +126,9 @@ export class PurchaseOrdersService {
         const qty = new Decimal(item.quantity);
         const price = new Decimal(item.unit_price);
         const taxPct = new Decimal(item.tax_percent || 0);
-        const lineTotal = qty.mul(price).mul(new Decimal(1).add(taxPct.div(100)));
+        const lineTotal = qty
+          .mul(price)
+          .mul(new Decimal(1).add(taxPct.div(100)));
         return {
           product_id: item.product_id || null,
           product_name: item.product_name,
@@ -130,9 +140,15 @@ export class PurchaseOrdersService {
         };
       });
 
-      const subtotal = items.reduce((sum, i) => sum.add(new Decimal(i.quantity).mul(i.unit_price)), new Decimal(0));
+      const subtotal = items.reduce(
+        (sum, i) => sum.add(new Decimal(i.quantity).mul(i.unit_price)),
+        new Decimal(0),
+      );
       const tax = items.reduce((sum, i) => {
-        const lineTax = new Decimal(i.quantity).mul(i.unit_price).mul(i.tax_percent).div(100);
+        const lineTax = new Decimal(i.quantity)
+          .mul(i.unit_price)
+          .mul(i.tax_percent)
+          .div(100);
         return sum.add(lineTax);
       }, new Decimal(0));
       const total = subtotal.add(tax);
@@ -142,7 +158,9 @@ export class PurchaseOrdersService {
           tenant_id: tenantId,
           number,
           supplier_id: body.supplier_id,
-          expected_delivery: body.expected_delivery ? new Date(body.expected_delivery) : null,
+          expected_delivery: body.expected_delivery
+            ? new Date(body.expected_delivery)
+            : null,
           currency: body.currency || 'INR',
           notes: body.notes,
           created_by: userId,
@@ -156,7 +174,10 @@ export class PurchaseOrdersService {
     });
   }
 
-  private async generateNumberTx(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
+  private async generateNumberTx(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+  ): Promise<string> {
     const now = new Date();
     const prefix = `PO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
     const count = await tx.purchaseOrderOutbound.count({
@@ -190,8 +211,20 @@ export class PurchaseOrdersService {
     });
   }
 
-  async updateStatus(id: string, tenantId: string, status: string, userId?: string) {
-    const validStatuses = ['draft', 'sent', 'confirmed', 'partially_received', 'received', 'cancelled'];
+  async updateStatus(
+    id: string,
+    tenantId: string,
+    status: string,
+    userId?: string,
+  ) {
+    const validStatuses = [
+      'draft',
+      'sent',
+      'confirmed',
+      'partially_received',
+      'received',
+      'cancelled',
+    ];
     if (!validStatuses.includes(status)) {
       throw new BadRequestException('Invalid status');
     }

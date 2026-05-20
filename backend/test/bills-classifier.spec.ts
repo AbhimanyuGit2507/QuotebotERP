@@ -38,15 +38,27 @@ describe('Bills classifier & PO safety', () => {
   it('does not create assistancePurchaseOrder for GitHub notification (false positive)', async () => {
     let tenant = await prisma.tenant.findFirst();
     if (!tenant) {
-      tenant = await prisma.tenant.create({ data: { company_name: 'test-tenant' } });
+      tenant = await prisma.tenant.create({
+        data: { company_name: 'test-tenant' },
+      });
     }
 
     const client = await prisma.client.create({
-      data: { tenant_id: tenant.id, name: 'GH User', email: 'notifications@github.com', type: 'B2B' },
+      data: {
+        tenant_id: tenant.id,
+        name: 'GH User',
+        email: 'notifications@github.com',
+        type: 'B2B',
+      },
     });
 
     const conversation = await prisma.conversation.create({
-      data: { tenant_id: tenant.id, client_id: client.id, subject: 'ORD - Tim Abbott', channel: 'email' },
+      data: {
+        tenant_id: tenant.id,
+        client_id: client.id,
+        subject: 'ORD - Tim Abbott',
+        channel: 'email',
+      },
     });
 
     const message = await prisma.message.create({
@@ -63,7 +75,11 @@ describe('Bills classifier & PO safety', () => {
     // ensure mock guard returns tenant
     mockGuard.canActivate = (context) => {
       const req = context.switchToHttp().getRequest();
-      req.user = { tenant_id: tenant.id, id: 'test-user', email: 'test@example.com' };
+      req.user = {
+        tenant_id: tenant.id,
+        id: 'test-user',
+        email: 'test@example.com',
+      };
       return true;
     };
 
@@ -71,22 +87,36 @@ describe('Bills classifier & PO safety', () => {
     const svc = app.get('EmailRfqService');
     await svc.processPendingMessages({ tenantId: tenant.id, limit: 10 });
 
-    const pos = await prisma.assistancePurchaseOrder.findMany({ where: { tenant_id: tenant.id, conversation_id: conversation.id } });
+    const pos = await prisma.assistancePurchaseOrder.findMany({
+      where: { tenant_id: tenant.id, conversation_id: conversation.id },
+    });
     expect(pos.length).toBe(0);
   }, 30000);
 
   it('detects and persists a bill for an invoice-like email', async () => {
     let tenant = await prisma.tenant.findFirst();
     if (!tenant) {
-      tenant = await prisma.tenant.create({ data: { company_name: 'test-tenant-2' } });
+      tenant = await prisma.tenant.create({
+        data: { company_name: 'test-tenant-2' },
+      });
     }
 
     const client = await prisma.client.create({
-      data: { tenant_id: tenant.id, name: 'Vendor', email: 'billing@vendor.com', type: 'B2B' },
+      data: {
+        tenant_id: tenant.id,
+        name: 'Vendor',
+        email: 'billing@vendor.com',
+        type: 'B2B',
+      },
     });
 
     const conversation = await prisma.conversation.create({
-      data: { tenant_id: tenant.id, client_id: client.id, subject: 'Invoice INV/2026-1234', channel: 'email' },
+      data: {
+        tenant_id: tenant.id,
+        client_id: client.id,
+        subject: 'Invoice INV/2026-1234',
+        channel: 'email',
+      },
     });
 
     const message = await prisma.message.create({
@@ -102,14 +132,20 @@ describe('Bills classifier & PO safety', () => {
 
     mockGuard.canActivate = (context) => {
       const req = context.switchToHttp().getRequest();
-      req.user = { tenant_id: tenant.id, id: 'test-user', email: 'test@example.com' };
+      req.user = {
+        tenant_id: tenant.id,
+        id: 'test-user',
+        email: 'test@example.com',
+      };
       return true;
     };
 
     const svc = app.get('EmailRfqService');
     await svc.processPendingMessages({ tenantId: tenant.id, limit: 10 });
 
-    const bill = await prisma.bill.findFirst({ where: { tenant_id: tenant.id, message_id: message.id } });
+    const bill = await prisma.bill.findFirst({
+      where: { tenant_id: tenant.id, message_id: message.id },
+    });
     expect(bill).not.toBeNull();
     expect(Number(bill!.confidence)).toBeGreaterThanOrEqual(0.6);
     expect(bill!.invoice_number).toBeTruthy();

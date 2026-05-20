@@ -19,22 +19,82 @@ interface DefaultAccount {
 
 const DEFAULT_ACCOUNTS: DefaultAccount[] = [
   // ASSET accounts (1000-1999)
-  { code: '1000', name: 'Cash', type: 'ASSET', description: 'Cash and bank balances' },
-  { code: '1100', name: 'Accounts Receivable', type: 'ASSET', description: 'Trade receivables from customers' },
-  { code: '1200', name: 'Inventory', type: 'ASSET', description: 'Stock of goods' },
+  {
+    code: '1000',
+    name: 'Cash',
+    type: 'ASSET',
+    description: 'Cash and bank balances',
+  },
+  {
+    code: '1100',
+    name: 'Accounts Receivable',
+    type: 'ASSET',
+    description: 'Trade receivables from customers',
+  },
+  {
+    code: '1200',
+    name: 'Inventory',
+    type: 'ASSET',
+    description: 'Stock of goods',
+  },
   // LIABILITY accounts (2000-2999)
-  { code: '2000', name: 'Accounts Payable', type: 'LIABILITY', description: 'Trade payables to suppliers' },
-  { code: '2100', name: 'GST Payable', type: 'LIABILITY', description: 'GST liability' },
+  {
+    code: '2000',
+    name: 'Accounts Payable',
+    type: 'LIABILITY',
+    description: 'Trade payables to suppliers',
+  },
+  {
+    code: '2100',
+    name: 'GST Payable',
+    type: 'LIABILITY',
+    description: 'GST liability',
+  },
   // EQUITY accounts (3000-3999)
-  { code: '3000', name: "Owner's Equity", type: 'EQUITY', description: 'Capital contributed by owners' },
-  { code: '3100', name: 'Retained Earnings', type: 'EQUITY', description: 'Accumulated profits' },
+  {
+    code: '3000',
+    name: "Owner's Equity",
+    type: 'EQUITY',
+    description: 'Capital contributed by owners',
+  },
+  {
+    code: '3100',
+    name: 'Retained Earnings',
+    type: 'EQUITY',
+    description: 'Accumulated profits',
+  },
   // REVENUE accounts (4000-4999)
-  { code: '4000', name: 'Sales Revenue', type: 'REVENUE', description: 'Revenue from product sales' },
-  { code: '4100', name: 'Service Revenue', type: 'REVENUE', description: 'Revenue from services' },
+  {
+    code: '4000',
+    name: 'Sales Revenue',
+    type: 'REVENUE',
+    description: 'Revenue from product sales',
+  },
+  {
+    code: '4100',
+    name: 'Service Revenue',
+    type: 'REVENUE',
+    description: 'Revenue from services',
+  },
   // EXPENSE accounts (5000-5999)
-  { code: '5000', name: 'Cost of Goods Sold', type: 'EXPENSE', description: 'Direct cost of goods sold' },
-  { code: '5100', name: 'Operating Expenses', type: 'EXPENSE', description: 'General operating expenses' },
-  { code: '5200', name: 'Salaries', type: 'EXPENSE', description: 'Employee salaries and wages' },
+  {
+    code: '5000',
+    name: 'Cost of Goods Sold',
+    type: 'EXPENSE',
+    description: 'Direct cost of goods sold',
+  },
+  {
+    code: '5100',
+    name: 'Operating Expenses',
+    type: 'EXPENSE',
+    description: 'General operating expenses',
+  },
+  {
+    code: '5200',
+    name: 'Salaries',
+    type: 'EXPENSE',
+    description: 'Employee salaries and wages',
+  },
 ];
 
 @Injectable()
@@ -120,7 +180,9 @@ export class AccountingService {
       data: {
         ...(dto.name !== undefined ? { name: dto.name } : {}),
         ...(dto.isActive !== undefined ? { is_active: dto.isActive } : {}),
-        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.description !== undefined
+          ? { description: dto.description }
+          : {}),
       },
     });
   }
@@ -181,14 +243,26 @@ export class AccountingService {
     return `${prefix}${String(seq).padStart(3, '0')}`;
   }
 
-  async createJournalEntry(tenantId: string, dto: CreateJournalEntryDto, userId?: string) {
+  async createJournalEntry(
+    tenantId: string,
+    dto: CreateJournalEntryDto,
+    userId?: string,
+  ) {
     // Validate debit and credit accounts exist
     const [debitAcct, creditAcct] = await Promise.all([
       this.prisma.chartOfAccount.findFirst({
-        where: { id: dto.debitAccountId, tenant_id: tenantId, deleted_at: null },
+        where: {
+          id: dto.debitAccountId,
+          tenant_id: tenantId,
+          deleted_at: null,
+        },
       }),
       this.prisma.chartOfAccount.findFirst({
-        where: { id: dto.creditAccountId, tenant_id: tenantId, deleted_at: null },
+        where: {
+          id: dto.creditAccountId,
+          tenant_id: tenantId,
+          deleted_at: null,
+        },
       }),
     ]);
 
@@ -218,7 +292,10 @@ export class AccountingService {
     });
   }
 
-  private async generateEntryNumberTx(tx: Prisma.TransactionClient, tenantId: string): Promise<string> {
+  private async generateEntryNumberTx(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+  ): Promise<string> {
     const now = new Date();
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -407,8 +484,10 @@ export class AccountingService {
 
     const accountRows = accounts
       .map((acct) => {
-        const debitBalance = Math.round((debitTotals[acct.id] || 0) * 100) / 100;
-        const creditBalance = Math.round((creditTotals[acct.id] || 0) * 100) / 100;
+        const debitBalance =
+          Math.round((debitTotals[acct.id] || 0) * 100) / 100;
+        const creditBalance =
+          Math.round((creditTotals[acct.id] || 0) * 100) / 100;
         totalDebits += debitBalance;
         totalCredits += creditBalance;
         return {

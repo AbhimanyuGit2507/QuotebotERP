@@ -48,7 +48,10 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with email and password' })
-  @ApiResponse({ status: 200, description: 'Login successful, auth cookies set' })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful, auth cookies set',
+  })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
     @Body() loginDto: LoginDto,
@@ -68,7 +71,10 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new user in an existing tenant' })
   @ApiResponse({ status: 201, description: 'User registered successfully' })
-  @ApiResponse({ status: 400, description: 'Validation error or user already exists' })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error or user already exists',
+  })
   async register(
     @Body() registerDto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
@@ -84,7 +90,10 @@ export class AuthController {
    */
   @Get('google')
   @ApiOperation({ summary: 'Initiate Google OAuth sign-in / sign-up' })
-  @ApiResponse({ status: 302, description: 'Redirects to Google OAuth consent screen' })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirects to Google OAuth consent screen',
+  })
   googleAuth(
     @Query('redirectTo') redirectTo: string | undefined,
     @Query('source') source: 'login' | 'signup' | undefined,
@@ -104,7 +113,10 @@ export class AuthController {
    */
   @Get('google/callback')
   @ApiOperation({ summary: 'Google OAuth callback handler' })
-  @ApiResponse({ status: 302, description: 'Redirects to frontend with auth cookies' })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirects to frontend with auth cookies',
+  })
   async googleCallback(
     @Query('code') code: string,
     @Query('state') state: string,

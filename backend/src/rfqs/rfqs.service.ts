@@ -516,7 +516,10 @@ export class RfqsService {
 
         itemIntelligenceSuggestions = intelligence?.items || undefined;
       } catch (e) {
-        this.logger.warn('Item intelligence sidecar failed during preview: ' + (e as Error).message);
+        this.logger.warn(
+          'Item intelligence sidecar failed during preview: ' +
+            (e as Error).message,
+        );
       }
     }
 

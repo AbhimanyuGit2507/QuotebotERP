@@ -10,7 +10,12 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { PurchaseOrdersService } from './purchase-orders.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
@@ -31,7 +36,10 @@ export class PurchaseOrdersController {
   @Get()
   @RequirePermission(PERMISSIONS.PURCHASE_ORDER_VIEW)
   @ApiOperation({ summary: 'List all purchase orders' })
-  @ApiResponse({ status: 200, description: 'Paginated list of purchase orders' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of purchase orders',
+  })
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query('search') search?: string,
@@ -59,7 +67,10 @@ export class PurchaseOrdersController {
   @RequirePermission(PERMISSIONS.PURCHASE_ORDER_CREATE)
   @ApiOperation({ summary: 'Create a new purchase order' })
   @ApiResponse({ status: 201, description: 'Purchase order created' })
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreatePurchaseOrderDto) {
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreatePurchaseOrderDto,
+  ) {
     return this.purchaseOrdersService.create(user.tenant_id, dto, user.id);
   }
 

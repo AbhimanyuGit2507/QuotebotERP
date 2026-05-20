@@ -940,6 +940,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     user?.company_name,
   ]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const fetchInboxMessages = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
@@ -950,6 +951,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [isAuthenticated, mapInboxMessage]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const fetchRFQs = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
@@ -1027,50 +1029,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void loadData();
   }, [isAuthenticated, loadData]);
 
-  // Poll inbox messages periodically to reflect backend processing status changes
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    let mounted = true;
-    const interval = window.setInterval(() => {
-      if (!mounted) return;
-      void fetchInboxMessages();
-    }, 5000);
-
-    return () => {
-      mounted = false;
-      window.clearInterval(interval);
-    };
-  }, [isAuthenticated, fetchInboxMessages]);
-
-  // Poll RFQs periodically for real-time updates
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    let mounted = true;
-    const interval = window.setInterval(() => {
-      if (!mounted) return;
-      void fetchRFQs();
-    }, 10000); // Every 10 seconds
-
-    return () => {
-      mounted = false;
-      window.clearInterval(interval);
-    };
-  }, [isAuthenticated, fetchRFQs]);
-
-  // Poll Quotations periodically for real-time updates
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    let mounted = true;
-    const interval = window.setInterval(() => {
-      if (!mounted) return;
-      void fetchQuotations();
-    }, 10000); // Every 10 seconds
-
-    return () => {
-      mounted = false;
-      window.clearInterval(interval);
-    };
-  }, [isAuthenticated, fetchQuotations]);
+  // Real-time updates are handled by the WebSocket in useRealtimeEvents (App.tsx)
+  // Polling intervals removed — replaced by WebSocket push
 
   // allow other pages to request a refresh via a window event
   useEffect(() => {
@@ -1083,7 +1043,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const refreshData = useCallback(() => {
     void loadData();
-  }, [loadData]);
+    void fetchQuotations();
+  }, [loadData, fetchQuotations]);
 
   const resolveCategoryId = useCallback(
     (categoryName?: string) => {

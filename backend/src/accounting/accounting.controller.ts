@@ -69,10 +69,7 @@ export class AccountingController {
   @ApiOperation({ summary: 'Create a new account in the chart of accounts' })
   @ApiResponse({ status: 201, description: 'Account created successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async createAccount(
-    @Req() req: AuthRequest,
-    @Body() dto: CreateAccountDto,
-  ) {
+  async createAccount(@Req() req: AuthRequest, @Body() dto: CreateAccountDto) {
     return this.accountingService.createAccount(this.getTenantId(req), dto);
   }
 
@@ -103,7 +100,10 @@ export class AccountingController {
   @Post('chart-of-accounts/seed')
   @RequirePermission(PERMISSIONS.ACCOUNTING_CREATE)
   @ApiOperation({ summary: 'Seed default chart of accounts for the tenant' })
-  @ApiResponse({ status: 201, description: 'Default accounts seeded successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'Default accounts seeded successfully',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async seedAccounts(@Req() req: AuthRequest) {
     return this.accountingService.seedDefaultAccounts(this.getTenantId(req));
@@ -113,14 +113,35 @@ export class AccountingController {
 
   @Get('journal-entries')
   @RequirePermission(PERMISSIONS.ACCOUNTING_VIEW)
-  @ApiOperation({ summary: 'List journal entries with filtering and pagination' })
-  @ApiResponse({ status: 200, description: 'Paginated list of journal entries' })
+  @ApiOperation({
+    summary: 'List journal entries with filtering and pagination',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of journal entries',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiQuery({ name: 'page', required: false, description: 'Page number' })
-  @ApiQuery({ name: 'pageSize', required: false, description: 'Items per page' })
-  @ApiQuery({ name: 'startDate', required: false, description: 'Start date filter (ISO 8601)' })
-  @ApiQuery({ name: 'endDate', required: false, description: 'End date filter (ISO 8601)' })
-  @ApiQuery({ name: 'accountId', required: false, description: 'Filter by account ID' })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    description: 'Items per page',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Start date filter (ISO 8601)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'End date filter (ISO 8601)',
+  })
+  @ApiQuery({
+    name: 'accountId',
+    required: false,
+    description: 'Filter by account ID',
+  })
   async listJournalEntries(
     @Req() req: AuthRequest,
     @Query('page') page?: string,
@@ -141,7 +162,10 @@ export class AccountingController {
   @Post('journal-entries')
   @RequirePermission(PERMISSIONS.ACCOUNTING_CREATE)
   @ApiOperation({ summary: 'Create a new journal entry' })
-  @ApiResponse({ status: 201, description: 'Journal entry created successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'Journal entry created successfully',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async createJournalEntry(
     @Req() req: AuthRequest,
@@ -161,7 +185,11 @@ export class AccountingController {
   @ApiOperation({ summary: 'Get trial balance report' })
   @ApiResponse({ status: 200, description: 'Trial balance data' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiQuery({ name: 'asOfDate', required: false, description: 'As-of date (ISO 8601)' })
+  @ApiQuery({
+    name: 'asOfDate',
+    required: false,
+    description: 'As-of date (ISO 8601)',
+  })
   async getTrialBalance(
     @Req() req: AuthRequest,
     @Query('asOfDate') asOfDate?: string,
@@ -177,8 +205,16 @@ export class AccountingController {
   @ApiOperation({ summary: 'Get profit and loss report' })
   @ApiResponse({ status: 200, description: 'Profit and loss data' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiQuery({ name: 'startDate', required: false, description: 'Period start date (ISO 8601)' })
-  @ApiQuery({ name: 'endDate', required: false, description: 'Period end date (ISO 8601)' })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Period start date (ISO 8601)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'Period end date (ISO 8601)',
+  })
   async getProfitAndLoss(
     @Req() req: AuthRequest,
     @Query('startDate') startDate?: string,
@@ -196,7 +232,11 @@ export class AccountingController {
   @ApiOperation({ summary: 'Get balance sheet report' })
   @ApiResponse({ status: 200, description: 'Balance sheet data' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiQuery({ name: 'asOfDate', required: false, description: 'As-of date (ISO 8601)' })
+  @ApiQuery({
+    name: 'asOfDate',
+    required: false,
+    description: 'As-of date (ISO 8601)',
+  })
   async getBalanceSheet(
     @Req() req: AuthRequest,
     @Query('asOfDate') asOfDate?: string,

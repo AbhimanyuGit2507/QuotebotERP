@@ -548,7 +548,10 @@ export class QuotationsService {
   ) {
     const quotation = await this.findOne(id, tenantId);
 
-    if (quotation.approval_status === 'pending' && !body.allow_pending_approval) {
+    if (
+      quotation.approval_status === 'pending' &&
+      !body.allow_pending_approval
+    ) {
       throw new BadRequestException(
         'Quotation is pending approval and cannot be sent',
       );
@@ -690,7 +693,9 @@ export class QuotationsService {
         if (!item.notes) {
           return [];
         }
-        const match = item.notes.match(/unmatched\/ignored from source email:\s*(.+)$/i);
+        const match = item.notes.match(
+          /unmatched\/ignored from source email:\s*(.+)$/i,
+        );
         if (!match?.[1]) {
           return [];
         }
@@ -748,17 +753,23 @@ export class QuotationsService {
     const professionalAvailability = availabilityNotes.length
       ? `Availability update:\n${availabilityNotes.map((line) => `- ${line}`).join('\n')}`
       : '';
-    const professionalExclusion = unmatchedSummary.length > 0
-      ? `Items not quoted:\n${unmatchedSummary
-          .map((name) => `- ${name}`)
-          .join('\n')}\n\nThese items were excluded because they are not in the current catalog or are unavailable. The quotation totals reflect only the items listed above.`
-      : '';
+    const professionalExclusion =
+      unmatchedSummary.length > 0
+        ? `Items not quoted:\n${unmatchedSummary
+            .map((name) => `- ${name}`)
+            .join(
+              '\n',
+            )}\n\nThese items were excluded because they are not in the current catalog or are unavailable. The quotation totals reflect only the items listed above.`
+        : '';
 
     const extraSections = [professionalAvailability, professionalExclusion]
       .filter((section) => section.length > 0)
       .join('\n\n');
 
-    if (extraSections && !/availability update|items not quoted/i.test(emailBody)) {
+    if (
+      extraSections &&
+      !/availability update|items not quoted/i.test(emailBody)
+    ) {
       emailBody = `${emailBody}\n\n${extraSections}`;
     }
 
@@ -1048,7 +1059,9 @@ export class QuotationsService {
           if (!item.notes) {
             return [];
           }
-          const match = item.notes.match(/unmatched\/ignored from source email:\s*(.+)$/i);
+          const match = item.notes.match(
+            /unmatched\/ignored from source email:\s*(.+)$/i,
+          );
           if (!match?.[1]) {
             return [];
           }
@@ -1105,8 +1118,10 @@ export class QuotationsService {
             .fill();
         }
 
-        const availabilityKey = (item.availability || 'available') as keyof typeof availabilityLabels;
-        const availabilityLabel = availabilityLabels[availabilityKey] || 'AVAILABLE';
+        const availabilityKey = (item.availability ||
+          'available') as keyof typeof availabilityLabels;
+        const availabilityLabel =
+          availabilityLabels[availabilityKey] || 'AVAILABLE';
 
         doc
           .fontSize(9)
@@ -1207,7 +1222,11 @@ export class QuotationsService {
       const availabilityNotes = quotation.items
         .filter((item) => {
           const status = item.availability || 'available';
-          return status !== 'available' && status !== 'not_specified' && status !== 'in_stock';
+          return (
+            status !== 'available' &&
+            status !== 'not_specified' &&
+            status !== 'in_stock'
+          );
         })
         .map((item) => {
           const status = item.availability || 'available';

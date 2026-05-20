@@ -11,4 +11,3 @@ import { AuditModule } from '../audit/audit.module';
   controllers: [SettingsController, AdminSettingsController],
 })
 export class SettingsModule {}
-

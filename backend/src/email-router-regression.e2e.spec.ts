@@ -204,7 +204,8 @@ describe('Email router regression e2e', () => {
           external_id: `${tag}-po`,
           provider: 'gmail',
           raw_payload: {
-            body_text: 'Please find attached purchase order PO-9001 for your records.',
+            body_text:
+              'Please find attached purchase order PO-9001 for your records.',
             source: 'email-router-regression',
           },
         },
@@ -223,22 +224,24 @@ describe('Email router regression e2e', () => {
           external_id: `${tag}-bill`,
           provider: 'gmail',
           raw_payload: {
-            body_text: 'Invoice INV/2026-1234 total amount due 1234.56 due date 2026-06-01',
+            body_text:
+              'Invoice INV/2026-1234 total amount due 1234.56 due date 2026-06-01',
             source: 'email-router-regression',
           },
         },
       });
 
-      jest.spyOn(threadResolverService, 'resolveConversation').mockImplementation(
-        async (message: { conversation_id?: string }) => ({
+      jest
+        .spyOn(threadResolverService, 'resolveConversation')
+        .mockImplementation((message: { conversation_id?: string }) => ({
           conversationId: message.conversation_id,
           matchedBy: 'test',
           reason: 'stubbed',
-        }),
-      );
+        }));
 
-      jest.spyOn(emailRfqService as any, 'classifyPrimaryIntent').mockImplementation(
-        (subject: string, body: string) => {
+      jest
+        .spyOn(emailRfqService as any, 'classifyPrimaryIntent')
+        .mockImplementation((subject: string, body: string) => {
           const text = `${subject}\n${body}`.toLowerCase();
           if (text.includes('invoice') || text.includes('billing')) {
             return {
@@ -270,11 +273,11 @@ describe('Email router regression e2e', () => {
             confidence: 0.92,
             reason: 'rfq detected',
           };
-        },
-      );
+        });
 
-      jest.spyOn(emailRfqService as any, 'classifyRfqByRegex').mockImplementation(
-        (subject: string, body: string) => {
+      jest
+        .spyOn(emailRfqService as any, 'classifyRfqByRegex')
+        .mockImplementation((subject: string, body: string) => {
           const text = `${subject}\n${body}`.toLowerCase();
           if (text.includes('quotation')) {
             return {
@@ -289,22 +292,27 @@ describe('Email router regression e2e', () => {
             reason: 'mocked uncertain',
             confidence: 'low',
           };
-        },
-      );
+        });
 
-      jest.spyOn(emailRfqService as any, 'callLlmExtraction').mockResolvedValue({
-        is_rfq: true,
-        confidence: 'high',
-        reason: 'mocked extraction',
-        items: [
-          { product_name: rfqProductA.name, quantity: 4, unit: 'pcs' },
-          { product_name: rfqProductB.name, quantity: 2, unit: 'pcs' },
-        ],
-      });
+      jest
+        .spyOn(emailRfqService as any, 'callLlmExtraction')
+        .mockResolvedValue({
+          is_rfq: true,
+          confidence: 'high',
+          reason: 'mocked extraction',
+          items: [
+            { product_name: rfqProductA.name, quantity: 4, unit: 'pcs' },
+            { product_name: rfqProductB.name, quantity: 2, unit: 'pcs' },
+          ],
+        });
 
       jest.spyOn(poMatcherService, 'scorePurchaseOrder').mockResolvedValue({
         percent: 97,
-        components: { thread_match: 1, quote_number_match: 1, customer_match: 1 },
+        components: {
+          thread_match: 1,
+          quote_number_match: 1,
+          customer_match: 1,
+        },
       });
 
       jest.spyOn(rfqsService, 'previewFromEmail').mockResolvedValue({
@@ -316,8 +324,9 @@ describe('Email router regression e2e', () => {
         summary: 'mocked preview match',
       } as any);
 
-      jest.spyOn(rfqsService, 'createFromEmail').mockImplementation(
-        async (tenantId: string, params: any) => {
+      jest
+        .spyOn(rfqsService, 'createFromEmail')
+        .mockImplementation(async (tenantId: string, params: any) => {
           const created = await prisma.rFQ.create({
             data: {
               tenant_id: tenantId,
@@ -339,16 +348,16 @@ describe('Email router regression e2e', () => {
                 ...(params.raw_payload || {}),
                 rfq_id: created.id,
                 parsed_items: params.items || [],
-              } as any,
+              },
             },
           });
 
           return created;
-        },
-      );
+        });
 
-      jest.spyOn(billsService, 'createBillIfThreshold').mockImplementation(
-        async (params: any) => {
+      jest
+        .spyOn(billsService, 'createBillIfThreshold')
+        .mockImplementation(async (params: any) => {
           const billId = `bill-${tag}`;
 
           await prisma.message.update({
@@ -357,13 +366,12 @@ describe('Email router regression e2e', () => {
               raw_payload: {
                 ...(params.extract || {}),
                 bill_id: billId,
-              } as any,
+              },
             },
           });
 
-          return { id: billId } as any;
-        },
-      );
+          return { id: billId } as unknown as never;
+        });
 
       const summary = await emailRfqService.processPendingMessages({
         tenantId: tenant.id,

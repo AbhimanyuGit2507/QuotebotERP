@@ -6,15 +6,28 @@ export class AuditEventsController {
   constructor(private readonly auditService: AuditService) {}
 
   @Post('events')
-  async createEvent(@Body() body: any, @Headers('x-tenant-id') tenantId?: string, @Headers('x-user-id') userId?: string) {
-    const resolvedTenantId = tenantId || body?.tenant_id || body?.tenantId || '';
+  async createEvent(
+    @Body() body: any,
+    @Headers('x-tenant-id') tenantId?: string,
+    @Headers('x-user-id') userId?: string,
+  ) {
+    const resolvedTenantId =
+      tenantId || body?.tenant_id || body?.tenantId || '';
 
     if (!resolvedTenantId) {
       return { status: 'skipped', reason: 'missing tenant_id' };
     }
 
-    const entityId = String(body?.quotation_id || body?.quotation_ids?.[0] || body?.entity_id || body?.entityId || 'unknown');
-    const entityType = String(body?.entity_type || body?.entityType || 'quotation');
+    const entityId = String(
+      body?.quotation_id ||
+        body?.quotation_ids?.[0] ||
+        body?.entity_id ||
+        body?.entityId ||
+        'unknown',
+    );
+    const entityType = String(
+      body?.entity_type || body?.entityType || 'quotation',
+    );
 
     await this.auditService.createEvent({
       tenantId: resolvedTenantId,

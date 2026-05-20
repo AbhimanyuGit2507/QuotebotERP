@@ -19,7 +19,10 @@ export class CreateTaxProfileDto {
   @IsString()
   hsn_code?: string;
 
-  @ApiPropertyOptional({ description: 'Set as default tax profile', example: false })
+  @ApiPropertyOptional({
+    description: 'Set as default tax profile',
+    example: false,
+  })
   @IsOptional()
   @IsBoolean()
   is_default?: boolean;

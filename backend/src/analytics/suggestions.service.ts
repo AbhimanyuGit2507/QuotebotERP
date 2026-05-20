@@ -78,7 +78,9 @@ export class SuggestionsService {
     // If client-specific data exists, weight it
     let suggestedPrice = median;
     if (clientItems.length >= 2) {
-      const clientPrices = clientItems.map((i) => Number(i.unit_price)).sort((a, b) => a - b);
+      const clientPrices = clientItems
+        .map((i) => Number(i.unit_price))
+        .sort((a, b) => a - b);
       const clientMedian =
         clientPrices.length % 2 === 0
           ? (clientPrices[clientPrices.length / 2 - 1] +
@@ -227,15 +229,12 @@ export class SuggestionsService {
             ? new Date(client.quotations[0].updated_at)
             : null;
         const lastRfqDate =
-          client.rfqs.length > 0
-            ? new Date(client.rfqs[0].created_at)
-            : null;
+          client.rfqs.length > 0 ? new Date(client.rfqs[0].created_at) : null;
 
-        const lastActivity = lastQuoteDate && lastRfqDate
-          ? new Date(
-              Math.max(lastQuoteDate.getTime(), lastRfqDate.getTime()),
-            )
-          : lastQuoteDate || lastRfqDate;
+        const lastActivity =
+          lastQuoteDate && lastRfqDate
+            ? new Date(Math.max(lastQuoteDate.getTime(), lastRfqDate.getTime()))
+            : lastQuoteDate || lastRfqDate;
 
         return !lastActivity || lastActivity < thirtyDaysAgo;
       })
@@ -245,21 +244,16 @@ export class SuggestionsService {
             ? new Date(client.quotations[0].updated_at)
             : null;
         const lastRfqDate =
-          client.rfqs.length > 0
-            ? new Date(client.rfqs[0].created_at)
-            : null;
-        const lastActivity = lastQuoteDate && lastRfqDate
-          ? new Date(
-              Math.max(lastQuoteDate.getTime(), lastRfqDate.getTime()),
-            )
-          : lastQuoteDate || lastRfqDate;
+          client.rfqs.length > 0 ? new Date(client.rfqs[0].created_at) : null;
+        const lastActivity =
+          lastQuoteDate && lastRfqDate
+            ? new Date(Math.max(lastQuoteDate.getTime(), lastRfqDate.getTime()))
+            : lastQuoteDate || lastRfqDate;
 
         return {
           id: client.id,
           name: client.name,
-          lastActivityDate: lastActivity
-            ? lastActivity.toISOString()
-            : null,
+          lastActivityDate: lastActivity ? lastActivity.toISOString() : null,
           totalHistoricalValue: Number(client.total_value),
         };
       });
@@ -315,8 +309,7 @@ export class SuggestionsService {
     const recentAvg =
       recent3.reduce((sum, m) => sum + m.count, 0) / (recent3.length || 1);
     const previousAvg =
-      previous3.reduce((sum, m) => sum + m.count, 0) /
-      (previous3.length || 1);
+      previous3.reduce((sum, m) => sum + m.count, 0) / (previous3.length || 1);
 
     let trend: 'increasing' | 'stable' | 'decreasing' = 'stable';
     if (previousAvg > 0) {

@@ -928,13 +928,14 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
   private getDomainFromEmail(email: string): string {
     if (!email) return '';
     const lower = String(email).toLowerCase().trim();
-    const m = lower.match(/@([a-z0-9.\-]+)\>?$/i);
+    const m = lower.match(/@([a-z0-9.-]+)>?$/i);
     return m ? m[1] : '';
   }
 
   private getSenderDenylist(): string[] {
     const raw =
-      process.env.EMAIL_SENDER_DENYLIST || process.env.SENDER_DENYLIST ||
+      process.env.EMAIL_SENDER_DENYLIST ||
+      process.env.SENDER_DENYLIST ||
       'github.com,vercel.com,circleci.com,travis-ci.org,noreply.github.com,bitbucket.org';
     return String(raw)
       .split(',')
@@ -1093,7 +1094,8 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
         })
       : null;
 
-    const itemNames = quotation?.items.map((item) => item.product_name || '') || [];
+    const itemNames =
+      quotation?.items.map((item) => item.product_name || '') || [];
     const { display, tokens } = this.buildDisplayAndTokens(
       'ORD',
       params.createdAt,
@@ -1913,7 +1915,7 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
       'Schema example: {"msg-id-1":{"route":"rfq","confidence":0.92,"reason":"short reason"}}',
       'Rules:',
       '- Choose the single most appropriate route per message (primary intent).',
-      "- Confidence must be a number between 0 and 1 where 1 is certain and 0 is none.",
+      '- Confidence must be a number between 0 and 1 where 1 is certain and 0 is none.',
       '- For messages that appear to be invoices/bills include a billDetection object with any invoice_number, amount and confidence keys found; otherwise set billDetection to null.',
       '- Use canonical routes only; do not output multiple routes per id.',
       `Input JSON: ${payloadJson}`,
@@ -1929,9 +1931,10 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
     for (const [id, value] of Object.entries(parsed)) {
       if (!value || typeof value !== 'object') continue;
       const v = value as Record<string, unknown>;
-      const route = String(v.route || 'other') as MultiLabelItem['route'];
+      const route = ((v.route as string | undefined) ||
+        'other') as MultiLabelItem['route'];
       const confidence = Math.max(0, Math.min(1, Number(v.confidence) || 0));
-      const reason = v.reason ? String(v.reason) : undefined;
+      const reason = v.reason ? (v.reason as string) : undefined;
       const billDetection =
         v.billDetection && typeof v.billDetection === 'object'
           ? (v.billDetection as Record<string, unknown>)
@@ -1969,7 +1972,10 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
 
     for (const candidate of candidates) {
       const tentative = [...currentBatch, candidate];
-      const tentativeSize = Buffer.byteLength(JSON.stringify(tentative), 'utf8');
+      const tentativeSize = Buffer.byteLength(
+        JSON.stringify(tentative),
+        'utf8',
+      );
 
       if (
         currentBatch.length > 0 &&
@@ -2008,8 +2014,10 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
         if (item.route === 'rfq') result.rfq_ids.push(msg.id);
         else result.non_rfq_ids!.push(msg.id);
 
-        if (item.reason) result.reasons![msg.id] = String(item.reason).slice(0, 500);
-        if (item.billDetection) result.bill_detections![msg.id] = item.billDetection;
+        if (item.reason)
+          result.reasons![msg.id] = String(item.reason).slice(0, 500);
+        if (item.billDetection)
+          result.bill_detections![msg.id] = item.billDetection;
         if (!result.routes) result.routes = {};
         if (!result.route_confidences) result.route_confidences = {};
         result.routes[msg.id] = item.route;
@@ -3917,7 +3925,9 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
           const entry = pendingById.get(candidate.id);
           if (!entry) continue;
           // Use the canonical route determined by the multi-label classifier when available
-          const route = (classification.routes && classification.routes[candidate.id]) || (llmRfqIdSet.has(candidate.id) ? 'rfq' : 'other');
+          const route =
+            (classification.routes && classification.routes[candidate.id]) ||
+            (llmRfqIdSet.has(candidate.id) ? 'rfq' : 'other');
 
           if (route !== 'rfq') {
             summary.non_rfq += 1;
@@ -3940,7 +3950,16 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
                 auto_rfq_created: false,
                 pipeline_stage: 'classified_non_rfq',
                 canonical_route: route,
-                canonical_route_confidence: classification.routes && classification.routes[candidate.id] ? Number((classification.routes[candidate.id] === 'rfq' ? 0.9 : 0.6)) : classification.reasons?.[candidate.id] ? 0.6 : 0.35,
+                canonical_route_confidence:
+                  classification.routes && classification.routes[candidate.id]
+                    ? Number(
+                        classification.routes[candidate.id] === 'rfq'
+                          ? 0.9
+                          : 0.6,
+                      )
+                    : classification.reasons?.[candidate.id]
+                      ? 0.6
+                      : 0.35,
               },
               { status: 'parsed', classification: classificationEnum },
             );
@@ -3963,7 +3982,12 @@ export class EmailRfqService implements OnModuleInit, OnModuleDestroy {
               pipeline_stage: 'extracting_items',
               rfq_classified_at: classifiedAt,
               canonical_route: 'rfq',
-              canonical_route_confidence: classification.routes && classification.routes[candidate.id] ? (classification.routes[candidate.id] === 'rfq' ? 0.9 : 0.6) : 0.6,
+              canonical_route_confidence:
+                classification.routes && classification.routes[candidate.id]
+                  ? classification.routes[candidate.id] === 'rfq'
+                    ? 0.9
+                    : 0.6
+                  : 0.6,
             },
             {
               status: 'pending',

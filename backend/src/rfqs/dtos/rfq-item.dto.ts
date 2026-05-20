@@ -6,7 +6,10 @@ export class RfqItemDto {
   @IsString()
   product_id!: string;
 
-  @ApiProperty({ description: 'Product name', example: 'Industrial Bearing 6205' })
+  @ApiProperty({
+    description: 'Product name',
+    example: 'Industrial Bearing 6205',
+  })
   @IsString()
   product_name!: string;
 
@@ -19,7 +22,10 @@ export class RfqItemDto {
   @IsString()
   unit!: string;
 
-  @ApiPropertyOptional({ description: 'Additional notes', example: 'Need ABEC-7 precision grade' })
+  @ApiPropertyOptional({
+    description: 'Additional notes',
+    example: 'Need ABEC-7 precision grade',
+  })
   @IsOptional()
   @IsString()
   notes?: string;

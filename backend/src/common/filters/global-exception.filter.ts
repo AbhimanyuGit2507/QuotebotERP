@@ -14,8 +14,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   private shouldIgnoreLog(requestUrl: string, status: number): boolean {
     return (
-      status === HttpStatus.NOT_FOUND &&
-      /hot-update\.json$/i.test(requestUrl)
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
+      status === HttpStatus.NOT_FOUND && /hot-update\.json$/i.test(requestUrl)
     );
   }
 

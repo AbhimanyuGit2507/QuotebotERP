@@ -36,7 +36,10 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Record a new payment' })
   @ApiResponse({ status: 201, description: 'Payment recorded successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
   recordPayment(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RecordPaymentDto,
@@ -49,11 +52,22 @@ export class PaymentsController {
   @ApiOperation({ summary: 'List all payments with pagination' })
   @ApiResponse({ status: 200, description: 'Paginated list of payments' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
   @ApiQuery({ name: 'page', required: false, description: 'Page number' })
-  @ApiQuery({ name: 'pageSize', required: false, description: 'Items per page' })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    description: 'Items per page',
+  })
   @ApiQuery({ name: 'sortBy', required: false, description: 'Sort field' })
-  @ApiQuery({ name: 'sortOrder', required: false, description: 'Sort order: asc or desc' })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    description: 'Sort order: asc or desc',
+  })
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query('page') page?: string,
@@ -74,7 +88,10 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Get receivables aging report' })
   @ApiResponse({ status: 200, description: 'Receivables aging data' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
   getReceivablesAging(@CurrentUser() user: AuthenticatedUser) {
     return this.paymentsService.getReceivablesAging(user.tenant_id);
   }
@@ -85,7 +102,10 @@ export class PaymentsController {
   @ApiParam({ name: 'invoiceId', description: 'Invoice ID' })
   @ApiResponse({ status: 200, description: 'Payments for the invoice' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
   findByInvoice(
     @Param('invoiceId') invoiceId: string,
     @CurrentUser() user: AuthenticatedUser,

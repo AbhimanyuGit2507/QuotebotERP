@@ -42,13 +42,23 @@ export class QuotationsController {
 
   @Get()
   @RequirePermission(PERMISSIONS.QUOTATION_VIEW)
-  @ApiOperation({ summary: 'List all quotations with filtering and pagination' })
+  @ApiOperation({
+    summary: 'List all quotations with filtering and pagination',
+  })
   @ApiResponse({ status: 200, description: 'Paginated list of quotations' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiQuery({ name: 'page', required: false, description: 'Page number' })
-  @ApiQuery({ name: 'pageSize', required: false, description: 'Items per page' })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    description: 'Items per page',
+  })
   @ApiQuery({ name: 'sortBy', required: false, description: 'Sort field' })
-  @ApiQuery({ name: 'sortOrder', required: false, description: 'Sort order: asc or desc' })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    description: 'Sort order: asc or desc',
+  })
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: QuotationsQueryDto,
@@ -78,7 +88,10 @@ export class QuotationsController {
   ) {
     const csv = await this.quotationsService.exportCsv(user.tenant_id, query);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="quotations-export.csv"');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="quotations-export.csv"',
+    );
     return res.send(csv);
   }
 
@@ -92,9 +105,15 @@ export class QuotationsController {
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ) {
-    const pdf = await this.quotationsService.generatePdfBuffer(id, user.tenant_id);
+    const pdf = await this.quotationsService.generatePdfBuffer(
+      id,
+      user.tenant_id,
+    );
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="quotation-${id}.pdf"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="quotation-${id}.pdf"`,
+    );
     return res.send(pdf);
   }
 
@@ -111,7 +130,10 @@ export class QuotationsController {
   @RequirePermission(PERMISSIONS.QUOTATION_CREATE)
   @ApiOperation({ summary: 'Create a new quotation' })
   @ApiResponse({ status: 201, description: 'Quotation created successfully' })
-  create(@CurrentUser() user: AuthenticatedUser, @Body() body: CreateQuotationDto) {
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CreateQuotationDto,
+  ) {
     return this.quotationsService.create(user.tenant_id, body);
   }
 
@@ -120,7 +142,11 @@ export class QuotationsController {
   @ApiOperation({ summary: 'Update an existing quotation' })
   @ApiParam({ name: 'id', description: 'Quotation ID' })
   @ApiResponse({ status: 200, description: 'Quotation updated successfully' })
-  update(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser, @Body() body: UpdateQuotationDto) {
+  update(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateQuotationDto,
+  ) {
     return this.quotationsService.update(id, user.tenant_id, body);
   }
 
@@ -128,7 +154,11 @@ export class QuotationsController {
   @RequirePermission(PERMISSIONS.QUOTATION_EDIT)
   @ApiOperation({ summary: 'Update quotation status' })
   @ApiParam({ name: 'id', description: 'Quotation ID' })
-  updateStatus(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser, @Body('status') status: string) {
+  updateStatus(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body('status') status: string,
+  ) {
     const allowedStatuses = ['draft', 'sent', 'accepted', 'declined'];
     if (!allowedStatuses.includes(status)) {
       throw new BadRequestException('Invalid quotation status');
@@ -148,7 +178,11 @@ export class QuotationsController {
   @RequirePermission(PERMISSIONS.QUOTATION_SEND)
   @ApiOperation({ summary: 'Send quotation via email' })
   @ApiParam({ name: 'id', description: 'Quotation ID' })
-  sendByEmail(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser, @Body() body: SendQuotationEmailDto) {
+  sendByEmail(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: SendQuotationEmailDto,
+  ) {
     return this.quotationsService.sendByEmail(id, user.tenant_id, body);
   }
 
@@ -156,7 +190,10 @@ export class QuotationsController {
   @RequirePermission(PERMISSIONS.QUOTATION_VIEW)
   @ApiOperation({ summary: 'Get related purchase orders for a quotation' })
   @ApiParam({ name: 'id', description: 'Quotation ID' })
-  getPurchaseOrders(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  getPurchaseOrders(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.quotationsService.getRelatedPurchaseOrders(id, user.tenant_id);
   }
 
@@ -180,7 +217,11 @@ export class QuotationsController {
   @RequirePermission(PERMISSIONS.QUOTATION_APPROVE)
   @ApiOperation({ summary: 'Reject a quotation' })
   @ApiParam({ name: 'id', description: 'Quotation ID' })
-  reject(@Param('id') id: string, @Body('reason') reason: string, @CurrentUser() user: AuthenticatedUser) {
+  reject(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.quotationsService.reject(id, user.tenant_id, user.id, reason);
   }
 
@@ -188,8 +229,16 @@ export class QuotationsController {
   @RequirePermission(PERMISSIONS.QUOTATION_DELETE)
   @ApiOperation({ summary: 'Delete a quotation (soft or force)' })
   @ApiParam({ name: 'id', description: 'Quotation ID' })
-  @ApiQuery({ name: 'forceDeleteLinkedRfq', required: false, description: 'Also delete linked RFQ' })
-  @ApiQuery({ name: 'forceDelete', required: false, description: 'Permanently delete (admin only)' })
+  @ApiQuery({
+    name: 'forceDeleteLinkedRfq',
+    required: false,
+    description: 'Also delete linked RFQ',
+  })
+  @ApiQuery({
+    name: 'forceDelete',
+    required: false,
+    description: 'Permanently delete (admin only)',
+  })
   remove(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -199,10 +248,16 @@ export class QuotationsController {
     const forceFlag = Boolean(force === 'true' || force === '1');
     if (forceDelete === 'true') {
       if (user.role !== 'admin') {
-        throw new ForbiddenException('Only admin users can permanently delete records');
+        throw new ForbiddenException(
+          'Only admin users can permanently delete records',
+        );
       }
-      return this.quotationsService.forceDelete(id, user.tenant_id, { forceDeleteLinkedRfq: forceFlag });
+      return this.quotationsService.forceDelete(id, user.tenant_id, {
+        forceDeleteLinkedRfq: forceFlag,
+      });
     }
-    return this.quotationsService.remove(id, user.tenant_id, { forceDeleteLinkedRfq: forceFlag });
+    return this.quotationsService.remove(id, user.tenant_id, {
+      forceDeleteLinkedRfq: forceFlag,
+    });
   }
 }

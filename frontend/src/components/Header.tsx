@@ -5,6 +5,22 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import Calendar from './Calendar';
 
+// Listen for WebSocket connection status dispatched from App.tsx
+function useWsConnected() {
+  const [connected, setConnected] = useState(false);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setConnected((e as CustomEvent<{ connected: boolean }>).detail.connected);
+    };
+    window.addEventListener('ws-status', handler);
+    // Also read initial value if available
+    const initial = (window as unknown as Record<string, unknown>).__wsCon;
+    if (typeof initial === 'boolean') setConnected(initial);
+    return () => window.removeEventListener('ws-status', handler);
+  }, []);
+  return connected;
+}
+
 interface SearchResult {
   id: string;
   type: 'page' | 'rfq' | 'quote' | 'client' | 'product';
@@ -94,6 +110,7 @@ const Header: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { rfqs, quotes, clients, products, inboxMessages, companySettings } = useApp();
+  const wsConnected = useWsConnected();
 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -476,6 +493,18 @@ const Header: React.FC = () => {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-0.5 sm:gap-1">
+          {/* Live indicator */}
+          <div
+            className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium"
+            title={wsConnected ? 'Real-time updates active' : 'Connecting to real-time updates...'}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}
+            />
+            <span className={wsConnected ? 'text-green-600' : 'text-gray-400'}>
+              {wsConnected ? 'Live' : 'Offline'}
+            </span>
+          </div>
           <div className="relative" ref={quickActionsRef}>
             <button
               className={`p-1.5 sm:p-2 rounded transition-colors ${showQuickActions ? 'bg-[var(--erp-surface-strong)]' : 'hover:bg-[var(--erp-surface)]'}`}

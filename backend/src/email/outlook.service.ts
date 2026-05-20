@@ -28,10 +28,21 @@ interface DeltaResponse {
 export class OutlookService {
   private readonly logger = new Logger(OutlookService.name);
 
-  private get clientId() { return process.env.OUTLOOK_CLIENT_ID || ''; }
-  private get clientSecret() { return process.env.OUTLOOK_CLIENT_SECRET || ''; }
-  private get redirectUri() { return process.env.OUTLOOK_REDIRECT_URI || 'http://localhost:3001/api/email-integrations/outlook/callback'; }
-  private get tenant() { return process.env.OUTLOOK_TENANT || 'common'; }
+  private get clientId() {
+    return process.env.OUTLOOK_CLIENT_ID || '';
+  }
+  private get clientSecret() {
+    return process.env.OUTLOOK_CLIENT_SECRET || '';
+  }
+  private get redirectUri() {
+    return (
+      process.env.OUTLOOK_REDIRECT_URI ||
+      'http://localhost:3001/api/email-integrations/outlook/callback'
+    );
+  }
+  private get tenant() {
+    return process.env.OUTLOOK_TENANT || 'common';
+  }
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -57,7 +68,11 @@ export class OutlookService {
     });
     const res = await fetch(
       `https://login.microsoftonline.com/${this.tenant}/oauth2/v2.0/token`,
-      { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() },
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      },
     );
     if (!res.ok) {
       const err = await res.text();
@@ -79,10 +94,14 @@ export class OutlookService {
     });
     const res = await fetch(
       `https://login.microsoftonline.com/${this.tenant}/oauth2/v2.0/token`,
-      { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() },
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      },
     );
     if (!res.ok) throw new Error('Outlook token refresh failed');
-    const data = await res.json() as OutlookTokenResponse;
+    const data = (await res.json()) as OutlookTokenResponse;
 
     await this.prisma.emailAccount.update({
       where: { id: account.id },
@@ -97,26 +116,34 @@ export class OutlookService {
     return data.access_token;
   }
 
-  async listNewMessages(account: EmailAccount, deltaLink?: string): Promise<{ messages: OutlookMessage[]; nextDeltaLink?: string }> {
+  async listNewMessages(
+    account: EmailAccount,
+    deltaLink?: string,
+  ): Promise<{ messages: OutlookMessage[]; nextDeltaLink?: string }> {
     const creds = account.credentials as Record<string, string> | null;
     if (!creds?.access_token) return { messages: [] };
 
-    let url = deltaLink ||
+    let url =
+      deltaLink ||
       'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?$select=id,subject,from,receivedDateTime,body,toRecipients&$top=50';
 
     const messages: OutlookMessage[] = [];
     let finalDeltaLink: string | undefined;
 
     while (url) {
-      let res = await fetch(url, { headers: { Authorization: `Bearer ${creds.access_token}` } });
+      let res = await fetch(url, {
+        headers: { Authorization: `Bearer ${creds.access_token}` },
+      });
 
       if (res.status === 401) {
         const newToken = await this.refreshToken(account);
-        res = await fetch(url, { headers: { Authorization: `Bearer ${newToken}` } });
+        res = await fetch(url, {
+          headers: { Authorization: `Bearer ${newToken}` },
+        });
       }
 
       if (!res.ok) break;
-      const data = await res.json() as DeltaResponse;
+      const data = (await res.json()) as DeltaResponse;
       messages.push(...(data.value || []));
 
       if (data['@odata.deltaLink']) {
@@ -129,7 +156,12 @@ export class OutlookService {
     return { messages, nextDeltaLink: finalDeltaLink };
   }
 
-  async sendMessage(account: EmailAccount, to: string[], subject: string, body: string): Promise<void> {
+  async sendMessage(
+    account: EmailAccount,
+    to: string[],
+    subject: string,
+    body: string,
+  ): Promise<void> {
     const creds = account.credentials as Record<string, string> | null;
     if (!creds?.access_token) throw new Error('No access token');
 
@@ -179,11 +211,13 @@ export class OutlookService {
     });
 
     if (!res.ok) {
-      this.logger.warn(`Outlook webhook subscription failed: ${await res.text()}`);
+      this.logger.warn(
+        `Outlook webhook subscription failed: ${await res.text()}`,
+      );
       return;
     }
 
-    const data = await res.json() as { id: string };
+    const data = (await res.json()) as { id: string };
     await this.prisma.emailAccount.update({
       where: { id: account.id },
       data: {
@@ -193,33 +227,53 @@ export class OutlookService {
     });
   }
 
-  async handleCallback(code: string, tenantId: string, userId: string): Promise<void> {
+  async handleCallback(
+    code: string,
+    tenantId: string,
+    userId: string,
+  ): Promise<void> {
     const tokens = await this.exchangeCode(code);
 
     // Get user profile from Graph
-    const profileRes = await fetch('https://graph.microsoft.com/v1.0/me?$select=mail,displayName', {
-      headers: { Authorization: `Bearer ${tokens.access_token}` },
-    });
-    const profile = await profileRes.json() as { mail?: string; displayName?: string };
+    const profileRes = await fetch(
+      'https://graph.microsoft.com/v1.0/me?$select=mail,displayName',
+      {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      },
+    );
+    const profile = (await profileRes.json()) as {
+      mail?: string;
+      displayName?: string;
+    };
     const emailAddress = profile.mail || '';
 
-    if (!emailAddress) throw new Error('Could not get email address from Outlook profile');
+    if (!emailAddress)
+      throw new Error('Could not get email address from Outlook profile');
 
     const existing = await this.prisma.emailAccount.findFirst({
-      where: { tenant_id: tenantId, email_address: emailAddress, provider: 'outlook' },
+      where: {
+        tenant_id: tenantId,
+        email_address: emailAddress,
+        provider: 'outlook',
+      },
     });
 
     const accountData = {
       credentials: {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token || '',
-        expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+        expires_at: new Date(
+          Date.now() + tokens.expires_in * 1000,
+        ).toISOString(),
       },
       is_active: true,
     };
 
     const account = existing
-      ? await this.prisma.emailAccount.update({ where: { id: existing.id }, data: accountData })
+      ? await this.prisma.emailAccount.update({
+          where: { id: existing.id },
+          data: accountData,
+        })
       : await this.prisma.emailAccount.create({
           data: {
             tenant_id: tenantId,
@@ -235,11 +289,18 @@ export class OutlookService {
       await this.subscribeWebhook(account);
     }
 
-    this.logger.log(`Outlook account connected: ${emailAddress} for tenant ${tenantId}`);
+    this.logger.log(
+      `Outlook account connected: ${emailAddress} for tenant ${tenantId}`,
+    );
   }
 
-  async processWebhookNotification(body: Record<string, unknown>): Promise<void> {
-    const value = body.value as Array<{ clientState?: string; resourceData?: { id?: string } }>;
+  async processWebhookNotification(
+    body: Record<string, unknown>,
+  ): Promise<void> {
+    const value = body.value as Array<{
+      clientState?: string;
+      resourceData?: { id?: string };
+    }>;
     if (!Array.isArray(value)) return;
 
     for (const notification of value) {
@@ -252,22 +313,27 @@ export class OutlookService {
       });
 
       for (const account of accounts) {
-        const { messages, nextDeltaLink } = await this.listNewMessages(
-          { id: account.id } as EmailAccount,
-        );
+        const { messages, nextDeltaLink } = await this.listNewMessages({
+          id: account.id,
+        } as EmailAccount);
         if (nextDeltaLink) {
           await this.prisma.emailAccount.update({
             where: { id: account.id },
             data: { outlook_delta_link: nextDeltaLink },
           });
         }
-        this.logger.log(`Outlook webhook: ${messages.length} new messages for tenant ${tenantId}`);
+        this.logger.log(
+          `Outlook webhook: ${messages.length} new messages for tenant ${tenantId}`,
+        );
         // TODO: feed messages into AI pipeline via EmailRfqService
       }
     }
   }
 
-  async disconnect(tenantId: string, userId: string): Promise<{ success: boolean }> {
+  async disconnect(
+    tenantId: string,
+    userId: string,
+  ): Promise<{ success: boolean }> {
     await this.prisma.emailAccount.deleteMany({
       where: { tenant_id: tenantId, user_id: userId, provider: 'outlook' },
     });

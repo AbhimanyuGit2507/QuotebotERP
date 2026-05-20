@@ -18,14 +18,28 @@ export class EmailClassifierService {
     const text = `${subject || ''}\n${body || ''}`.toLowerCase();
 
     // Quick heuristic checks
-    const hasInvoiceKeywords = /\binvoice\b|\bbill\b|\bamount due\b|\bdue date\b|\binvoice no\b|\binv[:#]/i.test(text);
-    const hasAmount = /(?:amount\s*(?:due|:)?\s*[₹$€£]?\s?\d+[\d,.]*)|(?:total[:\s]*[₹$€£]?\s?\d+[\d,.]*)/i.test(text);
-    const invoiceMatch = text.match(/\b(inv(?:oice)?\s*(?:no\.?|number|#)?\s*[:#]?\s*([a-z0-9\-\/]{4,}))\b/i);
+    const hasInvoiceKeywords =
+      /\binvoice\b|\bbill\b|\bamount due\b|\bdue date\b|\binvoice no\b|\binv[:#]/i.test(
+        text,
+      );
+    const hasAmount =
+      /(?:amount\s*(?:due|:)?\s*[₹$€£]?\s?\d+[\d,.]*)|(?:total[:\s]*[₹$€£]?\s?\d+[\d,.]*)/i.test(
+        text,
+      );
+    const invoiceMatch = text.match(
+      /\b(inv(?:oice)?\s*(?:no\.?|number|#)?\s*[:#]?\s*([a-z0-9\-/]{4,}))\b/i,
+    );
     const invoiceNumber = invoiceMatch ? invoiceMatch[2] : undefined;
 
-    const amountMatch = text.match(/(?:amount (?:due|:)?\s*[₹$€£]?\s?([0-9,.]+))|(?:total[:\s]*[₹$€£]?\s?([0-9,.]+))/i);
-    const amountStr = amountMatch ? (amountMatch[1] || amountMatch[2]) : undefined;
-    const amount = amountStr ? Number(String(amountStr).replace(/[, ]+/g, '')) : undefined;
+    const amountMatch = text.match(
+      /(?:amount (?:due|:)?\s*[₹$€£]?\s?([0-9,.]+))|(?:total[:\s]*[₹$€£]?\s?([0-9,.]+))/i,
+    );
+    const amountStr = amountMatch
+      ? amountMatch[1] || amountMatch[2]
+      : undefined;
+    const amount = amountStr
+      ? Number(String(amountStr).replace(/[, ]+/g, ''))
+      : undefined;
 
     if (!hasInvoiceKeywords && !hasAmount) {
       return null;
@@ -45,7 +59,12 @@ export class EmailClassifierService {
       amount,
       currency: undefined,
       dueDate: undefined,
-      raw: { hasInvoiceKeywords, hasAmount, invoiceMatch: invoiceMatch ? invoiceMatch[0] : null, amountMatch: amountMatch ? amountMatch[0] : null },
+      raw: {
+        hasInvoiceKeywords,
+        hasAmount,
+        invoiceMatch: invoiceMatch ? invoiceMatch[0] : null,
+        amountMatch: amountMatch ? amountMatch[0] : null,
+      },
     };
 
     this.logger.debug(`Bill detection result: ${JSON.stringify(detection)}`);

@@ -16,17 +16,27 @@ export class UpdateQuotationDto {
   @IsString()
   client_id?: string;
 
-  @ApiPropertyOptional({ description: 'Quotation date (ISO 8601)', example: '2024-01-15' })
+  @ApiPropertyOptional({
+    description: 'Quotation date (ISO 8601)',
+    example: '2024-01-15',
+  })
   @IsOptional()
   @IsDateString()
   date?: string;
 
-  @ApiPropertyOptional({ description: 'Valid until date (ISO 8601)', example: '2024-02-15' })
+  @ApiPropertyOptional({
+    description: 'Valid until date (ISO 8601)',
+    example: '2024-02-15',
+  })
   @IsOptional()
   @IsDateString()
   valid_until?: string;
 
-  @ApiPropertyOptional({ description: 'Quotation status', example: 'draft', enum: ['draft', 'sent', 'accepted', 'declined'] })
+  @ApiPropertyOptional({
+    description: 'Quotation status',
+    example: 'draft',
+    enum: ['draft', 'sent', 'accepted', 'declined'],
+  })
   @IsOptional()
   @IsIn(['draft', 'sent', 'accepted', 'declined'])
   status?: string;
@@ -36,7 +46,10 @@ export class UpdateQuotationDto {
   @IsString()
   terms_conditions?: string;
 
-  @ApiPropertyOptional({ description: 'Line items for the quotation', type: [QuotationItemDto] })
+  @ApiPropertyOptional({
+    description: 'Line items for the quotation',
+    type: [QuotationItemDto],
+  })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })

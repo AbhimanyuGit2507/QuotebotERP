@@ -14,10 +14,18 @@ describe('ItemIntelligenceService', () => {
 
   it('calls sidecar and returns parsed JSON', async () => {
     const svc = new ItemIntelligenceService();
-    const mockResp = { ok: true, json: async () => ({ items: [] }) } as any;
+    const mockResp = {
+      ok: true,
+      json: () => Promise.resolve({ items: [] }),
+    } as any;
     (global as any).fetch.mockResolvedValue(mockResp);
 
-    const res = await svc.matchItems({ tenant_id: 't1', item_id: 'm1', extracted_items: [], mode: 'manual' } as any);
+    const res = await svc.matchItems({
+      tenant_id: 't1',
+      item_id: 'm1',
+      extracted_items: [],
+      mode: 'manual',
+    } as any);
     expect(res).toEqual({ items: [] });
   });
 });

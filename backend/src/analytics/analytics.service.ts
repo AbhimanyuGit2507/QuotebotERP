@@ -216,22 +216,17 @@ export class AnalyticsService {
       {
         name: 'Accepted',
         count: acceptedCount,
-        rate:
-          quotationCount > 0
-            ? (acceptedCount / quotationCount) * 100
-            : 0,
+        rate: quotationCount > 0 ? (acceptedCount / quotationCount) * 100 : 0,
       },
       {
         name: 'Invoiced',
         count: invoicedCount,
-        rate:
-          acceptedCount > 0 ? (invoicedCount / acceptedCount) * 100 : 0,
+        rate: acceptedCount > 0 ? (invoicedCount / acceptedCount) * 100 : 0,
       },
       {
         name: 'Paid',
         count: paidCount,
-        rate:
-          invoicedCount > 0 ? (paidCount / invoicedCount) * 100 : 0,
+        rate: invoicedCount > 0 ? (paidCount / invoicedCount) * 100 : 0,
       },
     ];
 
@@ -327,9 +322,7 @@ export class AnalyticsService {
       const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       monthlyTrend.push({
         month: monthKey,
-        projected: Math.round(
-          projectionBase > 0 ? projectionBase : avgMonthly,
-        ),
+        projected: Math.round(projectionBase > 0 ? projectionBase : avgMonthly),
       });
     }
 
@@ -399,20 +392,15 @@ export class AnalyticsService {
       for (const q of client.quotations) {
         if (q.sent_at && q.purchase_orders.length > 0) {
           const sentDate = new Date(q.sent_at).getTime();
-          const poDate = new Date(
-            q.purchase_orders[0].created_at,
-          ).getTime();
-          const days = Math.round(
-            (poDate - sentDate) / (1000 * 60 * 60 * 24),
-          );
+          const poDate = new Date(q.purchase_orders[0].created_at).getTime();
+          const days = Math.round((poDate - sentDate) / (1000 * 60 * 60 * 24));
           if (days >= 0) responseDays.push(days);
         }
       }
       const avgResponseDays =
         responseDays.length > 0
           ? Math.round(
-              (responseDays.reduce((s, d) => s + d, 0) /
-                responseDays.length) *
+              (responseDays.reduce((s, d) => s + d, 0) / responseDays.length) *
                 100,
             ) / 100
           : null;
@@ -421,10 +409,7 @@ export class AnalyticsService {
         .filter((i) => i.date >= thisQuarterStart)
         .reduce((s, i) => s + i.total, 0);
       const lastQRevenue = allInvoiceTotals
-        .filter(
-          (i) =>
-            i.date >= lastQuarterStart && i.date < thisQuarterStart,
-        )
+        .filter((i) => i.date >= lastQuarterStart && i.date < thisQuarterStart)
         .reduce((s, i) => s + i.total, 0);
       const growth =
         lastQRevenue > 0
@@ -482,9 +467,7 @@ export class AnalyticsService {
       const price = Number(product.price);
       const cost = Number(product.cost);
       const marginPercent =
-        price > 0
-          ? Math.round(((price - cost) / price) * 100 * 100) / 100
-          : 0;
+        price > 0 ? Math.round(((price - cost) / price) * 100 * 100) / 100 : 0;
 
       const totalUnitPrices = allItems.reduce(
         (sum, qi) => sum + Number(qi.unit_price),
@@ -520,9 +503,7 @@ export class AnalyticsService {
     });
     const parseSuccessRate =
       totalParseRuns > 0
-        ? Math.round(
-            (completedParseRuns / totalParseRuns) * 100 * 100,
-          ) / 100
+        ? Math.round((completedParseRuns / totalParseRuns) * 100 * 100) / 100
         : 0;
 
     // Auto-quote rate: quotations created within 1 minute of RFQ creation

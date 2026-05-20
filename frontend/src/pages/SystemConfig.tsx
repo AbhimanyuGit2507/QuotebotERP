@@ -18,13 +18,15 @@ type ConfigTab =
   | 'email-templates'
   | 'integrations'
   | 'currency'
-  | 'billing';
+  | 'billing'
+  | 'ai';
 
 const tabs: { id: ConfigTab; label: string; icon: string }[] = [
   { id: 'company', label: 'Company', icon: 'business' },
   { id: 'communication', label: 'Email', icon: 'mail' },
-  { id: 'processing', label: 'Automation', icon: 'memory' },
   { id: 'whatsapp', label: 'WhatsApp', icon: 'chat' },
+  { id: 'ai', label: 'AI & Automation', icon: 'psychology' },
+  { id: 'processing', label: 'Queue Settings', icon: 'memory' },
   { id: 'notifications', label: 'Notifications', icon: 'notifications' },
   { id: 'email-templates', label: 'Email Templates', icon: 'mail_outline' },
   { id: 'integrations', label: 'Integrations', icon: 'hub' },
@@ -109,6 +111,249 @@ const buildCompanyProfileForm = (
     bankAccountNumber: profile?.bankAccountNumber || '',
     bankIfsc: profile?.bankIfsc || '',
   };
+};
+
+/* ──────────────────────────────────────────────────────────────────
+   WhatsApp Settings Panel
+────────────────────────────────────────────────────────────────── */
+interface WhatsAppAccountItem {
+  id: string;
+  client_type: string;
+  phone_number?: string;
+  display_name?: string;
+  is_active: boolean;
+  meta_phone_number_id?: string;
+  last_connected_at?: string;
+}
+
+const WhatsAppSettings: React.FC = () => {
+  const [accounts, setAccounts] = useState<WhatsAppAccountItem[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [loading, setLoading] = useState(false);
+  const [qrData, setQrData] = useState<string | null>(null);
+  const [connectingBaileys, setConnectingBaileys] = useState(false);
+
+  const loadAccounts = React.useCallback(async () => {
+    try {
+      const data = await apiRequest<WhatsAppAccountItem[]>('/whatsapp/meta/accounts');
+      setAccounts(data);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { void loadAccounts(); }, [loadAccounts]);
+
+  const connectBaileys = async () => {
+    setConnectingBaileys(true);
+    try {
+      const res = await apiRequest<{ accountId: string }>('/whatsapp/baileys/connect', { method: 'POST' });
+      // Listen for QR via WebSocket (handled globally) or poll
+      const pollQr = async () => {
+        const qrRes = await apiRequest<{ qr: string | null; status: string }>(`/whatsapp/baileys/qr/${res.accountId}`);
+        if (qrRes.qr) setQrData(qrRes.qr);
+        else if (qrRes.status === 'connected') { setConnectingBaileys(false); void loadAccounts(); }
+        else setTimeout(() => { void pollQr(); }, 2000);
+      };
+      void pollQr();
+    } catch { setConnectingBaileys(false); }
+  };
+
+  const disconnect = async (accountId: string, type: string) => {
+    try {
+      if (type === 'baileys') await apiRequest(`/whatsapp/baileys/disconnect/${accountId}`, { method: 'DELETE' });
+      else await apiRequest(`/whatsapp/meta/disconnect/${accountId}`, { method: 'DELETE' });
+      void loadAccounts();
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--palette-deep-space)' }}>WhatsApp Integration</h2>
+        <p className="text-[13px]" style={{ color: 'rgba(0,23,31,0.55)' }}>Connect WhatsApp to receive and process RFQs via messages.</p>
+      </div>
+
+      {/* Connected accounts */}
+      {accounts.length > 0 && (
+        <div>
+          <h3 className="text-[12px] font-bold uppercase tracking-wider mb-3" style={{ color: 'rgba(0,23,31,0.4)' }}>Connected Accounts</h3>
+          <div className="space-y-2">
+            {accounts.map((acc) => (
+              <div key={acc.id} className="flex items-center justify-between p-3 rounded-xl border" style={{ borderColor: 'rgba(0,52,89,0.12)', background: 'rgba(0,52,89,0.02)' }}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-2.5 h-2.5 rounded-full ${acc.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
+                  <div>
+                    <p className="text-[13px] font-semibold" style={{ color: 'var(--palette-deep-space)' }}>
+                      {acc.client_type === 'baileys' ? 'Baileys (Personal)' : 'Meta Business'}
+                    </p>
+                    <p className="text-[11px]" style={{ color: 'rgba(0,23,31,0.45)' }}>
+                      {acc.phone_number || acc.meta_phone_number_id || 'Connecting...'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => void disconnect(acc.id, acc.client_type)}
+                  className="text-[12px] font-medium px-3 py-1.5 rounded-lg border transition-colors hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                  style={{ borderColor: 'rgba(0,52,89,0.15)', color: 'rgba(0,23,31,0.5)' }}
+                >
+                  Disconnect
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* QR Code display */}
+      {qrData && (
+        <div className="p-5 rounded-2xl border text-center" style={{ borderColor: 'rgba(0,126,167,0.3)', background: 'rgba(0,126,167,0.04)' }}>
+          <p className="text-[13px] font-semibold mb-3" style={{ color: 'var(--palette-deep-space)' }}>Scan with WhatsApp</p>
+          <img src={qrData} alt="WhatsApp QR" className="w-48 h-48 mx-auto rounded-xl" />
+          <p className="text-[11px] mt-3" style={{ color: 'rgba(0,23,31,0.45)' }}>Open WhatsApp → Settings → Linked Devices → Link a Device</p>
+        </div>
+      )}
+
+      {/* Connect buttons */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button
+          onClick={() => void connectBaileys()}
+          disabled={connectingBaileys}
+          className="flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-[13px] border transition-all hover:shadow-md disabled:opacity-50"
+          style={{ borderColor: 'rgba(0,52,89,0.2)', color: 'var(--palette-deep-space)', background: 'var(--palette-white)' }}
+        >
+          <span className="material-symbols-outlined text-[18px]" style={{ color: '#25D366' }}>qr_code</span>
+          {connectingBaileys ? 'Connecting...' : 'Connect via Baileys (Quick)'}
+        </button>
+        <a
+          href="/api/whatsapp/meta/auth"
+          className="flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-[13px] border transition-all hover:shadow-md"
+          style={{ borderColor: 'rgba(0,52,89,0.2)', color: 'var(--palette-deep-space)', background: 'var(--palette-white)' }}
+        >
+          <span className="material-symbols-outlined text-[18px]" style={{ color: '#1877F2' }}>business</span>
+          Connect via Meta (Business)
+        </a>
+      </div>
+    </div>
+  );
+};
+
+/* ──────────────────────────────────────────────────────────────────
+   AI & Automation Settings Panel
+────────────────────────────────────────────────────────────────── */
+const AISettingsPanel: React.FC = () => {
+  const [config, setConfig] = useState<{
+    semantic_reranker_enabled: boolean;
+    semantic_weight: number;
+    suggestion_threshold: number;
+    auto_accept_threshold: number;
+    mode: string;
+  } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    void apiRequest<{
+      semantic_reranker_enabled?: boolean;
+      semantic_weight?: number;
+      suggestion_threshold?: number;
+      auto_accept_threshold?: number;
+      mode?: string;
+    }>('/settings/item-match-config').then((d) => {
+      setConfig({
+        semantic_reranker_enabled: d.semantic_reranker_enabled ?? false,
+        semantic_weight: d.semantic_weight ?? 0.5,
+        suggestion_threshold: d.suggestion_threshold ?? 0.8,
+        auto_accept_threshold: d.auto_accept_threshold ?? 0.92,
+        mode: d.mode ?? 'manual',
+      });
+    }).catch(() => {});
+  }, []);
+
+  const save = async () => {
+    if (!config) return;
+    setSaving(true);
+    try {
+      await apiRequest('/settings/item-match-config', { method: 'PUT', body: JSON.stringify(config), headers: { 'Content-Type': 'application/json' } });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch { /* ignore */ }
+    setSaving(false);
+  };
+
+  if (!config) return <div className="text-[13px] text-[var(--erp-text-muted)]">Loading AI settings...</div>;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--palette-deep-space)' }}>AI & Automation</h2>
+        <p className="text-[13px]" style={{ color: 'rgba(0,23,31,0.55)' }}>Configure AI matching and classification settings.</p>
+      </div>
+
+      <div className="space-y-5">
+        <div className="flex items-center justify-between p-4 rounded-xl border" style={{ borderColor: 'rgba(0,52,89,0.12)' }}>
+          <div>
+            <p className="text-[13px] font-semibold" style={{ color: 'var(--palette-deep-space)' }}>Semantic Reranker</p>
+            <p className="text-[11px] mt-0.5" style={{ color: 'rgba(0,23,31,0.45)' }}>Use AI embeddings to improve product matching accuracy</p>
+          </div>
+          <button
+            onClick={() => setConfig((c) => c ? { ...c, semantic_reranker_enabled: !c.semantic_reranker_enabled } : c)}
+            className={`relative w-11 h-6 rounded-full transition-colors ${config.semantic_reranker_enabled ? 'bg-[var(--palette-cerulean)]' : 'bg-gray-300'}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${config.semantic_reranker_enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+
+        {config.semantic_reranker_enabled && (
+          <div className="p-4 rounded-xl border space-y-3" style={{ borderColor: 'rgba(0,52,89,0.12)' }}>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[12px] font-semibold" style={{ color: 'var(--palette-deep-space)' }}>Semantic Weight</label>
+                <span className="text-[12px] font-bold" style={{ color: 'var(--palette-cerulean)' }}>{config.semantic_weight.toFixed(2)}</span>
+              </div>
+              <input
+                type="range" min={0} max={1} step={0.05}
+                value={config.semantic_weight}
+                onChange={(e) => setConfig((c) => c ? { ...c, semantic_weight: parseFloat(e.target.value) } : c)}
+                className="w-full accent-[var(--palette-cerulean)]"
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="p-4 rounded-xl border space-y-3" style={{ borderColor: 'rgba(0,52,89,0.12)' }}>
+          <p className="text-[12px] font-bold uppercase tracking-wider" style={{ color: 'rgba(0,23,31,0.4)' }}>Matching Mode</p>
+          <div className="flex gap-2">
+            {['manual', 'suggest', 'auto'].map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setConfig((c) => c ? { ...c, mode } : c)}
+                className={`flex-1 py-2 rounded-lg text-[12px] font-semibold transition-colors capitalize border ${config.mode === mode ? 'text-white border-transparent' : 'border-gray-200 text-[var(--erp-text-muted)]'}`}
+                style={config.mode === mode ? { background: 'var(--palette-cerulean)' } : {}}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => void save()}
+            disabled={saving}
+            className="px-5 py-2.5 rounded-xl font-bold text-[13px] transition-all hover:opacity-90 disabled:opacity-50"
+            style={{ background: 'var(--palette-cerulean)', color: '#fff' }}
+          >
+            {saving ? 'Saving...' : 'Save AI Settings'}
+          </button>
+          {saved && (
+            <span className="flex items-center gap-1 text-[12px] text-green-600 font-medium">
+              <span className="material-symbols-outlined text-[16px]">check_circle</span>
+              Saved!
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const SystemConfig: React.FC = () => {
@@ -943,7 +1188,9 @@ const SystemConfig: React.FC = () => {
       case 'communication':
         return <EmailIntegrations onSuccess={refreshData} />;
       case 'whatsapp':
-        return renderStaticContent('WhatsApp Configuration', 'WhatsApp business profile and auto-reply settings.');
+        return <WhatsAppSettings />;
+      case 'ai':
+        return <AISettingsPanel />;
       case 'email-templates':
         return <EmailTemplatesContent />;
       case 'integrations':
@@ -960,50 +1207,64 @@ const SystemConfig: React.FC = () => {
   return (
     <>
       <PageLayout>
-        <main className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
-          <div className="h-11 border-b border-[var(--erp-border)] flex items-center px-3 bg-slate-50 shrink-0 gap-0.5 overflow-x-auto">
-            {visibleTabs.map((tab) => (
-              <button
-                key={tab.id}
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-medium rounded transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'bg-white text-[var(--erp-accent)] shadow-sm border border-[var(--erp-border)]'
-                    : 'text-[var(--erp-text-muted)] hover:text-[var(--erp-text)] hover:bg-white/50'
-                }`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <span className="material-symbols-outlined !text-[16px]">{tab.icon}</span>
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        <main className="flex-1 flex min-w-0 bg-white overflow-hidden">
+          {/* Settings Sidebar */}
+          <aside
+            className="w-[200px] shrink-0 border-r border-[var(--erp-border)] flex flex-col overflow-y-auto"
+            style={{ background: 'var(--palette-deep-space)' }}
+          >
+            <div className="px-4 py-3.5 border-b border-[rgba(255,255,255,0.1)]">
+              <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.4)' }}>Settings</p>
+            </div>
+            <nav className="py-2 flex-1">
+              {visibleTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors text-left ${
+                    activeTab === tab.id ? 'text-white' : 'text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-[rgba(255,255,255,0.06)]'
+                  }`}
+                  style={
+                    activeTab === tab.id
+                      ? { backgroundImage: 'linear-gradient(90deg, rgba(0,126,167,1) 0%, rgba(0,167,225,0.85) 42%, rgba(0,52,89,0) 100%)' }
+                      : undefined
+                  }
+                >
+                  <span className="material-symbols-outlined !text-[18px]">{tab.icon}</span>
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </aside>
 
-          <div className="flex-1 overflow-y-auto p-5">
-            <div className="max-w-4xl">{renderTabContent()}</div>
-          </div>
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="max-w-4xl">{renderTabContent()}</div>
+            </div>
 
-          <div className="h-12 border-t border-[var(--erp-border)] bg-slate-50 flex items-center justify-between px-5 shrink-0">
-            <span className="text-[11px] text-[var(--erp-text-muted)]">
-              {hasUnsavedChanges
-                ? 'You have unsaved changes'
-                : 'Settings are in sync'}
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={handleDiscard}
-                className="px-4 py-1.5 text-sm font-medium text-[var(--erp-text-muted)] hover:text-[var(--erp-text)]"
-                disabled={!hasUnsavedChanges || isSaving}
-              >
-                Discard
-              </button>
-              <button
-                onClick={handleSave}
-                className="btn btn-primary btn-md"
-                disabled={!hasUnsavedChanges || isSaving}
-              >
-                <span className="material-symbols-outlined !text-[16px]">save</span>
-                {isSaving ? 'Saving...' : 'Save'}
-              </button>
+            <div className="h-12 border-t border-[var(--erp-border)] bg-slate-50 flex items-center justify-between px-5 shrink-0">
+              <span className="text-[11px] text-[var(--erp-text-muted)]">
+                {hasUnsavedChanges
+                  ? 'You have unsaved changes'
+                  : 'Settings are in sync'}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDiscard}
+                  className="px-4 py-1.5 text-sm font-medium text-[var(--erp-text-muted)] hover:text-[var(--erp-text)]"
+                  disabled={!hasUnsavedChanges || isSaving}
+                >
+                  Discard
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="btn btn-primary btn-md"
+                  disabled={!hasUnsavedChanges || isSaving}
+                >
+                  <span className="material-symbols-outlined !text-[16px]">save</span>
+                  {isSaving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
             </div>
           </div>
         </main>

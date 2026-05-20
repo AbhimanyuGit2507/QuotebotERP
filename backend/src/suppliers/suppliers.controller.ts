@@ -9,7 +9,12 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { SuppliersService } from './suppliers.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
@@ -56,7 +61,10 @@ export class SuppliersController {
   @RequirePermission(PERMISSIONS.SUPPLIER_CREATE)
   @ApiOperation({ summary: 'Create a new supplier' })
   @ApiResponse({ status: 201, description: 'Supplier created' })
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateSupplierDto) {
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateSupplierDto,
+  ) {
     return this.suppliersService.create(user.tenant_id, dto);
   }
 

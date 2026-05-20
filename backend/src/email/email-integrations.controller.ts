@@ -264,14 +264,19 @@ export class EmailIntegrationsController {
 
       const body = req.body as Record<string, unknown>;
       if (body?.message) {
-        const msgData = (body.message as Record<string, unknown>).data as string;
+        const msgData = (body.message as Record<string, unknown>)
+          .data as string;
         if (msgData) {
-          const decoded = JSON.parse(Buffer.from(msgData, 'base64').toString('utf8')) as {
+          const decoded = JSON.parse(
+            Buffer.from(msgData, 'base64').toString('utf8'),
+          ) as {
             emailAddress?: string;
             historyId?: string;
           };
           if (decoded.emailAddress) {
-            const account = await this.emailService['prisma'].emailAccount.findFirst({
+            const account = await this.emailService[
+              'prisma'
+            ].emailAccount.findFirst({
               where: { email_address: decoded.emailAddress, is_active: true },
               select: { id: true },
             });
@@ -294,7 +299,9 @@ export class EmailIntegrationsController {
     const tenantId = req.user?.tenant_id;
     const topic = process.env.GMAIL_PUBSUB_TOPIC;
     if (!topic) {
-      return { message: 'GMAIL_PUBSUB_TOPIC not configured — skipping watch setup' };
+      return {
+        message: 'GMAIL_PUBSUB_TOPIC not configured — skipping watch setup',
+      };
     }
     return this.emailService.setupGmailWatch(tenantId, topic);
   }
@@ -304,8 +311,10 @@ export class EmailIntegrationsController {
   /** GET /api/email-integrations/outlook/auth */
   @UseGuards(JwtAuthGuard)
   @Get('outlook/auth')
-  async outlookAuth(@Req() req: Request & { user: AuthenticatedUser }) {
-    const state = Buffer.from(JSON.stringify({ tenantId: req.user.tenant_id, userId: req.user.id })).toString('base64');
+  outlookAuth(@Req() req: Request & { user: AuthenticatedUser }) {
+    const state = Buffer.from(
+      JSON.stringify({ tenantId: req.user.tenant_id, userId: req.user.id }),
+    ).toString('base64');
     return { url: this.outlookService.getAuthUrl(state) };
   }
 
@@ -317,22 +326,32 @@ export class EmailIntegrationsController {
     @Res() res: Response,
   ) {
     try {
-      const { tenantId, userId } = JSON.parse(Buffer.from(state, 'base64').toString('utf8')) as {
+      const { tenantId, userId } = JSON.parse(
+        Buffer.from(state, 'base64').toString('utf8'),
+      ) as {
         tenantId: string;
         userId: string;
       };
       await this.outlookService.handleCallback(code, tenantId, userId);
-      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/system-config?tab=email&connected=outlook`);
+      res.redirect(
+        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/system-config?tab=email&connected=outlook`,
+      );
     } catch (err) {
       this.logger.error(`Outlook callback error: ${(err as Error).message}`);
-      res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/system-config?tab=email&error=outlook`);
+      res.redirect(
+        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/system-config?tab=email&error=outlook`,
+      );
     }
   }
 
   /** POST /api/email-integrations/outlook/webhook */
   @Post('outlook/webhook')
   @HttpCode(200)
-  async outlookWebhook(@Query('validationToken') validationToken: string, @Req() req: Request, @Res() res: Response) {
+  async outlookWebhook(
+    @Query('validationToken') validationToken: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
     // Graph API validation handshake
     if (validationToken) {
       res.setHeader('Content-Type', 'text/plain');
@@ -354,7 +373,8 @@ export class EmailIntegrationsController {
   async outlookDisconnect(@Req() req: Request & { user: AuthenticatedUser }) {
     const tenantId = req.user?.tenant_id;
     const userId = req.user?.id;
-    if (!tenantId || !userId) throw new BadRequestException('Missing user context');
+    if (!tenantId || !userId)
+      throw new BadRequestException('Missing user context');
     return this.outlookService.disconnect(tenantId, userId);
   }
 }

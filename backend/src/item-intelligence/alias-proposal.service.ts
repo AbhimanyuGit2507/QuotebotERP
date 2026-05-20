@@ -25,7 +25,9 @@ export class AliasProposalService {
         await this.proposeFeedbackAliases(tenant.id);
       }
     } catch (e) {
-      this.logger.error('Cron job error in scanAndProposeFeedback: ' + (e as Error).message);
+      this.logger.error(
+        'Cron job error in scanAndProposeFeedback: ' + (e as Error).message,
+      );
     }
   }
 
@@ -62,7 +64,9 @@ export class AliasProposalService {
         if (!feedbackRecord || !feedbackRecord.selected_product_id) continue;
 
         // get the best candidate for this run
-        const bestCandidate = (run as any).candidates.sort((a, b) => Number(b.score) - Number(a.score))[0];
+        const bestCandidate = (run as any).candidates.sort(
+          (a, b) => Number(b.score) - Number(a.score),
+        )[0];
         if (!bestCandidate) continue;
 
         // if user selected a different product than the top candidate,
@@ -80,7 +84,9 @@ export class AliasProposalService {
         }
       }
     } catch (e) {
-      this.logger.error(`Error proposing aliases for tenant ${tenantId}: ${(e as Error).message}`);
+      this.logger.error(
+        `Error proposing aliases for tenant ${tenantId}: ${(e as Error).message}`,
+      );
     }
   }
 
@@ -110,7 +116,10 @@ export class AliasProposalService {
           where: { id: existing.id },
           data: {
             feedback_count: { increment: 1 },
-            confidence: confidence > Number(existing.confidence) ? confidence : existing.confidence,
+            confidence:
+              confidence > Number(existing.confidence)
+                ? confidence
+                : existing.confidence,
             updated_at: new Date(),
           },
         });

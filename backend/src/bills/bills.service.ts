@@ -13,14 +13,21 @@ export class BillsService {
     extract: Record<string, unknown>;
     confidence: number; // 0..1
   }) {
-    const reviewThreshold = Number(process.env.EMAIL_CLASSIFIER_BILL_CONFIDENCE_REVIEW || 0.6);
-    const autoConfirmThreshold = Number(process.env.EMAIL_CLASSIFIER_BILL_CONFIDENCE_AUTO || 0.85);
+    const reviewThreshold = Number(
+      process.env.EMAIL_CLASSIFIER_BILL_CONFIDENCE_REVIEW || 0.6,
+    );
+    const autoConfirmThreshold = Number(
+      process.env.EMAIL_CLASSIFIER_BILL_CONFIDENCE_AUTO || 0.85,
+    );
 
     if (Number(params.confidence || 0) < reviewThreshold) {
       return null;
     }
 
-    const status = params.confidence >= autoConfirmThreshold ? 'CONFIRMED' : 'REVIEW_PENDING';
+    const status =
+      params.confidence >= autoConfirmThreshold
+        ? 'CONFIRMED'
+        : 'REVIEW_PENDING';
 
     const created = await this.prisma.bill.create({
       data: {
@@ -29,9 +36,14 @@ export class BillsService {
         from_email: params.fromEmail,
         subject: params.subject,
         invoice_number: (params.extract.invoiceNumber as string) || undefined,
-        amount: params.extract.amount ? Number(params.extract.amount) : undefined,
+        amount: params.extract.amount
+          ? Number(params.extract.amount)
+          : undefined,
         currency: (params.extract.currency as string) || undefined,
-        due_date: params.extract.dueDate ? new Date(String(params.extract.dueDate)) : undefined,
+
+        due_date: params.extract.dueDate
+          ? new Date(params.extract.dueDate as string)
+          : undefined,
         confidence: Number(params.confidence || 0),
         raw_extract: params.extract as any,
         status,
